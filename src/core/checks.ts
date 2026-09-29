@@ -18,9 +18,10 @@
  */
 
 import type { SitemapPolicy } from "./declare";
+import { freshnessReport, type FreshnessPolicy } from "./freshness";
 import type { SeoGraph, SeoNode } from "./graph";
 import type { LinkEdge } from "./links";
-import { isSitemapEligible } from "./projections";
+import { isSitemapEligible, parseDeclaredDate } from "./projections";
 
 export type Severity = "structural" | "editorial";
 
@@ -264,6 +265,33 @@ const CHECK_RULES: ReadonlyArray<CheckRule> = [
         })),
   },
   {
+    // Every declared date feeds the sitemap's `<lastmod>`, and the sitemap
+    // projection refuses a date it cannot parse. Catch it here, at the
+    // declaration, instead of as a failed sitemap request.
+    name: "invalid-date",
+    severity: "structural",
+    evaluate: (graph) =>
+      [...graph.nodes.values()].flatMap((node) => {
+        const dates: Array<[string, string | undefined]> = node.instance
+          ? [
+              ["publishedAt", node.instance.publishedAt],
+              ["modifiedAt", node.instance.modifiedAt],
+            ]
+          : [["modifiedAt", node.policy.modifiedAt]];
+        return dates.flatMap(([field, value]) =>
+          value !== undefined && parseDeclaredDate(value) === undefined
+            ? [
+                {
+                  path: node.path,
+                  message: `${field} "${value}" is not an ISO 8601 date on a real calendar day.`,
+                  fix: `Write ${field} as an ISO 8601 date, e.g. "2026-09-29".`,
+                },
+              ]
+            : [],
+        );
+      }),
+  },
+  {
     name: "duplicate-title",
     severity: "editorial",
     evaluate: (graph) =>
@@ -325,14 +353,23 @@ const CHECK_RULES: ReadonlyArray<CheckRule> = [
 ];
 
 /**
- * Run every static rule against the graph, then any caller-supplied
- * {@link CoverageRule}s, and return the flat list of violations. With no
- * `coverage` option the result is exactly the static rule set.
+ * Options for {@link checkGraph}. Freshness needs a clock, and the engine stays
+ * pure, so a freshness policy is only accepted together with the `now` it is
+ * judged against.
  */
-export function checkGraph(
-  graph: SeoGraph,
-  options: { readonly coverage?: ReadonlyArray<CoverageRule> | undefined } = {},
-): Array<Violation> {
+export type CheckGraphOptions = {
+  readonly coverage?: ReadonlyArray<CoverageRule> | undefined;
+} & (
+  | { readonly freshness: FreshnessPolicy; readonly now: Date }
+  | { readonly freshness?: undefined; readonly now?: undefined }
+);
+
+/**
+ * Run every static rule against the graph, then any caller-supplied
+ * {@link CoverageRule}s and freshness policy, and return the flat list of
+ * violations. With no options the result is exactly the static rule set.
+ */
+export function checkGraph(graph: SeoGraph, options: CheckGraphOptions = {}): Array<Violation> {
   const violations: Array<Violation> = CHECK_RULES.flatMap((rule) =>
     rule.evaluate(graph).map((raw): Violation => ({
       severity: rule.severity,
@@ -346,11 +383,33 @@ export function checkGraph(
   if (coverage !== undefined && coverage.length > 0) {
     violations.push(...checkCoverage(graph, coverage));
   }
+  if (options.freshness !== undefined) {
+    violations.push(...checkFreshness(graph, options.freshness, options.now));
+  }
   return violations;
 }
 
+/**
+ * One editorial `stale-page` violation per sitemap-eligible page whose last
+ * declared change is older than the policy allows. Undated pages are not
+ * violations: see {@link freshnessReport} for the full picture.
+ */
+export function checkFreshness(
+  graph: SeoGraph,
+  policy: FreshnessPolicy,
+  now: Date,
+): Array<Violation> {
+  return freshnessReport(graph, policy, now).stale.map((entry) => ({
+    severity: "editorial",
+    rule: "stale-page",
+    path: entry.path,
+    message: `Last changed ${entry.lastModified.slice(0, 10)}, ${entry.ageDays} days ago (limit ${policy.maxAgeDays}).`,
+    fix: "Review the page; when its content changes, update its modifiedAt.",
+  }));
+}
+
 /** Escape a glob for `RegExp`, then expand `**`, `*`, and `?` to path-aware forms. */
-const globToRegExp = (glob: string): RegExp => {
+export const globToRegExp = (glob: string): RegExp => {
   const escaped = glob.replace(/[.+^${}()|[\]\\]/g, "\\$&");
   const source = escaped
     .replace(/\*\*/g, "\u0000")

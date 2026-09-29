@@ -158,7 +158,7 @@ export const allowedByRobots = (path: string, rules: ReadonlyArray<{ path: strin
 };
 
 /** Run `run` over `items` with at most `limit` in flight, preserving order. */
-const mapLimit = async <A, B>(
+export const mapLimit = async <A, B>(
   items: ReadonlyArray<A>,
   limit: number,
   run: (item: A) => Promise<B>,

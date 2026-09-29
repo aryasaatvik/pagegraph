@@ -13,6 +13,7 @@ import { planCommandGroup } from "./commands/plan";
 import { researchCommandGroup } from "./commands/research";
 import { robotsCommand } from "./commands/robots";
 import { sitemapCommand } from "./commands/sitemap";
+import { staleCommand } from "./commands/stale";
 import { skillsCommand } from "./commands/skills";
 
 /**
@@ -56,6 +57,7 @@ export const cli = Command.make("pagegraph").pipe(
     checkCommand,
     sitemapCommand,
     skillsCommand,
+    staleCommand,
     robotsCommand,
   ]),
 );

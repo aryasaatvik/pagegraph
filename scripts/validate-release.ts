@@ -318,7 +318,7 @@ try {
       }
       if (url.pathname === "/llms.txt") return new Response("# Fixture\n");
       return new Response(
-        `<!doctype html><title>Representative packed audit fixture</title><meta name="description" content="A representative packed audit fixture with enough descriptive content for deterministic release validation."><link rel="canonical" href="${url.origin}/">`,
+        `<!doctype html><title>Representative packed audit fixture</title><meta name="description" content="A representative packed audit fixture with enough descriptive content for deterministic release validation."><link rel="canonical" href="${url.origin}/"><h1>Representative packed audit fixture</h1>`,
         { headers: { "content-type": "text/html" } },
       );
     },

@@ -55,6 +55,23 @@ const isCoverageRules = (value: unknown): value is ReadonlyArray<CoverageRule> =
       (rule["minInbound"] as number) > 0,
   );
 
+const isPositiveInteger = (value: unknown): value is number =>
+  Number.isSafeInteger(value) && (value as number) > 0;
+
+const isContentPolicy = (value: unknown): boolean =>
+  Predicate.isObject(value) &&
+  (value["minWords"] === undefined ||
+    (Array.isArray(value["minWords"]) &&
+      value["minWords"].every(
+        (rule) =>
+          Predicate.isObject(rule) &&
+          Predicate.isString(rule["path"]) &&
+          isPositiveInteger(rule["minWords"]),
+      )));
+
+const isFreshnessPolicy = (value: unknown): boolean =>
+  Predicate.isObject(value) && isPositiveInteger(value["maxAgeDays"]);
+
 const isStringRecord = (value: unknown): value is Readonly<Record<string, string>> =>
   Predicate.isObject(value) && Object.values(value).every(Predicate.isString);
 
@@ -98,6 +115,8 @@ const isSeoCliConfig = (value: unknown): value is SeoCliConfig =>
   (value["directives"] === undefined || isStringArray(value["directives"])) &&
   (value["transform"] === undefined || Predicate.isFunction(value["transform"])) &&
   (value["coverage"] === undefined || isCoverageRules(value["coverage"])) &&
+  (value["content"] === undefined || isContentPolicy(value["content"])) &&
+  (value["freshness"] === undefined || isFreshnessPolicy(value["freshness"])) &&
   (value["workflows"] === undefined || isWorkflowConfig(value["workflows"]));
 
 /** Import and validate one config path. */

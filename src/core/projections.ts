@@ -71,15 +71,45 @@ function urlForNode(origin: string, node: SeoNode): string {
 }
 
 /**
- * Instance lastmod: the most recent date the page's frontmatter carries. A
- * collection whose instances carry no dates (docs, a manifest-driven gallery)
- * emits no `<lastmod>` at all.
+ * The date a node's content last changed, as declared: an instance's
+ * `modifiedAt`, else its `publishedAt`; a route's own `modifiedAt`. A node with
+ * no date (a docs page without frontmatter dates, an undated route) returns
+ * undefined, and the sitemap omits its `<lastmod>`.
  */
-function instanceLastmod(node: SeoNode): string | undefined {
-  const instance = node.instance;
-  if (!instance) return undefined;
-  const date = instance.modifiedAt ?? instance.publishedAt;
-  return date ? new Date(date).toISOString() : undefined;
+export function lastModified(node: SeoNode): string | undefined {
+  if (node.instance) return node.instance.modifiedAt ?? node.instance.publishedAt;
+  return node.policy.modifiedAt;
+}
+
+/** An ISO 8601 date, or a date-time that states its offset. */
+const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})(?:T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:\d{2}))?$/;
+
+/**
+ * Parse a declared date to epoch milliseconds, or undefined when it is not an
+ * ISO 8601 date (`2026-09-29`) or offset date-time (`2026-09-29T10:00:00Z`) on a
+ * real calendar day. `Date.parse` alone would accept "Sep 29" in the host's
+ * zone and roll "2026-02-30" into March; either would publish a wrong
+ * `<lastmod>`. The `invalid-date` check reports the undefined case, so
+ * projections that meet one fail loudly.
+ */
+export function parseDeclaredDate(value: string): number | undefined {
+  const match = ISO_DATE.exec(value);
+  if (match === null) return undefined;
+  const [year, month, day] = [Number(match[1]), Number(match[2]), Number(match[3])];
+  const calendar = new Date(Date.UTC(year, month - 1, day));
+  if (calendar.getUTCMonth() !== month - 1 || calendar.getUTCDate() !== day) return undefined;
+  const time = Date.parse(value);
+  return Number.isNaN(time) ? undefined : time;
+}
+
+function sitemapLastmod(node: SeoNode): string | undefined {
+  const date = lastModified(node);
+  if (date === undefined) return undefined;
+  const time = parseDeclaredDate(date);
+  if (time === undefined) {
+    throw new Error(`"${node.path}" declares an invalid date "${date}"; run \`pagegraph check\`.`);
+  }
+  return new Date(time).toISOString();
 }
 
 function renderUrlEntry(url: string, lastmod: string | undefined, node: SeoNode): string {
@@ -97,9 +127,9 @@ function renderUrlEntry(url: string, lastmod: string | undefined, node: SeoNode)
 }
 
 /**
- * Render sitemap.xml from the graph. Structural route entries emit no `<lastmod>`
- * (a route has no publish date); content instances emit it from their frontmatter.
- * Route entries are sorted by path, then instances follow in collection order.
+ * Render sitemap.xml from the graph. Each entry's `<lastmod>` is its
+ * {@link lastModified} date: frontmatter for content instances, the declared
+ * `modifiedAt` for routes. Route entries are sorted by path, then instances follow in collection order.
  * `indexable` is intentionally unused — the sitemap body is host-independent;
  * robots.txt is what gates crawling.
  */
@@ -117,7 +147,7 @@ export function renderSitemap(graph: SeoGraph, cfg: ProjectionConfig): string {
     const key = url.toLowerCase().replace(/\/$/, "");
     if (seen.has(key)) continue;
     seen.add(key);
-    entries.push(renderUrlEntry(url, instanceLastmod(node), node));
+    entries.push(renderUrlEntry(url, sitemapLastmod(node), node));
   }
 
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${entries.join(

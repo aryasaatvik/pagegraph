@@ -266,7 +266,7 @@ describe("buildSeoGraph", () => {
 });
 
 describe("renderSitemap", () => {
-  it("omits <lastmod> on static routes but emits it on content instances", () => {
+  it("omits <lastmod> on undated static routes but emits it on content instances", () => {
     const sitemap = renderSitemap(buildFixtureGraph(), { origin: ORIGIN, indexable: true });
     // static /pricing: <loc> flows straight into <changefreq>, no <lastmod>
     expect(sitemap).toContain(`<loc>${ORIGIN}/pricing</loc>\n    <changefreq>weekly</changefreq>`);
@@ -284,6 +284,56 @@ describe("renderSitemap", () => {
   it("omits <lastmod> for an instance whose collection carries no dates", () => {
     const sitemap = renderSitemap(buildFixtureGraph(), { origin: ORIGIN, indexable: true });
     expect(sitemap).toContain(`<loc>${ORIGIN}/docs</loc>\n    <changefreq>weekly</changefreq>`);
+  });
+
+  it("emits a route's declared modifiedAt as its lastmod, without passing it to instances", () => {
+    const tree = route({ seo: { kind: "page" } }, [
+      route({ path: "/pricing", seo: { kind: "hub", crumb: "Pricing" } }, [
+        route({
+          path: "/",
+          seo: {
+            kind: "page",
+            sitemap: { priority: 0.9, changeFrequency: "weekly" },
+            modifiedAt: "2026-09-01",
+          },
+        }),
+      ]),
+      route({
+        path: "/blog/$slug",
+        seo: {
+          kind: "article",
+          sitemap: { priority: 0.7, changeFrequency: "weekly" },
+          modifiedAt: "2026-09-02",
+        },
+      }),
+    ]) as AnyRoute;
+    const graph = buildSeoGraph({
+      routeTree: tree,
+      collections: [
+        { route: "/blog/$slug", source: "blog", instances: [{ path: "/blog/undated", title: "Undated" }] },
+      ],
+    });
+    const sitemap = renderSitemap(graph, { origin: ORIGIN, indexable: true });
+    expect(sitemap).toContain(
+      `<loc>${ORIGIN}/pricing</loc>\n    <lastmod>2026-09-01T00:00:00.000Z</lastmod>`,
+    );
+    expect(sitemap).toContain(`<loc>${ORIGIN}/blog/undated</loc>\n    <changefreq>`);
+  });
+
+  it("refuses to render an invalid date instead of emitting a bogus lastmod", () => {
+    const tree = route({ seo: { kind: "page" } }, [
+      route({
+        path: "/pricing",
+        seo: {
+          kind: "page",
+          sitemap: { priority: 0.9, changeFrequency: "weekly" },
+          modifiedAt: "last tuesday",
+        },
+      }),
+    ]) as AnyRoute;
+    expect(() =>
+      renderSitemap(buildSeoGraph({ routeTree: tree }), { origin: ORIGIN, indexable: true }),
+    ).toThrow(/"\/pricing" declares an invalid date "last tuesday"/);
   });
 
   it("excludes noindex hubs, redirects, and param templates", () => {

@@ -49,6 +49,12 @@ export interface RouteSeo {
   link?: { title: string; description: string } | undefined;
   /** This route is a redirect/alias. */
   redirectTo?: PublicPath | undefined;
+  /**
+   * When this page's content last changed meaningfully, as an ISO 8601 date.
+   * Feeds the sitemap `<lastmod>` and the freshness report. Content instances
+   * carry their own dates instead; a param route's value is never inherited.
+   */
+  modifiedAt?: string | undefined;
 }
 
 declare module "@tanstack/react-router" {

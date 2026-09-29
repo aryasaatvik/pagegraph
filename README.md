@@ -99,6 +99,7 @@ export const Route = createFileRoute("/pricing")({
       sitemap: { priority: 0.9, changeFrequency: "weekly" },
       related: ["/features", "/docs"],
       link: { title: "Pricing", description: "Simple volume pricing." },
+      modifiedAt: "2026-09-29", // sitemap <lastmod> and the freshness report
     },
   },
   head: (ctx) =>
@@ -360,9 +361,15 @@ severities:
 - **structural** — internally broken declarations; these fail `pagegraph check` (exit 1):
   dead or duplicate edges, path collisions, a redirect in the sitemap, a
   sitemap/noindex contradiction, a `related` target with no `link` card, an
-  instance without a title, or an unmet contextual-link coverage rule.
+  instance without a title, a date that is not ISO 8601, or an unmet
+  contextual-link coverage rule.
 - **editorial** — quality smells, reported but non-failing: duplicate or mis-sized
-  titles and descriptions.
+  titles and descriptions, and pages older than the freshness policy.
+
+Each sitemap entry's `<lastmod>` is the page's last declared change: an
+instance's `modifiedAt`, else its `publishedAt`; a route's `modifiedAt`. A param
+route's date is never inherited by its instances. Undated pages emit no
+`<lastmod>`.
 
 ## Coverage gate (Vite)
 
@@ -412,6 +419,8 @@ export default defineSeoConfig({
 
 ```bash
 pagegraph check                 # CI gate — exit 1 on structural violations
+pagegraph check --site <url>    # also check every declared page's rendered HTML
+pagegraph stale                 # refresh queue: sitemap pages past the freshness policy
 pagegraph graph                 # the graph as a tree · --format mermaid | json
 pagegraph inspect /pricing      # one node: policy, sitemap status, in/out edges
 pagegraph inspect <url> --live  # fetch a deployed page, validate its rendered <head>
@@ -585,6 +594,83 @@ pagegraph check --require-inbound "/pricing=2" --require-inbound "/features/*=1"
 actually served, assert the same policy on the rendered graph — see
 [Assert coverage on the rendered graph](#assert-coverage-on-the-rendered-graph).
 
+### Check rendered content
+
+The declared graph cannot see what a page renders: headings come from
+components, and the `<title>`, JSON-LD, and visible text are composed at render
+time. `pagegraph check --site <url>` fetches every sitemap-eligible page (and
+every concrete page that declares `noindex`) from a running server and checks
+the server-rendered HTML — what a crawler receives before any script runs. A
+server error or failed request is retried once, because a dev server's first
+render of a route can fail while it compiles.
+
+```bash
+pagegraph check --site http://localhost:3000 --allow-private
+pagegraph check --site https://staging.example.com --json | jq '.violations'
+```
+
+| Rule | Severity | Fails when |
+| --- | --- | --- |
+| `rendered-page-unavailable` | structural | The page errors, is not HTML, is truncated, or redirects off its declared path |
+| `rendered-robots-mismatch` | structural | An indexable page renders a `noindex` robots meta, or a `noindex` declaration renders none |
+| `rendered-canonical-mismatch` | structural | The canonical is missing or its path is not the declared path |
+| `missing-h1`, `multiple-h1`, `empty-h1` | structural | The page does not have exactly one H1 with text |
+| `faq-not-visible` | structural | A FAQPage question or answer is not in the rendered text |
+| `offer-price-not-visible` | structural | An Offer or AggregateOffer price does not appear on the page |
+| `heading-level-skip` | editorial | The main-content outline skips a level (h2 → h4) |
+| `h1-title-mismatch` | editorial | The H1 and `<title>` share no significant term |
+| `webpage-head-mismatch` | editorial | A WebPage `name` or `description` disagrees with the head |
+| `thin-content` | editorial | Main content is under the page's `content.minWords` floor |
+
+Google requires structured data to describe content the page visibly shows, so
+a FAQ answer that exists only in JSON-LD or in hydration data (an accordion that
+mounts answers on open, say) is structural. Comparisons ignore punctuation,
+case, and markup; prices match as numbers (`19` matches `$19/mo` and `19.00`,
+not `$199`). Canonicals compare by path, and robots are read from the meta tag
+only, so a local or preview host that sends `X-Robots-Tag: noindex` everywhere
+can still run the check.
+
+Word-count floors are project policy, declared per path glob; a page matching
+several rules must meet the highest:
+
+```ts
+export default defineSeoConfig({
+  // ...
+  content: {
+    minWords: [
+      { path: "/blog/*", minWords: 500 },
+      { path: "/compare/*", minWords: 800 },
+    ],
+  },
+});
+```
+
+`pagegraph audit` runs the heading and structured-data rules on every audited
+HTML page too. The robots, canonical, and word-count rules need the declared
+graph, so they stay in `check`.
+
+### Freshness
+
+Declare a freshness policy to turn old pages into editorial `stale-page`
+findings in `pagegraph check`, and list the refresh queue with `pagegraph stale`:
+
+```ts
+export default defineSeoConfig({
+  // ...
+  freshness: { maxAgeDays: 90 },
+});
+```
+
+```bash
+pagegraph stale                     # stale pages, oldest first; undated pages counted
+pagegraph stale --max-age-days 180 --json
+```
+
+Only sitemap-eligible pages are judged. A page without a date is reported as
+undated rather than stale; give content its `modifiedAt` (or a route its
+`staticData.seo.modifiedAt`) to bring it into the report and the sitemap's
+`<lastmod>`.
+
 ### Audit any website
 
 `pagegraph audit` is framework-independent and does not need `seo.config.ts`. It
@@ -645,6 +731,8 @@ Everything the CLI checks is a pure function you can call from a test:
 ```ts
 import {
   checkGraph,
+  checkPageContent,
+  extractPageContent,
   hasStructuralViolations,
   inspectHtml,
 } from "pagegraph";
@@ -654,6 +742,9 @@ expect(hasStructuralViolations(checkGraph(loadSeoGraph()))).toBe(false);
 // render a page however you like, then assert the head it actually ships
 const report = inspectHtml(url, 200, html);
 expect(report.issues).toEqual([]);
+
+// …and the content it ships: one H1, visible FAQ answers, shown prices
+expect(checkPageContent(extractPageContent(html))).toEqual([]);
 ```
 
 ## TanStack Start example

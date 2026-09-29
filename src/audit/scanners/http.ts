@@ -8,6 +8,7 @@ import { checkServerIdentity } from "node:tls";
 import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 
+import { checkPageContent, extractPageContent } from "../../core/content";
 import { extractAnchors } from "../../core/links";
 import type {
   DocumentSignals,
@@ -168,11 +169,15 @@ export const extractDocumentSignals = (
   body: string,
   contentType: string,
   requestedUrl: URL,
+  bodyTruncated = false,
 ): DocumentSignals => {
   const isHtml = contentType.includes("text/html") || contentType.includes("application/xhtml+xml");
   const isMarkdown = contentType.includes("text/markdown");
   const looksJson =
     contentType.includes("json") || requestedUrl.pathname.endsWith(".json");
+  // Content rules judge the whole document; a truncated body could hide the H1
+  // or FAQ answer they look for, so it gets no verdict at all.
+  const content = isHtml && !bodyTruncated ? extractPageContent(body) : null;
   const titleMatch = isHtml
     ? /<title\b[^>]*>([\s\S]*?)<\/title>/i.exec(body)
     : null;
@@ -211,8 +216,12 @@ export const extractDocumentSignals = (
       : 0,
     wordCount: isMarkdown
       ? body.trim().split(/\s+/).filter(Boolean).length
-      : null,
+      : (content?.wordCount ?? null),
     jsonValid,
+    content:
+      content === null
+        ? null
+        : { h1: content.h1, outline: content.outline, findings: checkPageContent(content) },
   };
 };
 
@@ -369,7 +378,7 @@ export const probeHttp = async (
       document:
         body.length === 0
           ? null
-          : extractDocumentSignals(body, contentType, currentUrl),
+          : extractDocumentSignals(body, contentType, currentUrl, bounded.truncated),
       anchors,
       error: null,
     };

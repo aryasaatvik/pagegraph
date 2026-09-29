@@ -1,5 +1,6 @@
 import { Schema } from "effect";
 
+import type { ContentFinding, Heading } from "../core/content";
 import type { Anchor } from "../core/links";
 
 /** A stable identifier for a scanner, such as `http` or `lighthouse`. */
@@ -118,8 +119,17 @@ export interface DocumentSignals {
   readonly modulePreloadCount: number;
   readonly scriptCount: number;
   readonly stylesheetCount: number;
+  /** Markdown words, or visible words in an HTML document's main content region. */
   readonly wordCount: number | null;
   readonly jsonValid: boolean | null;
+  /** Headings and graph-independent content findings of an HTML document. */
+  readonly content: DocumentContent | null;
+}
+
+export interface DocumentContent {
+  readonly h1: ReadonlyArray<string>;
+  readonly outline: ReadonlyArray<Heading>;
+  readonly findings: ReadonlyArray<ContentFinding>;
 }
 
 export interface HttpProbe {

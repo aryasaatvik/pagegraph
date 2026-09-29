@@ -124,6 +124,7 @@ function mergeSeo(base: RouteSeo, override: RouteSeo): RouteSeo {
     related: override.related ?? base.related,
     link: override.link ?? base.link,
     redirectTo: override.redirectTo ?? base.redirectTo,
+    modifiedAt: override.modifiedAt ?? base.modifiedAt,
   };
 }
 

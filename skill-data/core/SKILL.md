@@ -158,7 +158,9 @@ This plugin fails dev startup and `vite build` when a page leaf in an enforced g
 - A `related` target route without `link` fails `check`. Collection instances are exempt because their card uses the instance `title` and `description`.
 - Coverage enforcement sees only route files inside the named group folders. `route.tsx` layouts, `.ts` server routes, and ungrouped routes are not checked. List ungrouped public routes in `extraPublicRoutes`.
 - `seoRouteConfig` throws if the directory of `outputPath` does not exist. Point it outside `src/routes` so the route watcher does not loop.
-- The graph knows route declarations and collection instances, not `head()` output. Editorial title and description checks cover instances only. A route's rendered title is verified only by inspecting HTML.
+- The graph knows route declarations and collection instances, not `head()` output. Editorial title and description checks cover instances only. A route's rendered title, headings, and JSON-LD are verified only by inspecting HTML (`check --site`).
+- A FAQPage question or answer, or an Offer price, that is not in the server-rendered text fails `check --site`. Accordions must render closed panels into the HTML (for example `hidden="until-found"`), not mount them on open.
+- Dates (`publishedAt`, `modifiedAt`, a route's `modifiedAt`) must be ISO 8601 (`2026-09-29`, or a date-time with an offset); they become the sitemap's `<lastmod>`, and `check` rejects any other form.
 - Keep indexable pages server-rendered or prerendered. An `ssr: false` route's head is not in the served HTML.
 
 ## Verify
@@ -166,10 +168,12 @@ This plugin fails dev startup and `vite build` when a page leaf in an enforced g
 | Changed | Run | Proves |
 | --- | --- | --- |
 | Declarations, collections, `seo.config.ts` | `pagegraph check` | No structural violations (exit 1 otherwise); editorial findings are reported but do not fail |
+| Headings, JSON-LD, robots meta, canonicals, page copy | `pagegraph check --site <url>` against a running server | Every declared page's rendered HTML matches its declaration and its structured data |
+| `modifiedAt` dates, `freshness` policy | `pagegraph stale` | The refresh queue and which pages are undated |
 | Graph shape | `pagegraph graph`, `pagegraph inspect /path` | Nodes, edges, and a page's sitemap status |
 | Sitemap or robots wiring | `pagegraph sitemap`, `pagegraph robots` | The projections from the declared graph |
 | `head()`, `seoHead` input, document shell | `pagegraph inspect <full-url> --live` against a running server | The served `<head>` and JSON-LD |
 | Rendered links vs `related` | `pagegraph links verify <url>` (add `--assert-coverage` for `coverage` rules) | What a crawler receives, not what was declared |
 | Coverage gate | `vite build` | Every enforced page leaf declares SEO |
 
-A passing `check` says nothing about served HTML. Verify head changes with `inspect --live` or a rendered-head test. Add `--json` when a script consumes the output. Stdout carries the data and stderr carries status. Check the exit code as well as the output.
+A passing `check` without `--site` says nothing about served HTML. Verify head and content changes with `check --site`, `inspect --live`, or a rendered-HTML test. Add `--json` when a script consumes the output. Stdout carries the data and stderr carries status. Check the exit code as well as the output.

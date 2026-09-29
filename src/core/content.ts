@@ -265,18 +265,20 @@ const stringField = (node: JsonLdNode, field: string): string | undefined => {
   return typeof value === "string" && value.trim() !== "" ? value : undefined;
 };
 
-/** Tags Google allows in an FAQ answer; anything else in angle brackets is text. */
-const ANSWER_TAG = /<\/?(?:h[1-6]|p|br|ol|ul|li|div|a|b|strong|i|em)(?:\s[^>]*)?\/?>/i;
-
-/**
- * JSON-LD text is either HTML using the tags Google allows in answers, compared by
- * its text, or plain text that may hold angle-bracket placeholders such as
- * `samva-<id>._domainkey`, compared literally.
- */
-const isVisible = (visible: string, candidate: string): boolean => {
-  const needle = matchText(ANSWER_TAG.test(candidate) ? textOf(candidate) : decodeEntities(candidate));
+const inPage = (visible: string, text: string): boolean => {
+  const needle = matchText(text);
   return needle === "" || ` ${visible} `.includes(` ${needle} `);
 };
+
+/**
+ * JSON-LD text is HTML (Google allows limited markup in answers), compared by its
+ * text, or plain text with angle-bracket placeholders such as
+ * `samva-<id>._domainkey`, which the page renders escaped. Plain text is compared
+ * literally too, unless it has a closing tag, which only markup carries.
+ */
+const isVisible = (visible: string, candidate: string): boolean =>
+  inPage(visible, textOf(candidate)) ||
+  (!/<\//.test(candidate) && inPage(visible, decodeEntities(candidate)));
 
 const clip = (value: string, max = 80): string =>
   value.length > max ? `${value.slice(0, max - 1)}…` : value;

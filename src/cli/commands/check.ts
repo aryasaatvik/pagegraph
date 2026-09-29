@@ -59,17 +59,8 @@ interface RenderOptions {
   readonly maxBodyBytes: number;
 }
 
-/**
- * Fetch one declared page from `origin` as a crawler would. Every way the page
- * can fail to be judged — a failed request, a non-2xx status, a non-HTML body, a
- * truncated body — becomes a document the content check reports, never a crash.
- */
-const renderDocument = async (
-  origin: URL,
-  path: string,
-  options: RenderOptions,
-): Promise<RenderedDocument> => {
-  const probe = await probeHttp(
+const fetchPage = (origin: URL, path: string, options: RenderOptions) =>
+  probeHttp(
     { kind: "page-html", method: "GET", accept: "text/html", url: new URL(path, origin) },
     {
       allowPrivate: options.allowPrivate,
@@ -79,6 +70,24 @@ const renderDocument = async (
       sameOrigin: origin.origin,
     },
   );
+
+/**
+ * Fetch one declared page from `origin` as a crawler would. Every way the page
+ * can fail to be judged — a failed request, a non-2xx status, a non-HTML body, a
+ * truncated body — becomes a document the content check reports, never a crash.
+ *
+ * A server error or a failed request is retried once: `--site` usually points at
+ * a dev server, whose first render of a route can time out or fail while it
+ * compiles. A page that fails twice is reported.
+ */
+const renderDocument = async (
+  origin: URL,
+  path: string,
+  options: RenderOptions,
+): Promise<RenderedDocument> => {
+  const first = await fetchPage(origin, path, options);
+  const transient = first.status === null || first.status >= 500;
+  const probe = transient ? await fetchPage(origin, path, options) : first;
   if (!probe.ok || probe.finalUrl === null || probe.body === undefined) {
     return { path, ok: false, error: probe.error ?? `HTTP ${probe.status ?? "no response"}` };
   }

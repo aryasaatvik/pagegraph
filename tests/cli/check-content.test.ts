@@ -25,9 +25,19 @@ const PAGES: Record<string, string> = {
 
 let server: Server;
 let site: string;
+/** Requests seen per path, so a test can prove a transient failure is retried. */
+const hits = new Map<string, number>();
 
 beforeAll(async () => {
   server = createServer((request, response) => {
+    const count = (hits.get(request.url ?? "") ?? 0) + 1;
+    hits.set(request.url ?? "", count);
+    if (request.url === "/pricing" && count === 1) {
+      // A dev server's cold first render.
+      response.writeHead(503, { "content-type": "text/plain" });
+      response.end("compiling");
+      return;
+    }
     const body = PAGES[request.url ?? ""];
     if (body === undefined) {
       response.writeHead(404, { "content-type": "text/plain" });
@@ -121,6 +131,8 @@ describe("pagegraph check --site", () => {
     expect(result.status).toBe(1);
     const report = JSON.parse(result.stdout) as Report;
     expect(report.rendered).toEqual({ site, pages: 4 });
+    // /pricing answered 503 once and passed on the retry.
+    expect(hits.get("/pricing")).toBe(2);
     expect(report.violations.map((violation) => [violation.rule, violation.path])).toEqual([
       ["missing-h1", "/about"],
       ["heading-level-skip", "/about"],

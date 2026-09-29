@@ -600,7 +600,9 @@ The declared graph cannot see what a page renders: headings come from
 components, and the `<title>`, JSON-LD, and visible text are composed at render
 time. `pagegraph check --site <url>` fetches every sitemap-eligible page (and
 every concrete page that declares `noindex`) from a running server and checks
-the server-rendered HTML — what a crawler receives before any script runs.
+the server-rendered HTML — what a crawler receives before any script runs. A
+server error or failed request is retried once, because a dev server's first
+render of a route can fail while it compiles.
 
 ```bash
 pagegraph check --site http://localhost:3000 --allow-private

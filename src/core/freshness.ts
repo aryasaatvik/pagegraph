@@ -36,13 +36,16 @@ export interface FreshnessReport {
   readonly fresh: ReadonlyArray<FreshnessEntry>;
   /** Sitemap-eligible pages that declare no date, in graph order. */
   readonly undated: ReadonlyArray<string>;
+  /** Sitemap-eligible pages whose date does not parse; `check` fails on each. */
+  readonly invalid: ReadonlyArray<string>;
 }
 
 const DAY_MS = 86_400_000;
 
 /**
- * Split the graph's sitemap-eligible pages into stale, fresh, and undated.
- * A date that does not parse is left out; the `invalid-date` check owns it.
+ * Split the graph's sitemap-eligible pages into stale, fresh, undated, and
+ * invalid. An invalid date cannot be aged, but it is listed so a report never
+ * reads as complete while it skipped a page.
  */
 export function freshnessReport(
   graph: SeoGraph,
@@ -52,6 +55,7 @@ export function freshnessReport(
   const stale: Array<FreshnessEntry> = [];
   const fresh: Array<FreshnessEntry> = [];
   const undated: Array<string> = [];
+  const invalid: Array<string> = [];
 
   for (const node of graph.nodes.values()) {
     if (!isSitemapEligible(node)) continue;
@@ -61,7 +65,10 @@ export function freshnessReport(
       continue;
     }
     const time = parseDeclaredDate(declared);
-    if (time === undefined) continue;
+    if (time === undefined) {
+      invalid.push(node.path);
+      continue;
+    }
     const entry: FreshnessEntry = {
       path: node.path,
       kind: node.kind,
@@ -74,5 +81,12 @@ export function freshnessReport(
 
   stale.sort((a, b) => b.ageDays - a.ageDays || (a.path < b.path ? -1 : 1));
   fresh.sort((a, b) => a.ageDays - b.ageDays || (a.path < b.path ? -1 : 1));
-  return { asOf: now.toISOString(), maxAgeDays: policy.maxAgeDays, stale, fresh, undated };
+  return {
+    asOf: now.toISOString(),
+    maxAgeDays: policy.maxAgeDays,
+    stale,
+    fresh,
+    undated,
+    invalid,
+  };
 }

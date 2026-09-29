@@ -283,7 +283,7 @@ const CHECK_RULES: ReadonlyArray<CheckRule> = [
             ? [
                 {
                   path: node.path,
-                  message: `${field} "${value}" is not a date.`,
+                  message: `${field} "${value}" is not an ISO 8601 date on a real calendar day.`,
                   fix: `Write ${field} as an ISO 8601 date, e.g. "2026-09-29".`,
                 },
               ]

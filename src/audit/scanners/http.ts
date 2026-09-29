@@ -169,12 +169,15 @@ export const extractDocumentSignals = (
   body: string,
   contentType: string,
   requestedUrl: URL,
+  bodyTruncated = false,
 ): DocumentSignals => {
   const isHtml = contentType.includes("text/html") || contentType.includes("application/xhtml+xml");
   const isMarkdown = contentType.includes("text/markdown");
   const looksJson =
     contentType.includes("json") || requestedUrl.pathname.endsWith(".json");
-  const content = isHtml ? extractPageContent(body) : null;
+  // Content rules judge the whole document; a truncated body could hide the H1
+  // or FAQ answer they look for, so it gets no verdict at all.
+  const content = isHtml && !bodyTruncated ? extractPageContent(body) : null;
   const titleMatch = isHtml
     ? /<title\b[^>]*>([\s\S]*?)<\/title>/i.exec(body)
     : null;
@@ -375,7 +378,7 @@ export const probeHttp = async (
       document:
         body.length === 0
           ? null
-          : extractDocumentSignals(body, contentType, currentUrl),
+          : extractDocumentSignals(body, contentType, currentUrl, bounded.truncated),
       anchors,
       error: null,
     };

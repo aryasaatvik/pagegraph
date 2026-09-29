@@ -81,12 +81,23 @@ export function lastModified(node: SeoNode): string | undefined {
   return node.policy.modifiedAt;
 }
 
+/** An ISO 8601 date, or a date-time that states its offset. */
+const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})(?:T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:\d{2}))?$/;
+
 /**
- * Parse a declared date to epoch milliseconds, or undefined when it is not a
- * date. The `invalid-date` check reports the undefined case, so projections
- * that meet one fail loudly instead of emitting a bogus `<lastmod>`.
+ * Parse a declared date to epoch milliseconds, or undefined when it is not an
+ * ISO 8601 date (`2026-09-29`) or offset date-time (`2026-09-29T10:00:00Z`) on a
+ * real calendar day. `Date.parse` alone would accept "Sep 29" in the host's
+ * zone and roll "2026-02-30" into March; either would publish a wrong
+ * `<lastmod>`. The `invalid-date` check reports the undefined case, so
+ * projections that meet one fail loudly.
  */
 export function parseDeclaredDate(value: string): number | undefined {
+  const match = ISO_DATE.exec(value);
+  if (match === null) return undefined;
+  const [year, month, day] = [Number(match[1]), Number(match[2]), Number(match[3])];
+  const calendar = new Date(Date.UTC(year, month - 1, day));
+  if (calendar.getUTCMonth() !== month - 1 || calendar.getUTCDate() !== day) return undefined;
   const time = Date.parse(value);
   return Number.isNaN(time) ? undefined : time;
 }

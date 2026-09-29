@@ -285,6 +285,14 @@ describe("checkRenderedContent", () => {
     ]);
   });
 
+  it("compares declared, response, and canonical paths in their URL-encoded form", () => {
+    const encoded: SeoGraph = { nodes: new Map([["/café", node("/café")]]), edges: [] };
+    const html = page({ path: "/caf%C3%A9", main: "<h1>Email API pricing</h1>" });
+    expect(
+      checkRenderedContent(encoded, [{ path: "/café", ok: true, finalPath: "/caf%C3%A9", html }]),
+    ).toEqual([]);
+  });
+
   it("applies the highest matching word floor and rejects a floor that matches nothing", () => {
     const violations = checkRenderedContent(graph, [ok("/pricing", page({}))], {
       minWords: [

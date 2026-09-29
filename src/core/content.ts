@@ -594,7 +594,7 @@ export type RenderedDocument =
   | {
       readonly path: string;
       readonly ok: true;
-      /** Normalized path of the final response URL, after redirects. */
+      /** Path of the final response URL, after redirects, encoded or not. */
       readonly finalPath: string;
       readonly html: string;
     }
@@ -620,9 +620,16 @@ export const renderedCheckTargets = (graph: SeoGraph): Array<string> =>
     )
     .map((node) => node.path);
 
-const canonicalPath = (canonical: string): string | undefined => {
+const PATH_BASE = "https://pagegraph.invalid";
+
+/**
+ * A path as a URL serializes it (`/café` → `/caf%C3%A9`), trailing slash
+ * dropped. Declared paths, response URLs, and canonicals are compared in this
+ * one form, or a page with non-ASCII segments would read as redirected.
+ */
+const urlPath = (value: string): string | undefined => {
   try {
-    return normalizePath(new URL(canonical, "https://pagegraph.invalid"));
+    return normalizePath(new URL(value, PATH_BASE));
   } catch {
     return undefined;
   }
@@ -673,6 +680,7 @@ export function checkRenderedContent(
   for (const document of documents) {
     const node = graph.nodes.get(document.path);
     if (node === undefined) continue;
+    const declaredPath = urlPath(document.path);
     if (!document.ok) {
       push(
         "rendered-page-unavailable",
@@ -683,7 +691,7 @@ export function checkRenderedContent(
       );
       continue;
     }
-    if (document.finalPath !== document.path) {
+    if (urlPath(document.finalPath) !== declaredPath) {
       push(
         "rendered-page-unavailable",
         "structural",
@@ -721,8 +729,8 @@ export function checkRenderedContent(
       );
     }
 
-    const canonical = content.canonical === undefined ? undefined : canonicalPath(content.canonical);
-    if (canonical !== document.path) {
+    const canonical = content.canonical === undefined ? undefined : urlPath(content.canonical);
+    if (canonical !== declaredPath) {
       push(
         "rendered-canonical-mismatch",
         "structural",

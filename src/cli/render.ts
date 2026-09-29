@@ -244,6 +244,11 @@ export const renderFreshnessReport = (report: FreshnessReport): string => {
     }
   }
   lines.push("", `${report.fresh.length} dated page(s) changed within ${report.maxAgeDays} days.`);
+  if (report.invalid.length > 0) {
+    lines.push(
+      `${report.invalid.length} sitemap page(s) declare a date that is not ISO 8601, so their age is unknown: ${report.invalid.join(", ")}. \`pagegraph check\` reports each as invalid-date.`,
+    );
+  }
   if (report.undated.length > 0) {
     lines.push(
       `${report.undated.length} sitemap page(s) declare no date, so their age is unknown; add modifiedAt to include them.`,

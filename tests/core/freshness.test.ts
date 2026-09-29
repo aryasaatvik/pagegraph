@@ -64,6 +64,7 @@ describe("freshnessReport", () => {
     const judged = [...report.stale, ...report.fresh].map((entry) => entry.path);
     expect(judged).not.toContain("/blog/hidden");
     expect(judged).not.toContain("/blog/broken");
+    expect(report.invalid).toEqual(["/blog/broken"]);
     expect(report).toMatchObject({ asOf: NOW.toISOString(), maxAgeDays: 90 });
   });
 });
@@ -78,9 +79,22 @@ describe("checkGraph — dates", () => {
       ]),
     ).filter((violation) => violation.rule === "invalid-date");
     expect(violations).toEqual([
-      expect.objectContaining({ path: "/pricing", severity: "structural", message: 'modifiedAt "soon" is not a date.' }),
+      expect.objectContaining({ path: "/pricing", severity: "structural", message: 'modifiedAt "soon" is not an ISO 8601 date on a real calendar day.' }),
       expect.objectContaining({ path: "/blog/a", severity: "structural" }),
     ]);
+  });
+
+  it("accepts only ISO dates on real calendar days", () => {
+    const invalid = (value: string) =>
+      checkGraph(graphOf([routeNode("/pricing", { modifiedAt: value })])).some(
+        (violation) => violation.rule === "invalid-date",
+      );
+    for (const value of ["2026-02-30", "Sep 29, 2026", "2026-09-01T10:00", "2026-9-1"]) {
+      expect(invalid(value), value).toBe(true);
+    }
+    for (const value of ["2026-02-28", "2024-02-29", "2026-09-01T10:00:00Z", "2026-09-01T10:00+05:30"]) {
+      expect(invalid(value), value).toBe(false);
+    }
   });
 
   it("emits editorial stale-page findings only when given a freshness policy", () => {

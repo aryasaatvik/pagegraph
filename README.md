@@ -361,7 +361,7 @@ severities:
 - **structural** — internally broken declarations; these fail `pagegraph check` (exit 1):
   dead or duplicate edges, path collisions, a redirect in the sitemap, a
   sitemap/noindex contradiction, a `related` target with no `link` card, an
-  instance without a title, a date that does not parse, or an unmet
+  instance without a title, a date that is not ISO 8601, or an unmet
   contextual-link coverage rule.
 - **editorial** — quality smells, reported but non-failing: duplicate or mis-sized
   titles and descriptions, and pages older than the freshness policy.

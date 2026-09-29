@@ -16,6 +16,8 @@ under a configured `content.minWords` floor are reported as warnings.
 HTML page it audits.
 
 Routes can declare `modifiedAt`, which becomes the sitemap's `<lastmod>` just as
-content dates already do. A date that does not parse now fails `check`. Set
+content dates already do. Dates must now be ISO 8601 (`2026-09-29`, or a
+date-time with an offset): `check` fails on any other form, and the sitemap
+refuses to render one instead of guessing its day. Set
 `freshness: { maxAgeDays }` to report stale pages in `check`, and run
 `pagegraph stale` to list pages to refresh, oldest first.

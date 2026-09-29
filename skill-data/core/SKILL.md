@@ -160,7 +160,7 @@ This plugin fails dev startup and `vite build` when a page leaf in an enforced g
 - `seoRouteConfig` throws if the directory of `outputPath` does not exist. Point it outside `src/routes` so the route watcher does not loop.
 - The graph knows route declarations and collection instances, not `head()` output. Editorial title and description checks cover instances only. A route's rendered title, headings, and JSON-LD are verified only by inspecting HTML (`check --site`).
 - A FAQPage question or answer, or an Offer price, that is not in the server-rendered text fails `check --site`. Accordions must render closed panels into the HTML (for example `hidden="until-found"`), not mount them on open.
-- Dates (`publishedAt`, `modifiedAt`, a route's `modifiedAt`) must parse; they become the sitemap's `<lastmod>`, and `check` rejects one that does not.
+- Dates (`publishedAt`, `modifiedAt`, a route's `modifiedAt`) must be ISO 8601 (`2026-09-29`, or a date-time with an offset); they become the sitemap's `<lastmod>`, and `check` rejects any other form.
 - Keep indexable pages server-rendered or prerendered. An `ssr: false` route's head is not in the served HTML.
 
 ## Verify

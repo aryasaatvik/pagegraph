@@ -152,5 +152,9 @@ describe("SEO audit page rules", () => {
       ["rules", "missing-h1", "structural"],
       ["rules", "heading-level-skip", "editorial"],
     ]);
+
+    // A truncated body could hide the H1 past the cutoff, so it gets no content verdict.
+    const truncated = extractDocumentSignals(html, "text/html", new URL("https://example.test/docs"), true);
+    expect(truncated.content).toBeNull();
   });
 });

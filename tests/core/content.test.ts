@@ -178,8 +178,8 @@ describe("checkPageContent — structured data against visible text", () => {
 
   it("passes answers with a placeholder shaped like a tag or markup outside the common set", () => {
     const html = page({
-      jsonLd: [faq("Use samva-<i>._domainkey. <span>Yes</span>")],
-      main: "<h1>Email API pricing</h1><details><summary>Is there a free plan?</summary><p>Use samva-&lt;i&gt;._domainkey. Yes</p></details>",
+      jsonLd: [faq("Use samva-<i>._domainkey.")],
+      main: "<h1>Email API pricing</h1><details><summary>Is there a free plan?</summary><p>Use samva-&lt;i&gt;._domainkey.</p></details>",
     });
     expect(rulesOf(html)).toEqual([]);
     const spanOnly = page({

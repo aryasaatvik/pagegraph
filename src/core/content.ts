@@ -265,17 +265,26 @@ const stringField = (node: JsonLdNode, field: string): string | undefined => {
   return typeof value === "string" && value.trim() !== "" ? value : undefined;
 };
 
-/**
- * JSON-LD text is either HTML (Google allows limited markup in answers), compared
- * by its text, or plain text with angle-bracket placeholders such as
- * `samva-<id>._domainkey`, which the page renders escaped and which is compared
- * literally. A closing tag or `<br>` marks it as HTML.
- */
-const isVisible = (visible: string, candidate: string): boolean => {
-  const isHtml = /<\/|<br\b/i.test(candidate);
-  const needle = matchText(isHtml ? textOf(candidate) : decodeEntities(candidate));
+/** Standard HTML element names; other angle-bracket text is not markup. */
+const HTML_ELEMENT = new RegExp(
+  `</?(?:${"a abbr address article aside audio b bdi bdo blockquote br button caption cite code col colgroup dd del details dfn div dl dt em fieldset figcaption figure footer form h1 h2 h3 h4 h5 h6 header hr i img ins kbd label legend li main mark nav ol p picture pre q s samp section small span strong sub summary sup table tbody td tfoot th thead time tr u ul var video wbr".split(" ").join("|")})\\b[^>]*>`,
+  "gi",
+);
+
+const inPage = (visible: string, text: string): boolean => {
+  const needle = matchText(text);
   return needle === "" || ` ${visible} `.includes(` ${needle} `);
 };
+
+/**
+ * JSON-LD text may carry the HTML Google allows in answers, or plain text with
+ * angle-bracket placeholders such as `samva-<id>._domainkey`, which the page
+ * renders escaped. Only standard element tags are markup, and a candidate with
+ * no closing tag is also compared literally because `<i>` is ambiguous.
+ */
+const isVisible = (visible: string, candidate: string): boolean =>
+  inPage(visible, decodeEntities(candidate.replace(HTML_ELEMENT, " "))) ||
+  (!/<\//.test(candidate) && inPage(visible, decodeEntities(candidate)));
 
 const clip = (value: string, max = 80): string =>
   value.length > max ? `${value.slice(0, max - 1)}…` : value;

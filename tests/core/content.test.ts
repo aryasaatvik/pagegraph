@@ -189,6 +189,14 @@ describe("checkPageContent — structured data against visible text", () => {
     expect(rulesOf(spanOnly)).toEqual([]);
   });
 
+  it("passes an answer with unclosed markup when its text is rendered", () => {
+    const html = page({
+      jsonLd: [faq('<p>Yes<hr><img src="x.png">No card needed')],
+      main: "<h1>Email API pricing</h1><details><summary>Is there a free plan?</summary><p>Yes. No card needed</p></details>",
+    });
+    expect(rulesOf(html)).toEqual([]);
+  });
+
   it("flags a placeholder answer when the page shows only the text around it", () => {
     const html = page({
       jsonLd: [faq("samva-<id>._domainkey")],

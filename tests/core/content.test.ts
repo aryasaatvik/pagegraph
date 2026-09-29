@@ -189,6 +189,14 @@ describe("checkPageContent — structured data against visible text", () => {
     expect(rulesOf(spanOnly)).toEqual([]);
   });
 
+  it("flags a placeholder answer when the page shows only the text around it", () => {
+    const html = page({
+      jsonLd: [faq("samva-<id>._domainkey")],
+      main: "<h1>Email API pricing</h1><details><summary>Is there a free plan?</summary><p>samva-._domainkey</p></details>",
+    });
+    expect(rulesOf(html)).toEqual(["faq-not-visible"]);
+  });
+
   it("flags a placeholder answer that the page does not show", () => {
     const html = page({
       jsonLd: [faq("Add a TXT record at samva-<id>._domainkey.example.com.")],

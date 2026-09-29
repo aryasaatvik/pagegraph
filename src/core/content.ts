@@ -265,20 +265,17 @@ const stringField = (node: JsonLdNode, field: string): string | undefined => {
   return typeof value === "string" && value.trim() !== "" ? value : undefined;
 };
 
-const inPage = (visible: string, text: string): boolean => {
-  const needle = matchText(text);
+/**
+ * JSON-LD text is either HTML (Google allows limited markup in answers), compared
+ * by its text, or plain text with angle-bracket placeholders such as
+ * `samva-<id>._domainkey`, which the page renders escaped and which is compared
+ * literally. A closing tag or `<br>` marks it as HTML.
+ */
+const isVisible = (visible: string, candidate: string): boolean => {
+  const isHtml = /<\/|<br\b/i.test(candidate);
+  const needle = matchText(isHtml ? textOf(candidate) : decodeEntities(candidate));
   return needle === "" || ` ${visible} `.includes(` ${needle} `);
 };
-
-/**
- * JSON-LD text is HTML (Google allows limited markup in answers), compared by its
- * text, or plain text with angle-bracket placeholders such as
- * `samva-<id>._domainkey`, which the page renders escaped. Plain text is compared
- * literally too, unless it has a closing tag, which only markup carries.
- */
-const isVisible = (visible: string, candidate: string): boolean =>
-  inPage(visible, textOf(candidate)) ||
-  (!/<\//.test(candidate) && inPage(visible, decodeEntities(candidate)));
 
 const clip = (value: string, max = 80): string =>
   value.length > max ? `${value.slice(0, max - 1)}…` : value;

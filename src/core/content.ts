@@ -265,17 +265,17 @@ const stringField = (node: JsonLdNode, field: string): string | undefined => {
   return typeof value === "string" && value.trim() !== "" ? value : undefined;
 };
 
+/** Tags Google allows in an FAQ answer; anything else in angle brackets is text. */
+const ANSWER_TAG = /<\/?(?:h[1-6]|p|br|ol|ul|li|div|a|b|strong|i|em)(?:\s[^>]*)?\/?>/i;
+
 /**
- * JSON-LD text may carry the HTML Google allows in answers, or plain text with
- * angle-bracket placeholders such as `samva-<id>._domainkey`. It is visible when
- * either its tag-stripped or its literal text is on the page.
+ * JSON-LD text is either HTML using the tags Google allows in answers, compared by
+ * its text, or plain text that may hold angle-bracket placeholders such as
+ * `samva-<id>._domainkey`, compared literally.
  */
 const isVisible = (visible: string, candidate: string): boolean => {
-  const haystack = ` ${visible} `;
-  return [textOf(candidate), decodeEntities(candidate)].some((text) => {
-    const needle = matchText(text);
-    return needle === "" || haystack.includes(` ${needle} `);
-  });
+  const needle = matchText(ANSWER_TAG.test(candidate) ? textOf(candidate) : decodeEntities(candidate));
+  return needle === "" || ` ${visible} `.includes(` ${needle} `);
 };
 
 const clip = (value: string, max = 80): string =>

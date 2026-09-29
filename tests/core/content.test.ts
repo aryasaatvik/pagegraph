@@ -168,6 +168,14 @@ describe("checkPageContent — structured data against visible text", () => {
     expect(rulesOf(html)).toEqual([]);
   });
 
+  it("flags a markup answer whose text is absent even when the page shows it escaped", () => {
+    const html = page({
+      jsonLd: [faq("<p>Yes</p><p>No</p>")],
+      main: "<h1>Email API pricing</h1><details><summary>Is there a free plan?</summary><p>&lt;p&gt;Yes&lt;/p&gt;&lt;p&gt;No&lt;/p&gt;</p></details>",
+    });
+    expect(rulesOf(html)).toEqual(["faq-not-visible"]);
+  });
+
   it("flags a placeholder answer that the page does not show", () => {
     const html = page({
       jsonLd: [faq("Add a TXT record at samva-<id>._domainkey.example.com.")],

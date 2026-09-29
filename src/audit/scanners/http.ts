@@ -8,6 +8,7 @@ import { checkServerIdentity } from "node:tls";
 import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 
+import { checkPageContent, extractPageContent } from "../../core/content";
 import { extractAnchors } from "../../core/links";
 import type {
   DocumentSignals,
@@ -173,6 +174,7 @@ export const extractDocumentSignals = (
   const isMarkdown = contentType.includes("text/markdown");
   const looksJson =
     contentType.includes("json") || requestedUrl.pathname.endsWith(".json");
+  const content = isHtml ? extractPageContent(body) : null;
   const titleMatch = isHtml
     ? /<title\b[^>]*>([\s\S]*?)<\/title>/i.exec(body)
     : null;
@@ -211,8 +213,12 @@ export const extractDocumentSignals = (
       : 0,
     wordCount: isMarkdown
       ? body.trim().split(/\s+/).filter(Boolean).length
-      : null,
+      : (content?.wordCount ?? null),
     jsonValid,
+    content:
+      content === null
+        ? null
+        : { h1: content.h1, outline: content.outline, findings: checkPageContent(content) },
   };
 };
 

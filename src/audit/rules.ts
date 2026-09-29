@@ -200,6 +200,37 @@ export const pageRules: readonly ScannerRule[] = [
       }
     },
   },
+  {
+    // Headings and structured-data-vs-visible-text findings, computed from the
+    // rendered HTML by the same pure rules `pagegraph check --site` runs. The
+    // word-count floor and declared-vs-rendered rules need the app's graph and
+    // stay in `check`.
+    id: "content",
+    evaluate: (observation, input) => {
+      const content = record(record(pageEvidence(observation.evidence))?.["document"])?.[
+        "content"
+      ];
+      const list = record(content)?.["findings"];
+      if (!Array.isArray(list)) return [];
+      return list.flatMap((entry) => {
+        const rule = stringAt(entry, "rule");
+        const message = stringAt(entry, "message");
+        const fix = stringAt(entry, "fix");
+        const severity = stringAt(entry, "severity");
+        if (rule === undefined || message === undefined || fix === undefined) return [];
+        return [
+          finding(
+            input,
+            rule,
+            message,
+            fix,
+            undefined,
+            severity === "editorial" ? "editorial" : "structural",
+          ),
+        ];
+      });
+    },
+  },
 ];
 
 export const evaluateRules = (

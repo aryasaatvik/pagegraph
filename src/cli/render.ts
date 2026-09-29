@@ -7,6 +7,7 @@
  */
 
 import type { Violation } from "../core/checks";
+import type { FreshnessReport } from "../core/freshness";
 import type { SeoGraph, SeoNode } from "../core/graph";
 import type { LiveHeadReport } from "../core/inspect-html";
 import type { LinkCandidatePair, LinkClusterSummary } from "../core/link-candidates";
@@ -222,6 +223,33 @@ export const renderViolations = (violations: ReadonlyArray<Violation>): string =
       : `${editorial.length} editorial warning(s) — no structural violations.`,
   ];
   return parts.join("\n");
+};
+
+/** `pagegraph stale`: the refresh queue, then what is fresh and what cannot be judged. */
+export const renderFreshnessReport = (report: FreshnessReport): string => {
+  const lines: Array<string> = [];
+  const asOf = report.asOf.slice(0, 10);
+  if (report.stale.length === 0) {
+    lines.push(`✓ No sitemap page is older than ${report.maxAgeDays} days (as of ${asOf}).`);
+  } else {
+    lines.push(
+      `Stale (${report.stale.length}, unchanged for more than ${report.maxAgeDays} days as of ${asOf}):`,
+      "",
+    );
+    const width = Math.max(...report.stale.map((entry) => String(entry.ageDays).length));
+    for (const entry of report.stale) {
+      lines.push(
+        `  ${String(entry.ageDays).padStart(width)}d  ${entry.lastModified.slice(0, 10)}  ${entry.path}  (${entry.source})`,
+      );
+    }
+  }
+  lines.push("", `${report.fresh.length} dated page(s) changed within ${report.maxAgeDays} days.`);
+  if (report.undated.length > 0) {
+    lines.push(
+      `${report.undated.length} sitemap page(s) declare no date, so their age is unknown; add modifiedAt to include them.`,
+    );
+  }
+  return lines.join("\n");
 };
 
 /** One page the crawl could not fetch. */

@@ -21,11 +21,45 @@ export type {
   SeoSource,
 } from "./graph";
 
-export { contentSignal, inspectNode, isSitemapEligible, renderRobots, renderSitemap } from "./projections";
+export {
+  contentSignal,
+  inspectNode,
+  isSitemapEligible,
+  lastModified,
+  renderRobots,
+  renderSitemap,
+} from "./projections";
 export type { NodeReport, ProjectionConfig, RobotsConfig } from "./projections";
 
-export { checkCoverage, checkGraph, checkRenderedCoverage, hasStructuralViolations } from "./checks";
-export type { CoverageRule, Severity, Violation } from "./checks";
+export {
+  checkCoverage,
+  checkFreshness,
+  checkGraph,
+  checkRenderedCoverage,
+  hasStructuralViolations,
+} from "./checks";
+export type { CheckGraphOptions, CoverageRule, Severity, Violation } from "./checks";
+
+export {
+  checkPageContent,
+  checkRenderedContent,
+  extractPageContent,
+  renderedCheckTargets,
+} from "./content";
+export type {
+  ContentCheckOptions,
+  ContentFinding,
+  ContentPolicy,
+  ContentRuleName,
+  Heading,
+  JsonLdNode,
+  PageContent,
+  RenderedDocument,
+  WordCountRule,
+} from "./content";
+
+export { freshnessReport } from "./freshness";
+export type { FreshnessEntry, FreshnessPolicy, FreshnessReport } from "./freshness";
 
 export {
   candidateSourceText,

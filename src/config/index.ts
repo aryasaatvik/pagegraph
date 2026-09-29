@@ -28,6 +28,8 @@ export type { LoadedSeoGraph, SeoGraphLoader, ViteGraphLoaderOptions } from "./v
 export { viteGraphLoader } from "./vite-graph-loader";
 
 import type { CoverageRule } from "../core/checks";
+import type { ContentPolicy } from "../core/content";
+import type { FreshnessPolicy } from "../core/freshness";
 import type { SeoGraphLoader } from "./vite-graph-loader";
 
 export interface SeoWorkflowOpenCodeConfig {
@@ -86,6 +88,19 @@ export interface SeoCliConfig {
    * `related` edges. A `--require-inbound` flag overrides this per invocation.
    */
   readonly coverage?: ReadonlyArray<CoverageRule> | undefined;
+  /**
+   * Rendered content policy for `pagegraph check --site`: word-count floors per
+   * path glob. The heading, structured-data, robots, and canonical rules need no
+   * configuration.
+   */
+  readonly content?: ContentPolicy | undefined;
+  /**
+   * Freshness policy: sitemap-eligible pages whose declared `modifiedAt` (or an
+   * instance's `publishedAt`) is older than `maxAgeDays` are editorial
+   * `stale-page` findings in `pagegraph check` and the refresh queue in
+   * `pagegraph stale`.
+   */
+  readonly freshness?: FreshnessPolicy | undefined;
   /** Agentic workflow host, context, and artifact settings. */
   readonly workflows?: SeoWorkflowConfig | undefined;
   /** How the CLI gets the graph. {@link viteGraphLoader} covers the Vite-app case. */

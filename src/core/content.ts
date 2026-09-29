@@ -265,12 +265,17 @@ const stringField = (node: JsonLdNode, field: string): string | undefined => {
   return typeof value === "string" && value.trim() !== "" ? value : undefined;
 };
 
-/** JSON-LD text may carry the HTML Google allows in answers; compare its text. */
-const jsonLdText = (value: string): string => textOf(value);
-
+/**
+ * JSON-LD text may carry the HTML Google allows in answers, or plain text with
+ * angle-bracket placeholders such as `samva-<id>._domainkey`. It is visible when
+ * either its tag-stripped or its literal text is on the page.
+ */
 const isVisible = (visible: string, candidate: string): boolean => {
-  const needle = matchText(jsonLdText(candidate));
-  return needle === "" || ` ${visible} `.includes(` ${needle} `);
+  const haystack = ` ${visible} `;
+  return [textOf(candidate), decodeEntities(candidate)].some((text) => {
+    const needle = matchText(text);
+    return needle === "" || haystack.includes(` ${needle} `);
+  });
 };
 
 const clip = (value: string, max = 80): string =>

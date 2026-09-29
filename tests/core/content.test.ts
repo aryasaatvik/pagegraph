@@ -152,6 +152,30 @@ describe("checkPageContent — structured data against visible text", () => {
     expect(rulesOf(html)).toEqual([]);
   });
 
+  it("passes a plain-text answer whose angle-bracket placeholders render escaped", () => {
+    const html = page({
+      jsonLd: [faq("Add a TXT record at samva-<id>._domainkey.example.com.")],
+      main: "<h1>Email API pricing</h1><details><summary>Is there a free plan?</summary><p>Add a TXT record at samva-&lt;id&gt;._domainkey.example.com.</p></details>",
+    });
+    expect(rulesOf(html)).toEqual([]);
+  });
+
+  it("passes an answer with real block and link markup when its text is rendered", () => {
+    const html = page({
+      jsonLd: [faq('<p>Yes.</p><p>See <a href="/pricing">pricing</a>.<br>No card needed.</p>')],
+      main: '<h1>Email API pricing</h1><details><summary>Is there a free plan?</summary><p>Yes. See <a href="/pricing">pricing</a>. No card needed.</p></details>',
+    });
+    expect(rulesOf(html)).toEqual([]);
+  });
+
+  it("flags a placeholder answer that the page does not show", () => {
+    const html = page({
+      jsonLd: [faq("Add a TXT record at samva-<id>._domainkey.example.com.")],
+      main: "<h1>Email API pricing</h1><details><summary>Is there a free plan?</summary><p>Add a record.</p></details>",
+    });
+    expect(rulesOf(html)).toEqual(["faq-not-visible"]);
+  });
+
   it("flags an FAQ answer that exists only in JSON-LD and hydration data", () => {
     const html = page({
       jsonLd: [faq("Yes, 3,000 emails a month.")],

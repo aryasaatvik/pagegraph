@@ -1,10 +1,10 @@
 core:changelogs:
-  - content: "---\npackages:\n  pagegraph:\n    type: minor\n---\n\n### Find better internal linking opportunities\n\nPageGraph now finds sitemap pages that links alone miss and suggests useful\ncontextual links backed by exact page text. Use `links candidates --site` to\nreview ranked suggestions, then pass them to `improve links --suggestions` to\napprove edits.\n"
-    filename: 2026-09-26-internal-linking-suggestions.md
+  - content: "---\npackages:\n  pagegraph:\n    type: minor\n---\n\n### Check rendered content and page freshness\n\n`pagegraph check --site <url>` fetches every declared page from a running\nserver and checks its server-rendered HTML. Indexable pages need exactly one\nH1, a self-referencing canonical, and robots meta that matches the declaration.\nFAQ answers and offer prices in JSON-LD must also appear in the visible text.\nSkipped heading levels, an H1 that shares no term with the title, and pages\nunder a configured `content.minWords` floor are reported as warnings.\n`pagegraph audit` now reports the heading and structured-data findings for every\nHTML page it audits.\n\nRoutes can declare `modifiedAt`, which becomes the sitemap's `<lastmod>` just as\ncontent dates already do. Dates must now be ISO 8601 (`2026-09-29`, or a\ndate-time with an offset): `check` fails on any other form, and the sitemap\nrefuses to render one instead of guessing its day. Set\n`freshness: { maxAgeDays }` to report stale pages in `check`, and run\n`pagegraph stale` to list pages to refresh, oldest first.\n"
+    filename: 2026-09-29-content-checks.md
     v: 0.0.0
 core:packages:
   - changelogIds:
-      - 2026-09-26-internal-linking-suggestions.md
+      - 2026-09-29-content-checks.md
     id: npm:pagegraph
     updated: true
 npm:packages:

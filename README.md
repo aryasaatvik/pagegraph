@@ -38,10 +38,11 @@ The core and React import graphs have **zero runtime dependencies** — everythi
 peer, and only the entries you import need those peers loaded.
 
 The CLI **bundles PageGraph's Effect and TypeSafe provider runtime**, so it does not depend on the
-app's Effect RC; it runs on [Bun](https://bun.sh) (`bunx pagegraph`). Agentic workflows load the
+app's Effect version; it runs on [Bun](https://bun.sh) (`bunx pagegraph`). Agentic workflows load the
 OpenCode SDK and its private Effect runtime only when invoked. `vite` stays a peer — graph commands
 load your app through Vite at runtime — and `lighthouse` is only needed by `pagegraph audit`.
-Importing `pagegraph/audit` programmatically still needs `effect`.
+Importing `pagegraph/audit` programmatically needs `effect@^4.0.0`. The Effect and TypeSafe
+peers remain optional for other library entry points and the bundled CLI.
 
 ### Agent skill
 

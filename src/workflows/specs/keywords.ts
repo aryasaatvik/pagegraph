@@ -1,5 +1,5 @@
 import * as Schema from "effect/Schema";
-import { Decision } from "effect/unstable/ai";
+import { Decision } from "effect/ai";
 
 import { anyInReviewBand, type DecisionFamily } from "../../decide/run";
 

@@ -1,6 +1,6 @@
 import * as Effect from "effect/Effect";
-import * as Command from "effect/unstable/cli/Command";
-import * as Flag from "effect/unstable/cli/Flag";
+import * as Command from "effect/cli/Command";
+import * as Flag from "effect/cli/Flag";
 
 import { acquireGraph, loadSeoConfig } from "../load-config";
 import { printJson, printText } from "../output";

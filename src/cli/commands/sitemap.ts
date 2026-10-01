@@ -1,5 +1,5 @@
 import * as Effect from "effect/Effect";
-import * as Command from "effect/unstable/cli/Command";
+import * as Command from "effect/cli/Command";
 
 import { renderSitemap } from "../../core/projections";
 import { acquireGraph, loadSeoConfig } from "../load-config";

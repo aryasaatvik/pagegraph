@@ -3,8 +3,8 @@ import { execFileSync } from "node:child_process";
 import { dirname, resolve } from "node:path";
 
 import * as Effect from "effect/Effect";
-import * as Command from "effect/unstable/cli/Command";
-import * as Flag from "effect/unstable/cli/Flag";
+import * as Command from "effect/cli/Command";
+import * as Flag from "effect/cli/Flag";
 
 import presetGitignore from "../preset/gitignore.txt" with { type: "text" };
 import { opencodePreset } from "../preset/opencode/preset";

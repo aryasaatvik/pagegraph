@@ -14,8 +14,8 @@
 
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
-import { Decision, DecisionModel } from "effect/unstable/ai";
-import type * as AiError from "effect/unstable/ai/AiError";
+import { Decision, DecisionModel } from "effect/ai";
+import type * as AiError from "effect/ai/AiError";
 
 import { cacheGet, cachePut } from "../decide/cache";
 import { cacheKey, inputHash, validCachedAnswers } from "../decide/run";

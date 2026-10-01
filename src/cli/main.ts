@@ -27,8 +27,8 @@ import * as Console from "effect/Console";
 import * as Effect from "effect/Effect";
 import * as Logger from "effect/Logger";
 import * as Runtime from "effect/Runtime";
-import * as CliError from "effect/unstable/cli/CliError";
-import * as Command from "effect/unstable/cli/Command";
+import * as CliError from "effect/cli/CliError";
+import * as Command from "effect/cli/Command";
 
 import PackageJson from "../../package.json" with { type: "json" };
 import { cli } from "./cli";

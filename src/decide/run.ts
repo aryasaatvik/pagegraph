@@ -13,9 +13,9 @@ import { createHash } from "node:crypto";
 
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
-import { DecisionModel } from "effect/unstable/ai";
-import type * as AiError from "effect/unstable/ai/AiError";
-import type * as Decision from "effect/unstable/ai/Decision";
+import { DecisionModel } from "effect/ai";
+import type * as AiError from "effect/ai/AiError";
+import type * as Decision from "effect/ai/Decision";
 
 import { cacheGet, cachePut } from "./cache";
 import { DecisionRecord, type DecisionBatchReport } from "./record";

@@ -10,8 +10,7 @@ import { defineConfig } from "tsdown";
 // `cli` is the one entry that reaches Effect and the Bun platform adapter. It is
 // built as a separate pass that **bundles** `effect` and `@effect/*`: a published
 // binary that resolved Effect from the consumer's tree would couple to the
-// consumer's RC, and the `effect/unstable/cli` constructors rename between RCs
-// (`Flag.boolean` → `Flag.Boolean` at rc.113). Bundling makes the binary
+// consumer's Effect version. Bundling makes the binary
 // self-contained. `vite` and `lighthouse` stay external — the CLI loads the app
 // graph through Vite and spawns Lighthouse, both optional peers.
 const base = {
@@ -55,7 +54,7 @@ export default defineConfig([
     deps: {
       neverBundle: [/^node:/],
       // Effect and every `@effect/*` package are bundled for the built CLI and
-      // workflow runtime, so consumers do not resolve a different Effect RC.
+      // workflow runtime, so consumers do not resolve a different Effect version.
       alwaysBundle: [/^effect(\/|$)/, /^@effect\//],
     },
   },

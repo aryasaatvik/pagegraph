@@ -1,7 +1,7 @@
-import * as Argument from "effect/unstable/cli/Argument";
-import * as Command from "effect/unstable/cli/Command";
+import * as Argument from "effect/cli/Argument";
+import * as Command from "effect/cli/Command";
 import * as Effect from "effect/Effect";
-import * as Flag from "effect/unstable/cli/Flag";
+import * as Flag from "effect/cli/Flag";
 import * as Option from "effect/Option";
 
 import { Audit, AuditLayer } from "../../audit";

@@ -5,7 +5,7 @@ import { join } from "node:path";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Schema from "effect/Schema";
-import { Decision, DecisionModel } from "effect/unstable/ai";
+import { Decision, DecisionModel } from "effect/ai";
 import { afterAll, describe, expect, it } from "vitest";
 
 import {

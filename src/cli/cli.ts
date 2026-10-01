@@ -1,4 +1,4 @@
-import * as Command from "effect/unstable/cli/Command";
+import * as Command from "effect/cli/Command";
 
 import { checkCommand } from "./commands/check";
 import { auditCommand } from "./commands/audit";

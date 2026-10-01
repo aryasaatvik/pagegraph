@@ -1,7 +1,7 @@
 import * as Effect from "effect/Effect";
 import { describe, expect, it } from "vitest";
 
-import type { DecisionModel } from "effect/unstable/ai";
+import type { DecisionModel } from "effect/ai";
 
 import {
   classifySerpVerdict,

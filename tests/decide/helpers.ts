@@ -7,7 +7,7 @@
 
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
-import { DecisionModel } from "effect/unstable/ai";
+import { DecisionModel } from "effect/ai";
 
 export const probability = (value: number): DecisionModel.ProviderProbabilityAnswer => ({
   _tag: "Probability",

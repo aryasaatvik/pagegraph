@@ -1,5 +1,5 @@
-import type * as AiError from "effect/unstable/ai/AiError";
-import type { DecisionModel } from "effect/unstable/ai";
+import type * as AiError from "effect/ai/AiError";
+import type { DecisionModel } from "effect/ai";
 import type * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 

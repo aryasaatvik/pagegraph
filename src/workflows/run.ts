@@ -4,7 +4,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import * as FetchHttpClient from "effect/unstable/http/FetchHttpClient";
+import * as FetchHttpClient from "effect/http/FetchHttpClient";
 
 import type { SeoCliConfig } from "../config";
 import { allowedByRobots, robotsRules } from "../audit/crawl";

@@ -12,7 +12,7 @@
 import * as Console from "effect/Console";
 import * as Data from "effect/Data";
 import * as Option from "effect/Option";
-import * as Flag from "effect/unstable/cli/Flag";
+import * as Flag from "effect/cli/Flag";
 
 /** Expected, user-facing CLI failure — message to stderr, process exits non-zero. */
 export class SeoCliError extends Data.TaggedError("SeoCliError")<{

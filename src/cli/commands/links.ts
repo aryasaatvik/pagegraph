@@ -1,8 +1,8 @@
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
-import * as Argument from "effect/unstable/cli/Argument";
-import * as Command from "effect/unstable/cli/Command";
-import * as Flag from "effect/unstable/cli/Flag";
+import * as Argument from "effect/cli/Argument";
+import * as Command from "effect/cli/Command";
+import * as Flag from "effect/cli/Flag";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 

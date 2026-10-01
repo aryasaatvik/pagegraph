@@ -185,10 +185,86 @@ const mutationCases: ReadonlyArray<{
 ];
 
 afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
   for (const directory of directories.splice(0)) rmSync(directory, { recursive: true, force: true });
 });
 
 describe("workflow runner", () => {
+  it("runs default TypeSafe decisions through HTTP and persists their verdict", async () => {
+    const { root, graph, config } = fixture();
+    const opportunity = {
+      query: "email api",
+      intent: "commercial",
+      rationale: "Matches the pricing page.",
+      candidates: [{ path: "/pricing", title: "Pricing", excerpt: "Email API pricing" }],
+      evidence: ["executor.search -> keyword tool"],
+    };
+    vi.stubEnv("TYPESAFE_API_KEY", "test-typesafe-key");
+    const fetch = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      const request = new Request(input, init);
+      expect(request.url).toBe("https://api.typesafe.ai/v1/systemone");
+      expect(request.method).toBe("POST");
+      expect(request.headers.get("authorization")).toBe("Bearer test-typesafe-key");
+      expect(request.headers.get("content-type")).toContain("application/json");
+      expect(await request.json()).toMatchObject({
+        model: "jev-latest",
+        state: opportunity,
+        questions: {
+          supportedDemand: { type: "noul", criteria: { false: expect.any(String), true: expect.any(String) } },
+          productFit: { type: "noul" },
+          ownership: { type: "choice", criteria: { existing: expect.any(String), expand: expect.any(String), new: expect.any(String) } },
+        },
+      });
+      return Response.json({
+        model: "jev-latest",
+        answers: {
+          supportedDemand: { type: "noul", noul: 0.95 },
+          productFit: { type: "noul", noul: 0.9 },
+          ownership: { type: "choice", choice: "expand", probabilities: { existing: 0.05, expand: 0.9, new: 0.05 }, confidence: 0.9 },
+        },
+        usage: { input_tokens: 123, output_tokens: 45 },
+      });
+    });
+    vi.stubGlobal("fetch", fetch);
+    const close = vi.fn(async () => {});
+    const result = await runKeywordWorkflow({ config, graph, root, options }, {
+      acquireHost: async () => ({
+        model: { provider: "test", id: "model" },
+        research: async () => ({
+          state: { summary: "One supported opportunity.", opportunities: [opportunity] },
+          sessionId: "session-http-decisions",
+          transcript: { messages: ["research transcript"] },
+          executor: executorEvidence,
+        }),
+        continue: async () => { throw new Error("read-only workflow must not start an action turn"); },
+        close,
+      }),
+    });
+
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(close).toHaveBeenCalledTimes(1);
+    expect(result.run.result).toEqual({ summary: "One supported opportunity.", opportunities: [opportunity] });
+    expect(result.run.decisions[0]?.report).toMatchObject({
+      family: "workflow-keywords",
+      model: "jev-latest",
+      counts: { inputs: 1, resolved: 1, review: 0 },
+      verdicts: { expand: 1 },
+      resolved: [{
+        inputRef: "query:email api",
+        verdict: "expand",
+        review: false,
+        answers: {
+          supportedDemand: { probability: 0.95 },
+          productFit: { probability: 0.9 },
+          ownership: { label: "expand", probabilities: { existing: 0.05, expand: 0.9, new: 0.05 } },
+        },
+        usage: { inputTokens: 123, outputTokens: 45 },
+      }],
+    });
+    expect(JSON.parse(readFileSync(join(result.directory, "run.json"), "utf8")).decisions).toEqual(result.run.decisions);
+  });
+
   it("persists bounded read-only evidence without changing a dirty tree", async () => {
     const { root, graph, config } = fixture();
     writeFileSync(join(root, "AGENTS.md"), "Use primary evidence.\nExisting user change.\n");

@@ -1,6 +1,6 @@
 import { Effect, FileSystem, Schema } from "effect";
-import * as Argument from "effect/unstable/cli/Argument";
-import * as Command from "effect/unstable/cli/Command";
+import * as Argument from "effect/cli/Argument";
+import * as Command from "effect/cli/Command";
 
 import {
   AuditComparisonResult,

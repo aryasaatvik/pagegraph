@@ -1,6 +1,6 @@
 import * as Effect from "effect/Effect";
-import * as Argument from "effect/unstable/cli/Argument";
-import * as Command from "effect/unstable/cli/Command";
+import * as Argument from "effect/cli/Argument";
+import * as Command from "effect/cli/Command";
 
 import coreSkill from "../../../skill-data/core/SKILL.md" with { type: "text" };
 import { jsonFlag, printJson, printText, SeoCliError } from "../output";

@@ -1,5 +1,5 @@
 import * as Effect from "effect/Effect";
-import type { DecisionModel } from "effect/unstable/ai";
+import type { DecisionModel } from "effect/ai";
 import { describe, expect, it } from "vitest";
 
 import {

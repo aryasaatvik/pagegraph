@@ -4,7 +4,7 @@ import { join } from "node:path";
 
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
-import { DecisionModel } from "effect/unstable/ai";
+import { DecisionModel } from "effect/ai";
 import { afterAll, describe, expect, it } from "vitest";
 
 import { cacheKey, inputHash } from "../../src/decide/run";

@@ -168,7 +168,7 @@ export default defineSeoConfig({
 });
 ```
 
-`tanstackStartGraph` evaluates the app's Vite config in `production` mode and returns the plugin's graph and robots policy. Optional fields: `coverage` (`[{ path, minInbound }]`, contextual-link minimums enforced by `check`), `content`, `freshness`, and `workflows`. Build-time head consumers use `loadPageHeads(tanstackStartGraph({ root }), { exclude })` from `pagegraph/config`.
+`tanstackStartGraph` evaluates the app's Vite config the way the dev server does (command `serve`) in `production` mode, and returns the plugin's graph and robots policy. Optional fields: `coverage` (`[{ path, minInbound }]`, contextual-link minimums enforced by `check`), `content`, `freshness`, and `workflows`. Build-time head consumers use `loadPageHeads(tanstackStartGraph({ root }), { exclude })` from `pagegraph/config`.
 
 ## Rules that bite
 

@@ -229,7 +229,8 @@ export default defineSeoConfig({
 });
 ```
 
-`tanstackStartGraph` evaluates the app's Vite config in `production` mode and returns the plugin's
+`tanstackStartGraph` evaluates the app's Vite config the way the dev server does (command `serve`) in
+`production` mode and returns the plugin's
 graph and robots policy. Do not repeat `disallow` or `contentSignal` here; the plugin owns them.
 Build-time consumers of page titles and descriptions use
 `loadPageHeads(tanstackStartGraph({ root }), { exclude })` from `pagegraph/config`.

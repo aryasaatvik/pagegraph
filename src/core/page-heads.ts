@@ -33,8 +33,8 @@ export function selectPageHeadNodes(graph: SeoGraph, options: PageHeadsOptions =
 /** Extract resolved heads, naming the selected page when metadata is missing or blank. */
 export function pageHeads(graph: SeoGraph, options: PageHeadsOptions = {}): Array<PageHead> {
   return selectPageHeadNodes(graph, options).map((node) => {
-    const title = node.instance?.title;
-    const description = node.instance?.description;
+    const title = node.head?.title;
+    const description = node.head?.description;
     if (!title?.trim()) throw new Error(`Invalid page head for ${node.path}: missing title`);
     if (!description?.trim()) throw new Error(`Invalid page head for ${node.path}: missing description`);
     return { path: node.path, title, description };

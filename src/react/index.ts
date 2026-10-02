@@ -11,7 +11,8 @@
  */
 
 export { createSeo } from "./create-seo";
-export type { PageSeoInstance, Seo, SeoHead, SeoHeadCtx } from "./create-seo";
+export type { Seo, SeoHead, SeoHeadCtx } from "./create-seo";
+export type { JsonLdDocument, SeoFaq, SeoPageHead } from "../core/declare";
 
 export type {
   SeoConfig,
@@ -24,7 +25,6 @@ export type {
 export type {
   ArticleParams,
   BreadcrumbItem,
-  FAQItem,
   ItemListEntry,
   JsonLd,
   ServiceParams,
@@ -38,7 +38,6 @@ export {
   jsonLdRef,
 } from "./json-ld-composition";
 export type {
-  JsonLdDocument,
   JsonLdEntityIds,
   JsonLdEntry,
   JsonLdNode,

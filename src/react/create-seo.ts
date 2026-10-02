@@ -10,61 +10,17 @@
 
 import type { AnyRouteMatch, MetaDescriptor } from "@tanstack/react-router";
 
+import { applyTitleTemplate, type SeoPageHead } from "../core/declare";
+
 import { resolveCrumbTrail } from "./breadcrumbs";
 import type { JsonLdDocument, JsonLdEntry } from "./json-ld-composition";
 import { absoluteUrl, type SeoConfig } from "./site";
-import { createJsonLd, type FAQItem, type JsonLd } from "./json-ld";
+import { createJsonLd, type JsonLd } from "./json-ld";
 
 /** Structural subset of TanStack's head() ctx — the leaf match plus the full chain. */
 export interface SeoHeadCtx {
   matches: ReadonlyArray<AnyRouteMatch>;
   match: AnyRouteMatch;
-}
-
-export interface PageSeoInstance {
-  /** FULL title — no suffix is appended. */
-  title: string;
-  description: string;
-  ogTitle?: string | undefined;
-  ogDescription?: string | undefined;
-  /** Instance override of the route's robots policy. */
-  robots?: string | undefined;
-  article?:
-    | {
-        publishedAt: string;
-        modifiedAt?: string | undefined;
-        author?: { name: string; url?: string | undefined } | undefined;
-        image?: string | undefined;
-        tags?: ReadonlyArray<string> | undefined;
-      }
-    | undefined;
-  faqs?: ReadonlyArray<FAQItem> | undefined;
-  service?:
-    | { name: string; description?: string | undefined; serviceType: string }
-    | undefined;
-  /** Standalone keywords meta for non-article pages; article pages derive it from tags. */
-  keywords?: ReadonlyArray<string> | undefined;
-  /** Visible canonical pages rendered as an ordered collection on this page. */
-  itemList?:
-    | {
-        name: string;
-        items: ReadonlyArray<{ name: string; url: string }>;
-      }
-    | undefined;
-  /** Additional schema.org documents for this route. */
-  jsonLd?: ReadonlyArray<JsonLdDocument> | undefined;
-  /**
-   * Explicit canonical path (used for canonical + og:url instead of the match pathname).
-   * For routes whose canonical is computed independently of the URL, e.g. a docs splat
-   * that derives it from the resolved slug segments in its loader.
-   */
-  canonicalPath?: string | undefined;
-  /**
-   * Explicit breadcrumb trail for the BreadcrumbList JSON-LD, overriding the match-chain
-   * trail. For routes whose hierarchy lives outside the route tree — a docs splat whose
-   * ancestry is a content page tree. Each item's `path` is a URL path.
-   */
-  breadcrumbs?: ReadonlyArray<{ name: string; path: string }> | undefined;
 }
 
 export interface SeoHead {
@@ -74,7 +30,24 @@ export interface SeoHead {
 
 /** The render API, bound to one site identity. */
 export interface Seo extends JsonLd {
-  seoHead: (ctx: SeoHeadCtx, instance: PageSeoInstance) => SeoHead;
+  seoHead: (ctx: SeoHeadCtx, instance: SeoPageHead) => SeoHead;
+  /**
+   * `head()` for a static route that declares its head in `staticData.seo.head`:
+   *
+   * ```ts
+   * createFileRoute("/pricing")({
+   *   staticData: { seo: { kind: "page", sitemap, head: { title, description, faqs } } },
+   *   head: seo.head,
+   * })
+   * ```
+   *
+   * The graph, `pageHeads`, and the checks read the same declaration.
+   *
+   * Generic so TanStack infers nothing from it: a `head` typed with
+   * `AnyRouteMatch` would make the route's search and loader types `any`, and
+   * that spreads through the route tree.
+   */
+  head: <Ctx extends SeoHeadCtx>(ctx: Ctx) => SeoHead;
 }
 
 /** Strip a trailing slash from a pathname, keeping the root "/" intact. */
@@ -88,9 +61,10 @@ export function createSeo(config: SeoConfig): Seo {
   const { origin, site } = config;
   const jsonLd = createJsonLd(config);
 
-  const seoHead = (ctx: SeoHeadCtx, instance: PageSeoInstance): SeoHead => {
+  const seoHead = (ctx: SeoHeadCtx, instance: SeoPageHead): SeoHead => {
     const canonical = `${origin}${instance.canonicalPath ?? normalizePathname(ctx.match.pathname)}`;
-    const resolvedOgTitle = instance.ogTitle ?? instance.title;
+    const title = applyTitleTemplate(ctx.match.staticData.seo?.titleTemplate, instance.title);
+    const resolvedOgTitle = instance.ogTitle ?? title;
     const resolvedOgDescription =
       instance.ogDescription ?? instance.description;
     const routeSeo = ctx.match.staticData.seo;
@@ -98,7 +72,7 @@ export function createSeo(config: SeoConfig): Seo {
     const jsonLdEntries: Array<JsonLdEntry> = [];
 
     const meta: Array<MetaDescriptor> = [
-      { title: instance.title },
+      { title },
       { name: "description", content: instance.description },
       { property: "og:title", content: resolvedOgTitle },
       { property: "og:description", content: resolvedOgDescription },
@@ -222,11 +196,20 @@ export function createSeo(config: SeoConfig): Seo {
     // TanStack renders `script:ld+json` entries as JSON-LD <script> tags at runtime. The
     // installed @tanstack/react-router augments leaf head meta to those JSX attributes, so
     // the JSON-LD entries are asserted to it (same pattern as an inline root JSON-LD).
-    return {
+    const head: SeoHead = {
       meta: meta as NonNullable<AnyRouteMatch["meta"]>,
       links: [{ rel: "canonical", href: canonical }],
     };
+    return config.transformHead === undefined ? head : config.transformHead(head);
   };
 
-  return { seoHead, ...jsonLd };
+  const head = <Ctx extends SeoHeadCtx>(ctx: Ctx): SeoHead => {
+    const declared = ctx.match.staticData.seo?.head;
+    if (declared === undefined) {
+      throw new Error(`seo.head needs staticData.seo.head on route ${ctx.match.routeId}`);
+    }
+    return seoHead(ctx, declared);
+  };
+
+  return { seoHead, head, ...jsonLd };
 }

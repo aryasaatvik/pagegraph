@@ -7,6 +7,7 @@
  * `json-ld.ts`.
  */
 
+import type { SeoHead } from "./create-seo";
 import type { SeoJsonLdConfig } from "./json-ld-composition";
 
 /** Absolute URL for an origin-relative path; an already-absolute URL passes through. */
@@ -58,4 +59,9 @@ export interface SeoConfig {
   organization: SeoOrganization;
   website: SeoWebsite;
   jsonLd?: SeoJsonLdConfig | undefined;
+  /**
+   * Last-mile override for every head `seoHead` renders, e.g. to append
+   * site-specific meta. Runs after the canonical, title template, and JSON-LD.
+   */
+  transformHead?: ((head: SeoHead) => SeoHead) | undefined;
 }

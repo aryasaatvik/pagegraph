@@ -15,8 +15,9 @@ import type {
 /** Any schema.org entity accepted by `schema-dts`. */
 export type JsonLdNode = Extract<Thing, object>;
 
-/** A top-level JSON-LD entity or graph ready to serialize into a script element. */
-export type JsonLdDocument = WithContext<Thing> | Graph;
+import type { JsonLdDocument } from "../core/declare";
+
+export type { JsonLdDocument };
 
 export interface JsonLdEntityIds {
   organization: string;

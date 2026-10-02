@@ -1,6 +1,7 @@
 import type { AnyRouteMatch } from "@tanstack/react-router";
 import { describe, expect, it } from "vitest";
 
+import type { RouteSeo } from "../../src/core";
 import { createSeo, defineJsonLd } from "../../src/react";
 
 const routeMatch = (pathname: string): AnyRouteMatch =>
@@ -118,5 +119,68 @@ describe("seoHead JSON-LD composition", () => {
       { "@type": "Service", name: "Example API" },
       { "@type": "Offer", name: "Free tier" },
     ]);
+  });
+});
+
+describe("declared heads", () => {
+  const config = {
+    origin: "https://example.com",
+    site: {
+      name: "Example",
+      logo: "/logo.png",
+      publisherLogo: "/publisher.png",
+      defaultImage: "/og.png",
+      defaultAuthor: { name: "Example Team" },
+    },
+    organization: {
+      description: "Example description.",
+      sameAs: [],
+      contactPoint: { contactType: "Customer Support", email: "support@example.com" },
+    },
+    website: { searchPath: "/search?q={search_term_string}" },
+  };
+  const matchWith = (pathname: string, seo: unknown): AnyRouteMatch =>
+    ({ id: pathname, routeId: pathname, pathname, staticData: { seo } }) as unknown as AnyRouteMatch;
+
+  it("seo.head renders the head declared in staticData.seo", () => {
+    const seo = createSeo(config);
+    const declaration: RouteSeo = {
+      kind: "page",
+      sitemap: { priority: 0.9, changeFrequency: "monthly" },
+      head: {
+        title: "Pricing | Example",
+        description: "Simple pricing.",
+        faqs: [{ question: "Free?", answer: "Yes.", category: "billing" }],
+      },
+    };
+    const match = matchWith("/pricing", declaration);
+    const head = seo.head({ match, matches: [match] });
+    expect(head.meta).toContainEqual({ title: "Pricing | Example" });
+    expect(head.meta).toContainEqual({ name: "description", content: "Simple pricing." });
+    expect(JSON.stringify(head.meta)).toContain("FAQPage");
+  });
+
+  it("seo.head fails loud on a route without a declared head", () => {
+    const seo = createSeo(config);
+    const match = matchWith("/bare", { kind: "page" });
+    expect(() => seo.head({ match, matches: [match] })).toThrow("seo.head needs staticData.seo.head");
+  });
+
+  it("applies the route's title template to the page title", () => {
+    const seo = createSeo(config);
+    const match = matchWith("/blog/post", { kind: "article", titleTemplate: "%s | Example Blog" });
+    const head = seo.seoHead({ match, matches: [match] }, { title: "A post", description: "About it." });
+    expect(head.meta).toContainEqual({ title: "A post | Example Blog" });
+    expect(head.meta).toContainEqual({ property: "og:title", content: "A post | Example Blog" });
+  });
+
+  it("runs transformHead on every rendered head", () => {
+    const seo = createSeo({
+      ...config,
+      transformHead: (head) => ({ ...head, meta: [...head.meta, { name: "x-test", content: "1" }] }),
+    });
+    const match = matchWith("/page", { kind: "page" });
+    const head = seo.seoHead({ match, matches: [match] }, { title: "Page", description: "A page." });
+    expect(head.meta.at(-1)).toEqual({ name: "x-test", content: "1" });
   });
 });

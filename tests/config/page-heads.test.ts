@@ -2,7 +2,8 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
-import { loadPageHeads, pageHeads, selectPageHeadNodes, viteGraphLoader } from "../../src/config";
+import { loadPageHeads, viteGraphLoader } from "../../src/config";
+import { pageHeads, selectPageHeadNodes } from "../../src/core";
 import type { SeoGraph, SeoNode } from "../../src/core/graph";
 
 const node = (path: string): SeoNode => ({ path, kind: "page", source: "route", policy: { kind: "page", sitemap: false }, instance: { title: "Title", description: "Description" } });

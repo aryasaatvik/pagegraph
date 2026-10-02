@@ -32,6 +32,7 @@ import {
   type JsonLdEntityIds,
   type JsonLdEntry,
 } from "./json-ld-composition";
+import type { SeoFaq } from "../core/declare";
 import { absoluteUrl, type SeoConfig } from "./site";
 
 export interface ServiceParams {
@@ -42,12 +43,6 @@ export interface ServiceParams {
   areaServed?: string | undefined;
 }
 
-export interface FAQItem {
-  question: string;
-  answer: string;
-  category?: string | undefined;
-  isHighlighted?: boolean | undefined;
-}
 
 export interface BreadcrumbItem {
   name: string;
@@ -80,7 +75,7 @@ export interface JsonLd {
   /** WebSite entity with a sitelinks search box. Render on the homepage. */
   generateWebsiteSchema: () => WithContext<WebSite>;
   generateServiceSchema: (params: ServiceParams) => WithContext<Service>;
-  generateFAQPageSchema: (faqs: FAQItem[]) => WithContext<FAQPage>;
+  generateFAQPageSchema: (faqs: SeoFaq[]) => WithContext<FAQPage>;
   generateBreadcrumbSchema: (
     items: BreadcrumbItem[],
   ) => WithContext<BreadcrumbList>;
@@ -167,7 +162,7 @@ export function createJsonLd(config: SeoConfig): JsonLd {
     areaServed: params.areaServed ?? "Worldwide",
   });
 
-  const generateFAQPageSchema = (faqs: FAQItem[]): WithContext<FAQPage> => {
+  const generateFAQPageSchema = (faqs: SeoFaq[]): WithContext<FAQPage> => {
     const questions: Question[] = faqs.map((faq) => ({
       "@type": "Question",
       name: faq.question,

@@ -9,6 +9,7 @@
  */
 
 import type { AnyRouteMatch } from "@tanstack/react-router";
+import type { Graph, Thing, WithContext } from "schema-dts";
 
 /**
  * Consumer-augmented registry.
@@ -35,6 +36,64 @@ export interface SitemapPolicy {
   changeFrequency: "weekly" | "monthly";
 }
 
+/** A question and answer the page shows and marks up as FAQPage. */
+export interface SeoFaq {
+  question: string;
+  answer: string;
+  category?: string | undefined;
+  isHighlighted?: boolean | undefined;
+}
+
+/** A top-level JSON-LD entity or graph ready to serialize into a script element. */
+export type JsonLdDocument = WithContext<Thing> | Graph;
+
+/**
+ * The document head a page ships. A static route declares it once in
+ * `staticData.seo.head` and renders it with `seo.head` from `pagegraph/react`;
+ * the graph, `pageHeads`, and the checks read the same title, description, and
+ * FAQs. A dynamic route passes it to `seoHead(ctx, head)` from its `head()`.
+ */
+export interface SeoPageHead {
+  /**
+   * The page title. A route that declares {@link RouteSeo.titleTemplate} gets
+   * it applied; otherwise this is the full `<title>`.
+   */
+  title: string;
+  description: string;
+  ogTitle?: string | undefined;
+  ogDescription?: string | undefined;
+  /** Override of the route's robots policy. */
+  robots?: string | undefined;
+  article?:
+    | {
+        publishedAt: string;
+        modifiedAt?: string | undefined;
+        author?: { name: string; url?: string | undefined } | undefined;
+        image?: string | undefined;
+        tags?: ReadonlyArray<string> | undefined;
+      }
+    | undefined;
+  faqs?: ReadonlyArray<SeoFaq> | undefined;
+  service?: { name: string; description?: string | undefined; serviceType: string } | undefined;
+  /** Standalone keywords meta for non-article pages; article pages derive it from tags. */
+  keywords?: ReadonlyArray<string> | undefined;
+  /** Visible canonical pages rendered as an ordered collection on this page. */
+  itemList?: { name: string; items: ReadonlyArray<{ name: string; url: string }> } | undefined;
+  /** Additional schema.org documents for this route. */
+  jsonLd?: ReadonlyArray<JsonLdDocument> | undefined;
+  /**
+   * Explicit canonical path (used for canonical + og:url instead of the match pathname).
+   * For routes whose canonical is computed independently of the URL, e.g. a docs splat
+   * that derives it from the resolved slug segments in its loader.
+   */
+  canonicalPath?: string | undefined;
+  /**
+   * Explicit breadcrumb trail for the BreadcrumbList JSON-LD, overriding the match-chain
+   * trail. For routes whose hierarchy lives outside the route tree. Each `path` is a URL path.
+   */
+  breadcrumbs?: ReadonlyArray<{ name: string; path: string }> | undefined;
+}
+
 export interface RouteSeo {
   kind: SeoKind;
   /** Breadcrumb label; fn form reads the match (e.g. loaderData frontmatter title). */
@@ -55,6 +114,21 @@ export interface RouteSeo {
    * carry their own dates instead; a param route's value is never inherited.
    */
   modifiedAt?: string | undefined;
+  /** A static page's head, rendered by `seo.head`; the graph and `pageHeads` read it. */
+  head?: SeoPageHead | undefined;
+  /**
+   * Full-title template for pages rendered through this route, with `%s` for the
+   * page's own title (e.g. `"%s | Example Blog"`). `seoHead` applies it to the
+   * title a dynamic route passes, and the graph applies it to the instances a
+   * collection routes through it, so the suffix lives in one place.
+   */
+  titleTemplate?: string | undefined;
+}
+
+/** Apply a {@link RouteSeo.titleTemplate}; no template means the title is already full. */
+export function applyTitleTemplate(template: string | undefined, title: string): string {
+  // A replacer function keeps `$&` and friends in the title literal.
+  return template === undefined ? title : template.replaceAll("%s", () => title);
 }
 
 declare module "@tanstack/react-router" {

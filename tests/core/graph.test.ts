@@ -1,7 +1,10 @@
 import { describe, expect, it } from "@effect/vitest";
 import type { AnyRoute } from "@tanstack/react-router";
 
+import { contentCollection } from "../../src/core/collections";
+import { applyTitleTemplate } from "../../src/core/declare";
 import { buildSeoGraph, type SeoCollection } from "../../src/core/graph";
+import { graphFromJson, graphToJson, type SeoGraphJson } from "../../src/core/wire";
 import { contentSignal, renderRobots, renderSitemap } from "../../src/core/projections";
 
 /**
@@ -502,5 +505,74 @@ describe("renderRobots", () => {
     expect(contentSignal("search=yes, ai-input=yes")).toBe(
       "Content-Signal: search=yes, ai-input=yes",
     );
+  });
+});
+
+describe("declared heads, collections, and the wire format", () => {
+  const tree = route({ seo: { kind: "page", crumb: "Home" } }, [
+    route({
+      path: "/pricing",
+      seo: {
+        kind: "page",
+        sitemap: { priority: 0.9, changeFrequency: "monthly" },
+        head: { title: "Pricing | Example", description: "Pricing.", faqs: [{ question: "Q", answer: "A", extra: 1 }] },
+      },
+    }),
+    route({
+      path: "/blog/$slug",
+      seo: { kind: "article", titleTemplate: "%s | Blog", sitemap: { priority: 0.7, changeFrequency: "weekly" } },
+    }),
+  ]) as AnyRoute;
+  const blog = contentCollection({
+    route: "/blog/$slug",
+    source: "blog",
+    pages: [
+      { url: "/blog/b", title: "B", body: "" },
+      { url: "/blog/a", title: "A", body: "" },
+    ],
+    entry: (page) => ({ title: page.title, description: `${page.title} post`, related: ["/pricing", "/pricing"] }),
+  });
+  const graph = buildSeoGraph({ routeTree: tree, collections: [blog] });
+
+  it("projects a declared head and templates instance titles", () => {
+    expect(graph.nodes.get("/pricing")?.head).toEqual({
+      title: "Pricing | Example",
+      description: "Pricing.",
+      faqs: [{ question: "Q", answer: "A" }],
+    });
+    expect(graph.nodes.get("/blog/a")?.head).toEqual({ title: "A | Blog", description: "A post" });
+  });
+
+  it("turns related entries into deduplicated edges", () => {
+    expect(graph.edges.filter((edge) => edge.from === "/blog/a")).toEqual([
+      { from: "/blog/a", to: "/pricing", type: "related" },
+    ]);
+  });
+
+  it("round-trips through JSON with the same sitemap", () => {
+    const json = JSON.parse(JSON.stringify(graphToJson(graph))) as SeoGraphJson;
+    const restored = graphFromJson(json);
+    const config = { origin: "https://example.com", indexable: true };
+    expect(renderSitemap(restored, config)).toBe(renderSitemap(graph, config));
+    expect(restored.nodes.get("/blog/b")?.head?.title).toBe("B | Blog");
+    expect(restored.nodes.get("/pricing")?.policy.head).toBeUndefined();
+  });
+});
+
+describe("title templates", () => {
+  it("keeps replacement tokens in a title literal", () => {
+    expect(applyTitleTemplate("%s | Brand", "Costs $& today")).toBe("Costs $& today | Brand");
+  });
+
+  it("projects a merged index head with the index's own template, as seo.head renders it", () => {
+    const tree = route({ seo: { kind: "page", crumb: "Home" } }, [
+      route({ path: "/foo", seo: { kind: "hub", crumb: "Foo", titleTemplate: "%s | Layout" } }, [
+        route({
+          path: "/",
+          seo: { kind: "page", sitemap: { priority: 0.5, changeFrequency: "monthly" }, head: { title: "Index", description: "The index." } },
+        }),
+      ]),
+    ]) as AnyRoute;
+    expect(buildSeoGraph({ routeTree: tree }).nodes.get("/foo")?.head?.title).toBe("Index");
   });
 });

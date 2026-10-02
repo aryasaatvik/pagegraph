@@ -20,7 +20,7 @@
 
 import type { AnyRoute } from "@tanstack/react-router";
 
-import type { PublicPath, RouteSeo, SeoKind } from "./declare";
+import { applyTitleTemplate, type PublicPath, type RouteSeo, type SeoKind } from "./declare";
 
 /**
  * Where a node came from: `"route"` for a structural route declaration, or the
@@ -35,6 +35,12 @@ export interface SeoNode {
   source: SeoSource;
   /** Route-declared policy, or synthesized (kind + inherited sitemap) for instances. */
   policy: RouteSeo;
+  /**
+   * The head the page ships: a static route's declared `head`, or an instance's
+   * title (through its route's `titleTemplate`) and description. Absent when the
+   * route computes its head at request time and no collection supplies it.
+   */
+  head?: SeoNodeHead | undefined;
   instance?:
     | {
         title: string;
@@ -43,6 +49,16 @@ export interface SeoNode {
         modifiedAt?: string | undefined;
       }
     | undefined;
+}
+
+/**
+ * A node's head as graph data: the full title, description, and FAQ text. An
+ * instance without a description still carries its title.
+ */
+export interface SeoNodeHead {
+  readonly title: string;
+  readonly description?: string | undefined;
+  readonly faqs?: ReadonlyArray<{ readonly question: string; readonly answer: string }> | undefined;
 }
 
 export type SeoEdgeType = "crumb-parent" | "related" | "redirect" | "collection-member";
@@ -84,22 +100,26 @@ export interface SeoCollection {
   readonly edges?: ReadonlyArray<SeoEdge> | undefined;
 }
 
+/**
+ * The structural route shape the graph walks: a TanStack route tree has it
+ * before `init()`, and an adapter can build it from parsed route files.
+ */
+export interface SeoRouteNode {
+  readonly options: {
+    readonly path?: string | undefined;
+    readonly staticData?: { readonly seo?: RouteSeo | undefined } | undefined;
+  };
+  readonly children?: ReadonlyArray<SeoRouteNode> | undefined;
+}
+
 export interface BuildSeoGraphInput {
-  readonly routeTree: AnyRoute;
+  readonly routeTree: AnyRoute | SeoRouteNode;
   readonly collections?: ReadonlyArray<SeoCollection> | undefined;
 }
 
 /** Kind for instances whose collection route carries no declaration to inherit. */
 const FALLBACK_KIND: SeoKind = "page";
 
-/** Structural view of a route we walk — the fields present before router init(). */
-interface WalkableRoute {
-  readonly options: {
-    readonly path?: string | undefined;
-    readonly staticData?: { readonly seo?: RouteSeo | undefined } | undefined;
-  };
-  readonly children?: ReadonlyArray<WalkableRoute> | undefined;
-}
 
 /**
  * Join a child's local path onto its parent's computed full path with the same
@@ -114,6 +134,16 @@ function joinPath(parent: string, seg: string | undefined): string {
   return joined.replace(/\/{2,}/g, "/");
 }
 
+/** A route's declared head as graph data: templated title, description, and plain FAQs. */
+function declaredHead(seo: RouteSeo): SeoNodeHead | undefined {
+  if (seo.head === undefined) return undefined;
+  return {
+    title: applyTitleTemplate(seo.titleTemplate, seo.head.title),
+    description: seo.head.description,
+    faqs: seo.head.faqs?.map(({ question, answer }) => ({ question, answer })),
+  };
+}
+
 /** Merge a route's declaration into an existing same-path node (deeper route wins). */
 function mergeSeo(base: RouteSeo, override: RouteSeo): RouteSeo {
   return {
@@ -125,6 +155,8 @@ function mergeSeo(base: RouteSeo, override: RouteSeo): RouteSeo {
     link: override.link ?? base.link,
     redirectTo: override.redirectTo ?? base.redirectTo,
     modifiedAt: override.modifiedAt ?? base.modifiedAt,
+    head: override.head ?? base.head,
+    titleTemplate: override.titleTemplate ?? base.titleTemplate,
   };
 }
 
@@ -134,7 +166,7 @@ function mergeSeo(base: RouteSeo, override: RouteSeo): RouteSeo {
  * crumb ancestor down the real route-parent chain (matching render-time breadcrumbs).
  */
 function walkRoutes(
-  route: WalkableRoute,
+  route: SeoRouteNode,
   parentPath: string,
   isRoot: boolean,
   nodes: Map<string, SeoNode>,
@@ -149,8 +181,10 @@ function walkRoutes(
     if (existing) {
       existing.policy = mergeSeo(existing.policy, seo);
       existing.kind = existing.policy.kind;
+      // A head renders with its own route's template, never one merged from a layout.
+      existing.head = declaredHead(seo) ?? existing.head;
     } else {
-      nodes.set(path, { path, kind: seo.kind, source: "route", policy: { ...seo } });
+      nodes.set(path, { path, kind: seo.kind, source: "route", policy: { ...seo }, head: declaredHead(seo) });
     }
 
     const nearestCrumbAncestor = crumbStack[crumbStack.length - 1];
@@ -182,6 +216,7 @@ function addCollection(
   const collectionNode = nodes.get(collection.route);
   const kind = collectionNode?.kind ?? FALLBACK_KIND;
   const sitemap = collectionNode?.policy.sitemap;
+  const titleTemplate = collectionNode?.policy.titleTemplate;
 
   /**
    * Paths this collection lost to an earlier owner. Their instances never enter
@@ -202,6 +237,7 @@ function addCollection(
       kind,
       source: collection.source,
       policy: { kind, sitemap },
+      head: { title: applyTitleTemplate(titleTemplate, instance.title), description: instance.description },
       instance: {
         title: instance.title,
         description: instance.description,
@@ -228,7 +264,7 @@ export function buildSeoGraph(input: BuildSeoGraphInput): SeoGraph {
   const edges: Array<SeoEdge> = [];
   const collisions: Array<{ path: string; sources: ReadonlyArray<SeoSource> }> = [];
 
-  walkRoutes(input.routeTree as unknown as WalkableRoute, "/", true, nodes, edges, []);
+  walkRoutes(input.routeTree as unknown as SeoRouteNode, "/", true, nodes, edges, []);
 
   for (const collection of input.collections ?? []) {
     addCollection(nodes, edges, collisions, collection);

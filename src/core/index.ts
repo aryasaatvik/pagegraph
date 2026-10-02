@@ -7,7 +7,8 @@
  * Router's `StaticDataRouteOption`.
  */
 
-export type { PublicPath, Register, RouteSeo, SeoKind, SitemapPolicy } from "./declare";
+export { applyTitleTemplate } from "./declare";
+export type { JsonLdDocument, PublicPath, Register, RouteSeo, SeoFaq, SeoKind, SeoPageHead, SitemapPolicy } from "./declare";
 
 export { buildSeoGraph } from "./graph";
 export type {
@@ -18,8 +19,16 @@ export type {
   SeoGraph,
   SeoInstance,
   SeoNode,
+  SeoNodeHead,
+  SeoRouteNode,
   SeoSource,
 } from "./graph";
+
+export { contentCollection } from "./collections";
+export type { ContentCollectionOptions, ContentEntry } from "./collections";
+
+export { graphFromJson, graphToJson } from "./wire";
+export type { SeoGraphJson } from "./wire";
 
 export {
   contentSignal,

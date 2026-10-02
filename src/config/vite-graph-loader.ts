@@ -37,7 +37,10 @@ export interface LoadedSeoGraph {
  * config file must be writable without Effect, which the CLI keeps behind its
  * `bin` (an optional peer dependency).
  */
-export type SeoGraphLoader = () => Promise<LoadedSeoGraph>;
+/** JSON input that can be supplied by config files to an app graph export. */
+export type GraphLoaderInput = null | boolean | number | string | ReadonlyArray<GraphLoaderInput> | { readonly [key: string]: GraphLoaderInput };
+
+export type SeoGraphLoader<Input extends GraphLoaderInput | void = void> = (input: Input) => Promise<LoadedSeoGraph>;
 
 export interface ViteGraphLoaderOptions {
   /** The app's Vite root — the directory its aliases and plugins resolve against. */
@@ -130,8 +133,8 @@ const inlineConfigFor = (options: ViteGraphLoaderOptions): InlineConfig => ({
  * server rooted at `root`, and returns what its `exportName` export resolves to.
  */
 export const viteGraphLoader =
-  (options: ViteGraphLoaderOptions): SeoGraphLoader =>
-  async () => {
+  <Input extends GraphLoaderInput | void = void>(options: ViteGraphLoaderOptions): SeoGraphLoader<Input> =>
+  async (input) => {
     const exportName = options.exportName ?? "loadSeoGraph";
     if (options.env) seedEnv(options.env);
 
@@ -151,7 +154,7 @@ export const viteGraphLoader =
           `${options.entry} has no \`${exportName}\` export (found: ${Object.keys(module).join(", ") || "nothing"}).`,
         );
       }
-      return (await load()) as SeoGraph;
+      return (await load(input)) as SeoGraph;
     }).catch(async (cause: unknown) => {
       // Close on the way out, but never let a close failure bury the real
       // error: the reason the graph did not build is the useful one.

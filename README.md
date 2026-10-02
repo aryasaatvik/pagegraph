@@ -30,7 +30,7 @@ bun add -D lighthouse   # only for `pagegraph audit` performance evidence
 | `pagegraph`        | `buildSeoGraph`, `renderSitemap`, `renderRobots`, `contentSignal`, `checkGraph`, `checkRenderedCoverage`, `decodeRenderedEdgeArtifact`, `inspectHtml` | —                                           |
 | `pagegraph/react`  | `createSeo` → `seoHead`, `Breadcrumbs`, JSON-LD generators                                     | `react`, `@tanstack/react-router`           |
 | `pagegraph/vite`   | `seoRouteConfig` coverage gate                                                                 | `vite`                                      |
-| `pagegraph/config` | `defineSeoConfig`, `viteGraphLoader`                                                           | `vite`                                      |
+| `pagegraph/config` | `defineSeoConfig`, `viteGraphLoader`, `selectPageHeadNodes`, `pageHeads`, `loadPageHeads`                                                           | `vite`                                      |
 | `pagegraph/audit`  | Audit services, scanner protocol, rules, and report schemas                                    | `effect`                                    |
 | `pagegraph` bin                   | CLI over the same graph                                                                        | bundled — runs on Bun                        |
 
@@ -425,6 +425,33 @@ export default defineSeoConfig({
   }),
 });
 ```
+
+`viteGraphLoader<Input>(options)` returns a loader whose JSON input is passed to
+its entry export. Existing zero-argument loaders remain valid. The host resolves
+framework-specific route `head()` values into node instances; pagegraph selects
+and validates the resulting plain metadata:
+
+```ts
+import { loadPageHeads, viteGraphLoader } from "pagegraph/config";
+
+const loader = viteGraphLoader<{ exclude: string[] }>({
+  root: import.meta.dirname,
+  entry: "/lib/seo/graph.ts",
+  exportName: "loadHeadGraph",
+});
+const exclude = ["/docs", "/docs/**", "/captured-page"];
+const heads = await loadPageHeads(() => loader({ exclude }), { exclude });
+```
+
+`selectPageHeadNodes(graph, options)` selects nodes before host metadata resolution.
+`pageHeads(graph, options)` returns `{ path, title, description }[]`, requiring
+nonblank titles and descriptions and naming the page on failure. `loadPageHeads`
+always disposes the acquired graph, including when validation fails. Page nodes
+carry a sitemap declaration or an instance; layouts are excluded. By default,
+selection excludes noindex pages, redirects and parameter templates, while retaining
+sitemap-disabled hubs. Set `indexable: false` to include those nonindexable nodes.
+`exclude` accepts exact paths and path globs (`*` within a segment, `**` across
+segments). Docs are ordinary pages; excluding them is caller policy, not a graph kind.
 
 ```bash
 pagegraph check                 # CI gate — exit 1 on structural violations

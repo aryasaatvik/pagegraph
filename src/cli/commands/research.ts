@@ -1,3 +1,4 @@
+import { openCodeErrorMessage } from "../../workflows/opencode";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Command from "effect/cli/Command";
@@ -127,7 +128,7 @@ const strings = (value: unknown): ReadonlyArray<string> =>
   Array.isArray(value) && value.every((item) => typeof item === "string") ? value : [];
 
 const messageOf = (cause: unknown): string =>
-  cause instanceof Error ? cause.message : String(cause);
+  openCodeErrorMessage(cause);
 
 const optionsFrom = (
   flags: Record<string, unknown>,

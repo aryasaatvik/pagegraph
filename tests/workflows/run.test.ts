@@ -9,6 +9,7 @@ import type { SeoCliConfig } from "../../src/config";
 import type { SeoGraph } from "../../src/core/graph";
 import type { DecisionBatchReport } from "../../src/decide/record";
 import type { WorkflowId } from "../../src/workflows/model";
+import { MissingExecutorEvidenceError } from "../../src/workflows/opencode";
 import type { WorkflowHostResult } from "../../src/workflows/opencode";
 import { runKeywordWorkflow, runWorkflow } from "../../src/workflows/run";
 
@@ -676,5 +677,46 @@ describe("workflow runner", () => {
     expect(failure.original.transcript.messages).toEqual(["original"]);
     expect(failure.repaired.transcript.messages).toEqual(["invalid repair"]);
     expect(existsSync(join(runDirectory, "research.json"))).toBe(false);
+  });
+});
+
+ describe("workflow research failures", () => {
+  it("persists the actual transcript when discovery has no completed provider call", async () => {
+    const { root, graph, config } = fixture();
+    const result = { state: { items: [] }, sessionId: "empty-evidence", transcript: { messages: ["discovery only"] }, executor: { searches: [], calls: [] } };
+    let closed = false;
+    await expect(runKeywordWorkflow({ root, graph, config, options }, {
+      acquireHost: async () => ({ model: { provider: "test", id: "model" },
+        research: async () => { throw new MissingExecutorEvidenceError(result); },
+        continue: async () => { throw new Error("unexpected continuation"); },
+        close: async () => { closed = true; },
+      }),
+    })).rejects.toThrow("Research failure:");
+    const directory = join(root, ".pagegraph/runs", readdirSync(join(root, ".pagegraph/runs"))[0]!);
+    expect(JSON.parse(readFileSync(join(directory, "research-failure.json"), "utf8")).transcript).toEqual(result.transcript);
+    expect(closed).toBe(true);
+  });
+
+  it("repairs metadata that parses but has too few candidates before calling decisions", async () => {
+    const { root, graph, config } = fixture();
+    const valid = { summary: "Candidates", items: [{ url: "/pricing", intent: "pricing", categoryLock: "email API", candidates: [
+      { id: "a", title: "Email API pricing", description: "Pricing plans" },
+      { id: "b", title: "Samva pricing", description: "Email API plans" },
+    ] }] };
+    let repairs = 0;
+    const result = { state: valid, sessionId: "metadata", transcript: {}, executor: executorEvidence };
+    const run = await runWorkflow({ root, graph, config, workflow: "improve.metadata", options: { ...options, dryRun: true } }, {
+      acquireHost: async () => ({ model: { provider: "test", id: "model" },
+        research: async () => ({ ...result, state: { ...valid, items: valid.items.map((item) => ({ ...item, candidates: item.candidates.slice(0, 1) })) } }),
+        continue: async (_id, prompt) => {
+          if (prompt.includes("at least two candidates")) { repairs++; return result; }
+          return { ...result, state: { summary: "Preview", files: [], outcome: "dry-run" } };
+        },
+        close: async () => {},
+      }),
+      decide: async () => ({ ...report("meta"), counts: { inputs: 1, resolved: 0, review: 1 }, verdicts: {}, resolved: [] }),
+    });
+    expect(repairs).toBe(1);
+    expect(run.run.decisions[0]?.report.counts.inputs).toBe(1);
   });
 });

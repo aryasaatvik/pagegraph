@@ -20,7 +20,7 @@ import type { WorkflowMutationPolicy } from "./mutation";
 import { createWorkflowMutationPolicy, repositoryMutationPermissionRules } from "./mutation";
 import type { WorkflowId, WorkflowResearchCheckpointV1, WorkflowRunV1, WorkflowTargetOptions } from "./model";
 import type { WorkflowHost, WorkflowHostResult } from "./opencode";
-import { acquireWorkflowHost } from "./opencode";
+import { MissingExecutorEvidenceError, acquireWorkflowHost } from "./opencode";
 import actionPromptSource from "./prompts/action.md" with { type: "text" };
 import researchPromptSource from "./prompts/research.md" with { type: "text" };
 import type { AnyWorkflowSpec } from "./specs/types";
@@ -196,16 +196,35 @@ export const runWorkflow = async (
       spec.mutatesFiles && !input.options.dryRun
         ? mutation.sessionPermissions
         : researchPermissions;
-    let researched = await host.research(researchPrompt(spec, suppliedEvidence, input.options), {
-      skills: spec.skills,
-      permissions: researchPermissions,
-    });
+    let researched: WorkflowHostResult;
+    try {
+      researched = await host.research(researchPrompt(spec, suppliedEvidence, input.options), {
+        skills: spec.skills,
+        permissions: researchPermissions,
+      });
+    } catch (cause) {
+      if (cause instanceof MissingExecutorEvidenceError) {
+        const path = writeResearchFailure(input.root, input.out ?? workflows.runsDirectory ?? ".pagegraph/runs", id, {
+          message: cause.message,
+          ...cause.result,
+        });
+        throw new Error(`${cause.message}\nResearch failure: ${path}`, { cause });
+      }
+      throw cause;
+    }
     const assertResearchReadOnly = (): void => {
       const researchFiles = changedFiles(gitAtStart, inspectGit(input.root));
       if (researchFiles.length > 0) throw new Error(`${spec.id} changed repository files during its read-only research turn: ${researchFiles.join(", ")}`);
     };
     assertResearchReadOnly();
-    const decodeResearchState = (value: unknown) => spec.decodeState(capState(value, input.options.limit));
+    const decodeResearchState = (value: unknown) => {
+      const decoded = spec.decodeState(capState(value, input.options.limit));
+      for (const item of spec.decisionInputs(decoded)) {
+        const error = spec.validateDecisionInput(item);
+        if (error !== undefined) throw new Error(error);
+      }
+      return decoded;
+    };
     let state: ReturnType<typeof decodeResearchState>;
     try {
       state = decodeResearchState(researched.state);

@@ -39,7 +39,15 @@ peer, and only the entries you import need those peers loaded.
 
 The CLI **bundles PageGraph's Effect and TypeSafe provider runtime**, so it does not depend on the
 app's Effect version; it runs on [Bun](https://bun.sh) (`bunx pagegraph`). Agentic workflows load the
-OpenCode SDK and its private Effect runtime only when invoked. `vite` stays a peer — graph commands
+OpenCode SDK only when invoked. The first workflow installs pinned OpenCode 2.0.22 into
+`~/.cache/pagegraph/opencode-2.0.22-2`, outside the app's dependency tree; subsequent workflows
+reuse the verified cache. This keeps consumer dependency overrides away from OpenCode's declared
+Effect and Drizzle versions. Executor plugins must use OpenCode's Effect version (`4.0.0-rc.112`).
+Bun and network access to npm are required for the first install. The pinned OpenCode client's
+HTTP error handling retains the method, path, status, and response body for diagnostics;
+undeclared error bodies are capped at 16 KiB.
+Discovery-only research gets one continuation to complete provider evidence; if it still cannot,
+`research-failure.json` preserves the transcript and tool results in the requested output directory. `vite` stays a peer — graph commands
 load your app through Vite at runtime — and `lighthouse` is only needed by `pagegraph audit`.
 Importing `pagegraph/audit` programmatically needs `effect@^4.0.0`. The Effect and TypeSafe
 peers remain optional for other library entry points and the bundled CLI.

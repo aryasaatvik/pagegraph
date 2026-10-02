@@ -9,6 +9,8 @@ import {
   collectExecutorEvidence,
   interactionEventError,
   parseWorkflowStateWithRepair,
+  openCodeOperation,
+  requireExecutorEvidence,
   runWorkflowTurn,
   waitForActiveExecutorPlugin,
   waitForIdle,
@@ -460,5 +462,30 @@ describe("OpenCode workflow evidence", () => {
     expect(message).not.toContain("do not retain");
     expect(message).not.toContain("private output");
     expect(interrupts).toBe(1);
+  });
+});
+
+ describe("OpenCode client diagnostics", () => {
+  it("keeps operation, status and structured response body", async () => {
+    const failure = new Error("UnexpectedStatus", { cause: { status: 500, body: { error: "row decoding failed" } } });
+    await expect(openCodeOperation("POST /api/session (sessions.create)", () => Promise.reject(failure)))
+      .rejects.toThrow('OpenCode POST /api/session (sessions.create): UnexpectedStatus (HTTP 500); body: {"error":"row decoding failed"}');
+  });
+});
+
+ describe("Executor evidence completion", () => {
+  const discovery = { state: { items: [] }, sessionId: "session", transcript: { messages: [] }, executor: { searches: [{ tool: "executor.search", input: {}, output: {} }], calls: [] } };
+  it("continues discovery-only research once and requires a real completed provider call", async () => {
+    let turns = 0;
+    const completed = { ...discovery, executor: { ...discovery.executor, calls: [{ tool: "provider.query", input: {}, output: {} }] } };
+    await expect(requireExecutorEvidence(discovery, async (prompt) => {
+      expect(prompt).toContain("read-only provider call"); turns++; return completed;
+    })).resolves.toBe(completed);
+    expect(turns).toBe(1);
+    await expect(requireExecutorEvidence(completed, async () => { throw new Error("unexpected repair"); })).resolves.toBe(completed);
+  });
+  it("keeps the repaired transcript and fails when provider evidence is still missing", async () => {
+    const repaired = { ...discovery, transcript: { messages: ["concrete provider error"] } };
+    await expect(requireExecutorEvidence(discovery, async () => repaired)).rejects.toMatchObject({ result: repaired });
   });
 });

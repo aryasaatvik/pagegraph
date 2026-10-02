@@ -6,6 +6,7 @@ import * as Schema from "effect/Schema";
 
 import type { SeoWorkflowOpenCodeConfig } from "../config";
 import type { ExecutorEvidence, ExecutorEvidenceRecord } from "./model";
+import { loadWorkflowOpenCode } from "./runtime";
 
 export interface WorkflowHostResult {
   readonly state: unknown;
@@ -13,6 +14,30 @@ export interface WorkflowHostResult {
   readonly transcript: unknown;
   readonly executor: ExecutorEvidence;
 }
+
+export class MissingExecutorEvidenceError extends Error {
+  constructor(readonly result: WorkflowHostResult) {
+    super(`The SEO agent returned without the required Executor evidence (searches: ${result.executor.searches.length}, calls: ${result.executor.calls.length}).`);
+  }
+}
+
+export const requireExecutorEvidence = async (
+  result: WorkflowHostResult,
+  recover: (prompt: string) => Promise<WorkflowHostResult>,
+): Promise<WorkflowHostResult> => {
+  if (result.executor.searches.length > 0 && result.executor.calls.length > 0) return result;
+  const repaired = await recover([
+    `Your research returned without completed Executor provider evidence (searches: ${result.executor.searches.length}, calls: ${result.executor.calls.length}).`,
+    "Catalog searches and schema discovery alone do not satisfy this workflow.",
+    "Use the catalog results already collected, inspect the exact discovered tool schema, and complete at least one relevant read-only provider call before returning the original workflow JSON.",
+    "Preserve provider errors and empty datasets honestly; do not invent evidence or mutate provider state.",
+    "If no relevant tool can complete, return the original workflow JSON with the concrete blocker and evidence already collected.",
+  ].join(" "));
+  if (repaired.executor.searches.length === 0 || repaired.executor.calls.length === 0) {
+    throw new MissingExecutorEvidenceError(repaired);
+  }
+  return repaired;
+};
 
 export interface WorkflowHost {
   readonly model: { readonly provider: string; readonly id: string };
@@ -440,7 +465,7 @@ export const runWorkflowTurn = async (
       activity: options.activity,
     });
   } catch (cause) {
-    if (!controller.signal.aborted) throw cause;
+    if (!controller.signal.aborted) throw new Error(`OpenCode ${stage}: ${openCodeErrorMessage(cause)}`, { cause });
     let interruption = "unknown";
     try {
       interruption = (
@@ -460,6 +485,26 @@ export const runWorkflowTurn = async (
   }
 };
 
+export const openCodeErrorMessage = (cause: unknown): string => {
+  const details = cause !== null && typeof cause === "object" ? cause : {};
+  const nested = "cause" in details && details.cause !== null && typeof details.cause === "object"
+    ? details.cause : details;
+  const status = "status" in nested ? ` (HTTP ${String(nested.status)})` : "";
+  const operation = "method" in nested && "path" in nested
+    ? `${String(nested.method)} ${String(nested.path)}: ` : "";
+  const body = "body" in nested ? nested.body : "body" in details ? details.body : undefined;
+  const message = cause instanceof Error ? cause.message : JSON.stringify(cause);
+  return `${operation}${message}${status}${body === undefined ? "" : `; body: ${typeof body === "string" ? body : JSON.stringify(body)}`}`;
+};
+
+export const openCodeOperation = async <A>(operation: string, request: () => Promise<A>): Promise<A> => {
+  try {
+    return await request();
+  } catch (cause) {
+    throw new Error(`OpenCode ${operation}: ${openCodeErrorMessage(cause)}`, { cause });
+  }
+};
+
 export const acquireWorkflowHost = async (options: {
   readonly root: string;
   readonly config: SeoWorkflowOpenCodeConfig;
@@ -468,7 +513,7 @@ export const acquireWorkflowHost = async (options: {
 }): Promise<WorkflowHost> => {
   const model = parseModel(options.model ?? options.config.defaultModel);
   const configDirectory = resolve(options.root, options.config.configDirectory);
-  const { OpenCode } = await import("@opencode/sdk");
+  const { OpenCode } = await loadWorkflowOpenCode();
   const host = await OpenCode.create({
     events: { persist: true },
     config: { directory: configDirectory, project: false },
@@ -476,7 +521,7 @@ export const acquireWorkflowHost = async (options: {
   try {
     const location = { directory: options.root };
     const executorReady = await waitForActiveExecutorPlugin({
-      list: async () => (await host.plugin.list({ location })).data,
+      list: async () => (await openCodeOperation("GET /api/plugin (plugin.list)", () => host.plugin.list({ location }))).data,
     });
     if (!executorReady) {
       throw new Error(
@@ -543,7 +588,7 @@ export const acquireWorkflowHost = async (options: {
     return {
       model,
       research: async (prompt, workflowOptions) => {
-        const session = await host.sessions.create({
+        const session = await openCodeOperation("POST /api/session (sessions.create)", () => host.sessions.create({
           title: "PageGraph SEO workflow",
           agent: "seo",
           model: { providerID: model.provider, id: model.id },
@@ -552,14 +597,9 @@ export const acquireWorkflowHost = async (options: {
             workflowOptions.permissions === undefined
               ? undefined
               : [...workflowOptions.permissions],
-        });
+        }));
         const result = await complete(session.id, prompt, workflowOptions);
-        if (result.executor.searches.length === 0 || result.executor.calls.length === 0) {
-          throw new Error(
-            `The SEO agent returned without the required Executor evidence (searches: ${result.executor.searches.length}, calls: ${result.executor.calls.length}).`,
-          );
-        }
-        return result;
+        return requireExecutorEvidence(result, (repair) => complete(session.id, repair, workflowOptions));
       },
       continue: (sessionId, prompt, workflowOptions) =>
         complete(sessionId, prompt, workflowOptions),

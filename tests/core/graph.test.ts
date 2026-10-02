@@ -2,6 +2,7 @@ import { describe, expect, it } from "@effect/vitest";
 import type { AnyRoute } from "@tanstack/react-router";
 
 import { contentCollection } from "../../src/core/collections";
+import { applyTitleTemplate } from "../../src/core/declare";
 import { buildSeoGraph, type SeoCollection } from "../../src/core/graph";
 import { graphFromJson, graphToJson, type SeoGraphJson } from "../../src/core/wire";
 import { contentSignal, renderRobots, renderSitemap } from "../../src/core/projections";
@@ -555,5 +556,23 @@ describe("declared heads, collections, and the wire format", () => {
     expect(renderSitemap(restored, config)).toBe(renderSitemap(graph, config));
     expect(restored.nodes.get("/blog/b")?.head?.title).toBe("B | Blog");
     expect(restored.nodes.get("/pricing")?.policy.head).toBeUndefined();
+  });
+});
+
+describe("title templates", () => {
+  it("keeps replacement tokens in a title literal", () => {
+    expect(applyTitleTemplate("%s | Brand", "Costs $& today")).toBe("Costs $& today | Brand");
+  });
+
+  it("projects a merged index head with the index's own template, as seo.head renders it", () => {
+    const tree = route({ seo: { kind: "page", crumb: "Home" } }, [
+      route({ path: "/foo", seo: { kind: "hub", crumb: "Foo", titleTemplate: "%s | Layout" } }, [
+        route({
+          path: "/",
+          seo: { kind: "page", sitemap: { priority: 0.5, changeFrequency: "monthly" }, head: { title: "Index", description: "The index." } },
+        }),
+      ]),
+    ]) as AnyRoute;
+    expect(buildSeoGraph({ routeTree: tree }).nodes.get("/foo")?.head?.title).toBe("Index");
   });
 });

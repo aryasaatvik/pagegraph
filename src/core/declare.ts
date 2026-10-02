@@ -127,7 +127,8 @@ export interface RouteSeo {
 
 /** Apply a {@link RouteSeo.titleTemplate}; no template means the title is already full. */
 export function applyTitleTemplate(template: string | undefined, title: string): string {
-  return template === undefined ? title : template.replaceAll("%s", title);
+  // A replacer function keeps `$&` and friends in the title literal.
+  return template === undefined ? title : template.replaceAll("%s", () => title);
 }
 
 declare module "@tanstack/react-router" {

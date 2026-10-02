@@ -8,7 +8,8 @@ import { createRunnableDevEnvironment, resolveConfig, type Plugin } from "vite";
 
 import type { LoadedSeoGraph, SeoGraphLoader } from "../config/vite-graph-loader";
 import { withCleanStdout } from "../config/vite-graph-loader";
-import type { AppGraph, PagegraphPluginApi } from "./plugin";
+import { evaluateGraph, planGraph, type AppGraph } from "./graph";
+import type { PagegraphPluginApi } from "./plugin";
 
 const GRAPH_ENVIRONMENT = "pagegraph";
 
@@ -32,7 +33,12 @@ const pluginApi = (plugins: ReadonlyArray<Plugin>, configFile: string | undefine
   return plugin.api;
 };
 
-/** Resolve the app's Vite config in serve mode, evaluate the graph in its `pagegraph` environment, and release it. */
+/**
+ * Resolve the app's Vite config in serve mode, evaluate the graph in its
+ * `pagegraph` environment, and release it — the dev server's evaluation path
+ * without a server. A config that branches on `command` sees `serve`; pass
+ * `mode` for the deployment the graph should describe.
+ */
 export async function evaluateAppGraph(options: EvaluateAppGraphOptions): Promise<AppGraph> {
   const config = await resolveConfig(
     { root: options.root, configFile: options.configFile, mode: options.mode, logLevel: "error" },
@@ -44,7 +50,7 @@ export async function evaluateAppGraph(options: EvaluateAppGraphOptions): Promis
   try {
     // Content plugins (Fumadocs, MDX) generate their virtual sources at buildStart.
     await environment.pluginContainer.buildStart({});
-    return await api.evaluate(environment.runner, config.root);
+    return await evaluateGraph(environment.runner, await planGraph(config.root, api.options));
   } finally {
     await environment.close();
   }

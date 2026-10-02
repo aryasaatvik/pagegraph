@@ -181,7 +181,8 @@ function walkRoutes(
     if (existing) {
       existing.policy = mergeSeo(existing.policy, seo);
       existing.kind = existing.policy.kind;
-      existing.head = declaredHead(existing.policy);
+      // A head renders with its own route's template, never one merged from a layout.
+      existing.head = declaredHead(seo) ?? existing.head;
     } else {
       nodes.set(path, { path, kind: seo.kind, source: "route", policy: { ...seo }, head: declaredHead(seo) });
     }

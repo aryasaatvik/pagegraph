@@ -420,6 +420,33 @@ try {
       throw new Error(`${specifier} did not fail loud under the workerd condition\n${runtime.stderr}`);
     }
   }
+  // The published runtime entries reach only their runtime peers.
+  const runtimeImports = async (entry: string): Promise<Set<string>> => {
+    const specifiers = new Set<string>();
+    const seen = new Set<string>();
+    const pending = [path.join(installedRoot, entry)];
+    const pattern = /(?:^|[;\s])(?:import|export)\s[^'"]*?from\s*["']([^"']+)["']|import\(\s*["']([^"']+)["']\s*\)|^import\s*["']([^"']+)["']/gm;
+    while (pending.length > 0) {
+      const file = pending.pop()!;
+      if (seen.has(file)) continue;
+      seen.add(file);
+      for (const match of (await readFile(file, "utf8")).matchAll(pattern)) {
+        const specifier = match[1] ?? match[2] ?? match[3]!;
+        if (specifier.startsWith(".")) pending.push(path.resolve(path.dirname(file), specifier));
+        else specifiers.add(specifier);
+      }
+    }
+    return specifiers;
+  };
+  for (const [entry, allowed] of [
+    ["dist/index.js", []],
+    ["dist/react.js", ["@tanstack/react-router", "react", "react/jsx-runtime"]],
+    ["dist/tanstack-start/server.js", ["virtual:pagegraph/runtime"]],
+  ] as const) {
+    const unexpected = [...(await runtimeImports(entry))].filter((specifier) => !(allowed as ReadonlyArray<string>).includes(specifier));
+    if (unexpected.length > 0) throw new Error(`${entry} imports build-only modules: ${unexpected.join(", ")}`);
+  }
+
   const core = await runSuccessfully(
     ["node", "--conditions=workerd", "--input-type=module", "-e", `const m = await import(${JSON.stringify(packageName)}); console.log(typeof m.pageHeads)`],
     installDirectory,

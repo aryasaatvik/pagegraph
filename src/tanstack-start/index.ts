@@ -4,7 +4,6 @@
  */
 
 export { pagegraph } from "./plugin";
-export type { AppGraph } from "./plugin";
-export type { PagegraphOptions, RobotsPolicy, SiteRuntime } from "./graph";
+export type { AppGraph, PagegraphOptions, RobotsPolicy, SiteRuntime } from "./graph";
 export { evaluateAppGraph, tanstackStartGraph } from "./load";
 export type { EvaluateAppGraphOptions } from "./load";

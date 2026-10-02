@@ -17,7 +17,7 @@ type PackageManifest = {
   readonly homepage: string;
   readonly bugs: { readonly url: string };
   readonly bin: Record<string, string>;
-  readonly exports: Record<string, { readonly types: string; readonly import: string }>;
+  readonly exports: Record<string, Record<string, string>>;
   readonly publishConfig: { readonly access: string; readonly registry: string };
   readonly peerDependencies: Record<string, string>;
   readonly peerDependenciesMeta: Record<string, { readonly optional?: boolean }>;
@@ -125,18 +125,25 @@ const assertPackageIdentity = (manifest: PackageManifest): void => {
     throw new Error("Package must expose only the pagegraph bin from dist/cli.js");
   }
 
+  const buildEntry = (entry: string) => ({
+    types: `./dist/${entry}.d.ts`,
+    workerd: `./dist/build-only/${entry}.js`,
+    worker: `./dist/build-only/${entry}.js`,
+    browser: `./dist/build-only/${entry}.js`,
+    import: `./dist/${entry}.js`,
+  });
   const expectedExports = {
     ".": { types: "./dist/index.d.ts", import: "./dist/index.js" },
     "./react": { types: "./dist/react.d.ts", import: "./dist/react.js" },
-    "./vite": { types: "./dist/vite.d.ts", import: "./dist/vite.js" },
-    "./config": { types: "./dist/config.d.ts", import: "./dist/config.js" },
-    "./audit": { types: "./dist/audit.d.ts", import: "./dist/audit.js" },
+    "./vite": buildEntry("vite"),
+    "./config": buildEntry("config"),
+    "./audit": buildEntry("audit"),
   };
   if (JSON.stringify(manifest.exports) !== JSON.stringify(expectedExports)) {
     throw new Error("Package exports do not match the supported public entry points");
   }
 
-  for (const peer of ["effect", "@effect/platform-bun", "lighthouse"] as const) {
+  for (const peer of ["effect", "@effect/platform-bun", "lighthouse", "vite", "@tanstack/router-generator"] as const) {
     if (manifest.peerDependencies[peer] === undefined) {
       throw new Error(`Package must declare ${peer} as a peer dependency`);
     }
@@ -199,6 +206,9 @@ try {
     "dist/audit.js",
     "dist/audit.d.ts",
     "dist/cli.js",
+    "dist/build-only/vite.js",
+    "dist/build-only/config.js",
+    "dist/build-only/audit.js",
     "README.md",
     "LICENSE",
     "package.json",
@@ -213,7 +223,12 @@ try {
       {
         private: true,
         type: "module",
-        dependencies: { [packageName]: `file:${tarball}` },
+        // A consumer of the build entries installs their optional peers.
+        dependencies: {
+          [packageName]: `file:${tarball}`,
+          vite: manifest.devDependencies["vite"],
+          "@tanstack/router-generator": manifest.devDependencies["@tanstack/router-generator"],
+        },
       },
       null,
       2,
@@ -383,6 +398,23 @@ try {
   } finally {
     await fixture.stop(true);
   }
+
+  // A Worker or browser bundle resolves build entries to a stub that names the mistake.
+  for (const entry of ["vite", "config", "audit"]) {
+    const specifier = `${packageName}/${entry}`;
+    const runtime = await run(
+      ["node", "--conditions=workerd", "--input-type=module", "-e", `await import(${JSON.stringify(specifier)})`],
+      installDirectory,
+    );
+    if (runtime.exitCode === 0 || !runtime.stderr.includes(`"${specifier}" is build-time only`)) {
+      throw new Error(`${specifier} did not fail loud under the workerd condition\n${runtime.stderr}`);
+    }
+  }
+  const core = await runSuccessfully(
+    ["node", "--conditions=workerd", "--input-type=module", "-e", `const m = await import(${JSON.stringify(packageName)}); console.log(typeof m.pageHeads)`],
+    installDirectory,
+  );
+  if (core.trim() !== "function") throw new Error("pagegraph did not load under the workerd condition");
 
   console.log(`Validated ${packed.filename} from an isolated temporary consumer`);
 } finally {

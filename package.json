@@ -48,14 +48,23 @@
     },
     "./vite": {
       "types": "./dist/vite.d.ts",
+      "workerd": "./dist/build-only/vite.js",
+      "worker": "./dist/build-only/vite.js",
+      "browser": "./dist/build-only/vite.js",
       "import": "./dist/vite.js"
     },
     "./config": {
       "types": "./dist/config.d.ts",
+      "workerd": "./dist/build-only/config.js",
+      "worker": "./dist/build-only/config.js",
+      "browser": "./dist/build-only/config.js",
       "import": "./dist/config.js"
     },
     "./audit": {
       "types": "./dist/audit.d.ts",
+      "workerd": "./dist/build-only/audit.js",
+      "worker": "./dist/build-only/audit.js",
+      "browser": "./dist/build-only/audit.js",
       "import": "./dist/audit.js"
     }
   },
@@ -75,16 +84,14 @@
     "release:validate": "bun run scripts/validate-release.ts",
     "release": "bun run release:check && bun run tegami publish"
   },
-  "dependencies": {
-    "@tanstack/router-generator": "^1.167.21"
-  },
   "devDependencies": {
-    "@opencode/sdk": "2.0.22",
     "@effect/ai-typesafe": "4.0.0",
     "@effect/platform-bun": "4.0.0",
     "@effect/platform-node-shared": "4.0.0",
     "@effect/vitest": "4.0.0",
+    "@opencode/sdk": "2.0.22",
     "@tanstack/react-router": "^1.170.18",
+    "@tanstack/router-generator": "^1.167.21",
     "@types/node": "^24.0.0",
     "@types/react": "19.2.18",
     "effect": "4.0.0",
@@ -101,6 +108,7 @@
     "@effect/ai-typesafe": "^4.0.0",
     "@effect/platform-bun": "^4.0.0",
     "@tanstack/react-router": "^1.170.0",
+    "@tanstack/router-generator": "^1.167.21",
     "effect": "^4.0.0",
     "lighthouse": ">=13.0.0",
     "react": "^19.0.0",
@@ -111,6 +119,9 @@
       "optional": true
     },
     "@effect/platform-bun": {
+      "optional": true
+    },
+    "@tanstack/router-generator": {
       "optional": true
     },
     "effect": {

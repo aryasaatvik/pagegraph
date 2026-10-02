@@ -1,10 +1,10 @@
 core:changelogs:
-  - content: "---\npackages:\n  pagegraph:\n    type: patch\n---\n\n### Accept angle-bracket placeholders in FAQ answers\n\n`faq-not-visible` no longer reports a plain-text JSON-LD answer that contains\nplaceholders such as `samva-<id>._domainkey` when the page renders them escaped.\nAnswers with real HTML markup are still compared by their text.\n"
-    filename: 2026-09-29-faq-visible-placeholders.md
+  - content: "---\npackages:\n  pagegraph:\n    type: minor\n---\n\n### Load page heads from `pagegraph/config`\n\nGraph loaders created by `viteGraphLoader` accept an input that is passed to the entry export.\n`pagegraph/config` exports `selectPageHeadNodes`, `pageHeads`, and `loadPageHeads`, which return\n`{ path, title, description }` for indexable pages, honor caller excludes, fail with the page path\nwhen a selected page lacks a title or description, and dispose the loader for the caller.\n\n### Run the OpenCode host from an isolated install\n\n`improve` and `research` workflows load the pinned OpenCode host from their own verified Bun\ninstall, so a consumer's Effect or Drizzle overrides no longer change its runtime. Failures keep the\nHTTP operation, status, and body, research keeps its transcript, and a discovery-only run gets one\nrecovery turn.\n\n### Require stable Effect 4\n\nThe Effect peer dependencies are `^4.0.0`.\n"
+    filename: 2026-10-03-page-heads-opencode-effect.md
     v: 0.0.0
 core:packages:
   - changelogIds:
-      - 2026-09-29-faq-visible-placeholders.md
+      - 2026-10-03-page-heads-opencode-effect.md
     id: npm:pagegraph
     updated: true
 npm:packages:

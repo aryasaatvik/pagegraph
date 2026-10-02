@@ -46,8 +46,9 @@ Effect and Drizzle versions. Executor plugins must use OpenCode's Effect version
 Bun and network access to npm are required for the first install. The pinned OpenCode client's
 HTTP error handling retains the method, path, status, and response body for diagnostics;
 undeclared error bodies are capped at 16 KiB.
-Discovery-only research gets one continuation to complete provider evidence; if it still cannot,
-`research-failure.json` preserves the transcript and tool results in the requested output directory. `vite` stays a peer — graph commands
+Discovery-only research gets one continuation to complete provider evidence. Every workflow failure
+after run creation writes `failure.json` in the run directory, with the stage, session ID when available,
+transcript, and cause chain. `vite` stays a peer — graph commands
 load your app through Vite at runtime — and `lighthouse` is only needed by `pagegraph audit`.
 Importing `pagegraph/audit` programmatically needs `effect@^4.0.0`. The Effect and TypeSafe
 peers remain optional for other library entry points and the bundled CLI.
@@ -294,6 +295,11 @@ After research is validated, the run directory contains `research.json`: an inco
 with the collected evidence, decision inputs, and OpenCode transcript. A downstream failure reports
 its path so the evidence remains available for diagnosis. Only a completed workflow writes
 `run.json` and `summary.md`; a research checkpoint is not a final recommendation.
+Model JSON drops null properties and array elements before validation. Schema validation collects all
+issues for one read-only repair turn. Every error after run creation writes `failure.json` in that
+run directory with the workflow, stage, available OpenCode session ID, transcript, and full cause
+chain. The error reports the artifact path and a next step; a failed artifact write preserves the
+original error with a note.
 
 | Command | Result |
 | --- | --- |

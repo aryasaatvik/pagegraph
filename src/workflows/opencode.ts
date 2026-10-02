@@ -15,9 +15,17 @@ export interface WorkflowHostResult {
   readonly executor: ExecutorEvidence;
 }
 
-export class MissingExecutorEvidenceError extends Error {
+export class WorkflowHostError extends Error {
+  constructor(message: string, readonly sessionId: string, readonly transcript: unknown, cause: unknown) {
+    super(message, { cause });
+    this.name = "WorkflowHostError";
+  }
+}
+
+export class MissingExecutorEvidenceError extends WorkflowHostError {
   constructor(readonly result: WorkflowHostResult) {
-    super(`The SEO agent returned without the required Executor evidence (searches: ${result.executor.searches.length}, calls: ${result.executor.calls.length}).`);
+    super(`The SEO agent returned without the required Executor evidence (searches: ${result.executor.searches.length}, calls: ${result.executor.calls.length}).`, result.sessionId, result.transcript, undefined);
+    this.name = "MissingExecutorEvidenceError";
   }
 }
 
@@ -148,17 +156,19 @@ export const parseWorkflowState = (transcript: unknown): unknown => {
       return Option.isSome(text) && text.value.text.includes("{") ? [text.value.text] : [];
     });
   });
+  let parseCause: unknown;
   for (const text of candidates.reverse()) {
     const start = text.indexOf("{");
     const end = text.lastIndexOf("}");
     if (start === -1 || end <= start) continue;
     try {
       return JSON.parse(text.slice(start, end + 1));
-    } catch {
+    } catch (cause) {
+      parseCause = cause;
       // Continue to the previous assistant text block.
     }
   }
-  throw new Error("The SEO agent did not return a valid workflow JSON object.");
+  throw new Error("The SEO agent did not return a valid workflow JSON object.", { cause: parseCause });
 };
 
 export const parseWorkflowStateWithRepair = async (
@@ -167,9 +177,13 @@ export const parseWorkflowStateWithRepair = async (
 ): Promise<{ readonly state: unknown; readonly transcript: unknown }> => {
   try {
     return { state: parseWorkflowState(transcript), transcript };
-  } catch {
-    const repaired = await repair();
-    return { state: parseWorkflowState(repaired), transcript: repaired };
+  } catch (firstError) {
+    try {
+      const repaired = await repair();
+      return { state: parseWorkflowState(repaired), transcript: repaired };
+    } catch (repairError) {
+      throw new AggregateError([firstError, repairError], "The SEO agent did not return valid workflow JSON after one repair.", { cause: repairError });
+    }
   }
 };
 
@@ -530,59 +544,83 @@ export const acquireWorkflowHost = async (options: {
     }
 
     const cursors = new Map<string, number>();
+    const transcripts = new Map<string, unknown>();
     const complete = async (
       sessionId: string,
       prompt: string,
       workflowOptions: WorkflowPromptOptions,
     ): Promise<WorkflowHostResult> => {
-      assertWorkflowSkillsAvailable(configDirectory, workflowOptions.skills);
-      if (workflowOptions.permissions !== undefined) {
-        await host.sessions.update({
-          sessionID: sessionId,
-          permissions: [...workflowOptions.permissions],
-        });
-      }
-      const configuredTimeoutMs = options.timeoutMs ?? options.config.timeoutMs ?? 180_000;
-      const deadline = Date.now() + configuredTimeoutMs;
-      const remaining = (): number => Math.max(0, deadline - Date.now());
-      const activity: WorkflowActivity = { modelSteps: 0, completedTools: 0, toolNames: new Map() };
-      let cursor = await runWorkflowTurn(host, sessionId, prompt, {
-        timeoutMs: remaining(),
-        configuredTimeoutMs,
-        stage: "prompt admission",
-        after: cursors.get(sessionId),
-        skills: workflowOptions.skills,
-        activity,
-      });
-      cursors.set(sessionId, cursor);
-      let transcript = await host.sessions.export({ sessionID: sessionId, sanitize: false });
-      const parsed = await parseWorkflowStateWithRepair(transcript, async () => {
-        const priorPermissions = [...(workflowOptions.permissions ?? [])];
-        await host.sessions.update({
-          sessionID: sessionId,
-          permissions: [{ action: "*", resource: "*", effect: "deny" }],
-        });
-        try {
-          cursor = await runWorkflowTurn(host, sessionId, STATE_REPAIR_PROMPT, {
-            timeoutMs: remaining(),
-            configuredTimeoutMs,
-            stage: "workflow state repair",
-            after: cursor,
-            activity,
+      let transcript: unknown = transcripts.get(sessionId) ?? { messages: [] };
+      try {
+        assertWorkflowSkillsAvailable(configDirectory, workflowOptions.skills);
+        if (workflowOptions.permissions !== undefined) {
+          await host.sessions.update({
+            sessionID: sessionId,
+            permissions: [...workflowOptions.permissions],
           });
-          cursors.set(sessionId, cursor);
-          transcript = await host.sessions.export({ sessionID: sessionId, sanitize: false });
-          return transcript;
-        } finally {
-          await host.sessions.update({ sessionID: sessionId, permissions: priorPermissions });
         }
-      });
-      return {
-        state: parsed.state,
-        sessionId,
-        transcript: parsed.transcript,
-        executor: collectExecutorEvidence(parsed.transcript),
-      };
+        const configuredTimeoutMs = options.timeoutMs ?? options.config.timeoutMs ?? 180_000;
+        const deadline = Date.now() + configuredTimeoutMs;
+        const remaining = (): number => Math.max(0, deadline - Date.now());
+        const activity: WorkflowActivity = { modelSteps: 0, completedTools: 0, toolNames: new Map() };
+        let cursor = await runWorkflowTurn(host, sessionId, prompt, {
+          timeoutMs: remaining(),
+          configuredTimeoutMs,
+          stage: "prompt admission",
+          after: cursors.get(sessionId),
+          skills: workflowOptions.skills,
+          activity,
+        });
+        cursors.set(sessionId, cursor);
+        transcript = await host.sessions.export({ sessionID: sessionId, sanitize: false });
+        transcripts.set(sessionId, transcript);
+        const parsed = await parseWorkflowStateWithRepair(transcript, async () => {
+          const priorPermissions = [...(workflowOptions.permissions ?? [])];
+          await host.sessions.update({
+            sessionID: sessionId,
+            permissions: [{ action: "*", resource: "*", effect: "deny" }],
+          });
+          let repairFailed = false;
+          try {
+            cursor = await runWorkflowTurn(host, sessionId, STATE_REPAIR_PROMPT, {
+              timeoutMs: remaining(),
+              configuredTimeoutMs,
+              stage: "workflow state repair",
+              after: cursor,
+              activity,
+            });
+            cursors.set(sessionId, cursor);
+            transcript = await host.sessions.export({ sessionID: sessionId, sanitize: false });
+            transcripts.set(sessionId, transcript);
+            return transcript;
+          } catch (cause) {
+            repairFailed = true;
+            throw cause;
+          } finally {
+            try {
+              await host.sessions.update({ sessionID: sessionId, permissions: priorPermissions });
+            } catch (cause) {
+              if (!repairFailed) throw cause;
+            }
+          }
+        });
+        return {
+          state: parsed.state,
+          sessionId,
+          transcript: parsed.transcript,
+          executor: collectExecutorEvidence(parsed.transcript),
+        };
+      } catch (cause) {
+        try {
+          transcript = await host.sessions.export({ sessionID: sessionId, sanitize: false }, {
+            signal: AbortSignal.timeout(5_000),
+          });
+        } catch {
+          // Preserve the last export when the failed host cannot provide a newer transcript.
+        }
+        transcripts.set(sessionId, transcript);
+        throw new WorkflowHostError(openCodeErrorMessage(cause), sessionId, transcript, cause);
+      }
     };
 
     return {
@@ -606,7 +644,7 @@ export const acquireWorkflowHost = async (options: {
       close: () => host.close(),
     };
   } catch (cause) {
-    await host.close();
+    try { await host.close(); } catch { /* Acquisition failure remains the primary error. */ }
     throw cause;
   }
 };

@@ -8,10 +8,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { SeoCliConfig } from "../../src/config";
 import type { SeoGraph } from "../../src/core/graph";
 import type { DecisionBatchReport } from "../../src/decide/record";
+import { getWorkflowSpec } from "../../src/workflows/catalog";
 import type { WorkflowId } from "../../src/workflows/model";
-import { MissingExecutorEvidenceError } from "../../src/workflows/opencode";
+import { MissingExecutorEvidenceError, WorkflowHostError } from "../../src/workflows/opencode";
 import type { WorkflowHostResult } from "../../src/workflows/opencode";
-import { runKeywordWorkflow, runWorkflow } from "../../src/workflows/run";
+import { dropNulls, runKeywordWorkflow, runWorkflow } from "../../src/workflows/run";
 
 // Vite treats Markdown imports as asset URLs even when Vitest runs under Bun.
 vi.mock("../../src/workflows/prompts/research.md", async () => {
@@ -383,9 +384,9 @@ describe("workflow runner", () => {
     }
 
     expect(thrown).toBeInstanceOf(Error);
-    expect((thrown as Error).cause).toBe(providerError);
+    expect(((thrown as Error).cause as Error).cause).toBe(providerError);
     const message = (thrown as Error).message;
-    const match = message.match(/Research checkpoint: (.+)$/);
+    const match = message.match(/Research checkpoint: (.+)$/m);
     expect(match).not.toBeNull();
     const checkpointPath = match?.[1];
     expect(checkpointPath).toBeDefined();
@@ -669,13 +670,15 @@ describe("workflow runner", () => {
         close: async () => {},
       }),
       decide: async () => { decisions++; throw new Error("decisions must not run"); },
-    })).rejects.toThrow("Research failure artifact:");
+    })).rejects.toThrow("Failure artifact:");
     expect(turns).toBe(1);
     expect(decisions).toBe(0);
     const runDirectory = join(root, ".pagegraph/runs", readdirSync(join(root, ".pagegraph/runs"))[0]!);
-    const failure = JSON.parse(readFileSync(join(runDirectory, "research-failure.json"), "utf8"));
-    expect(failure.original.transcript.messages).toEqual(["original"]);
-    expect(failure.repaired.transcript.messages).toEqual(["invalid repair"]);
+    const failure = JSON.parse(readFileSync(join(runDirectory, "failure.json"), "utf8"));
+    expect(failure.stage).toBe("repair");
+    expect(failure.sessionId).toBe("links");
+    expect(failure.transcript.messages).toEqual(["invalid repair"]);
+    expect(failure.cause.message).toContain("schema validation");
     expect(existsSync(join(runDirectory, "research.json"))).toBe(false);
   });
 });
@@ -691,9 +694,9 @@ describe("workflow runner", () => {
         continue: async () => { throw new Error("unexpected continuation"); },
         close: async () => { closed = true; },
       }),
-    })).rejects.toThrow("Research failure:");
+    })).rejects.toThrow("Failure artifact:");
     const directory = join(root, ".pagegraph/runs", readdirSync(join(root, ".pagegraph/runs"))[0]!);
-    expect(JSON.parse(readFileSync(join(directory, "research-failure.json"), "utf8")).transcript).toEqual(result.transcript);
+    expect(JSON.parse(readFileSync(join(directory, "failure.json"), "utf8")).transcript).toEqual(result.transcript);
     expect(closed).toBe(true);
   });
 
@@ -718,5 +721,156 @@ describe("workflow runner", () => {
     });
     expect(repairs).toBe(1);
     expect(run.run.decisions[0]?.report.counts.inputs).toBe(1);
+  });
+});
+
+
+describe("workflow wire JSON normalization", () => {
+  it("drops null object properties and array elements at every depth without mutating input", () => {
+    const input = { demand: null, nested: { retained: 0, empty: null }, values: [null, { absent: null, present: false }, [null, { name: "kept", ignored: null }], ""] };
+    expect(dropNulls(input)).toEqual({ nested: { retained: 0 }, values: [{ present: false }, [{ name: "kept" }], ""] });
+    expect(input.demand).toBeNull();
+    expect(input.values[0]).toBeNull();
+  });
+
+  it.each([false, true])("decodes a null optional demand in %s repaired research", async (repair) => {
+    const { root, graph, config } = fixture();
+    const state = { summary: "Supported", opportunities: [{ query: "email api", intent: "commercial", rationale: "Fits pricing", demand: null, candidates: [], evidence: [] }] };
+    const result = { state, sessionId: "null-demand", transcript: {}, executor: executorEvidence };
+    const continued = vi.fn(async () => result);
+    const decide = vi.fn(async (inputs: ReadonlyArray<unknown>) => {
+      expect(inputs).toEqual([{ query: "email api", intent: "commercial", rationale: "Fits pricing", candidates: [], evidence: [] }]);
+      return report("workflow-keywords");
+    });
+    await runKeywordWorkflow({ root, graph, config, options }, {
+      acquireHost: async () => ({ model: { provider: "test", id: "model" }, research: async () => repair ? { ...result, state: { opportunities: [] } } : result, continue: continued, close: async () => {} }),
+      decide,
+    });
+    expect(continued).toHaveBeenCalledTimes(repair ? 1 : 0);
+    expect(decide).toHaveBeenCalledTimes(1);
+  });
+
+  it("includes every invalid state field and its path in the repair prompt", async () => {
+    const { root, graph, config } = fixture();
+    const valid = { summary: "Supported", opportunities: [{ query: "email api", intent: "commercial", rationale: "Fits pricing", candidates: [], evidence: [] }] };
+    const result = { state: valid, sessionId: "all-errors", transcript: {}, executor: executorEvidence };
+    await runKeywordWorkflow({ root, graph, config, options }, {
+      acquireHost: async () => ({ model: { provider: "test", id: "model" },
+        research: async () => ({ ...result, state: { ...valid, opportunities: [{ ...valid.opportunities[0], query: 42, intent: false }] } }),
+        continue: async (_id, prompt) => { expect(prompt).toContain('["opportunities"][0]["query"]'); expect(prompt).toContain('["opportunities"][0]["intent"]'); return result; },
+        close: async () => {},
+      }), decide: async () => report("workflow-keywords"),
+    });
+  });
+
+  it("includes every failing decision input in the repair prompt", async () => {
+    const { root, graph, config } = fixture();
+    const first = { url: "/pricing", intent: "pricing", categoryLock: "email API", candidates: [{ id: "a", title: "Pricing", description: "Plans" }] };
+    const second = { ...first, url: "/docs", candidates: [...first.candidates, ...first.candidates] };
+    const repaired = { state: { summary: "No candidates", items: [] }, sessionId: "all-inputs", transcript: {}, executor: executorEvidence };
+    let repairs = 0;
+    await runWorkflow({ root, graph, config, workflow: "improve.metadata", options: { ...options, limit: 2, dryRun: true } }, {
+      acquireHost: async () => ({ model: { provider: "test", id: "model" },
+        research: async () => ({ ...repaired, state: { summary: "Invalid candidates", items: [first, second] } }),
+        continue: async (_id, prompt) => {
+          if (prompt.includes("at least two candidates")) {
+            repairs++;
+            expect(prompt).toContain("candidate ids must be unique"); expect(prompt).toContain("0"); expect(prompt).toContain("1"); return repaired;
+          }
+          return { ...repaired, state: { summary: "Preview", files: [], outcome: "dry-run" } };
+        }, close: async () => {},
+      }), decide: async () => ({ ...report("meta"), counts: { inputs: 0, resolved: 0, review: 0 } }),
+    });
+    expect(repairs).toBe(1);
+  });
+});
+
+describe("workflow failure artifacts", () => {
+  const readFailure = (root: string) => {
+    const runs = join(root, ".pagegraph/runs");
+    expect(readdirSync(runs)).toHaveLength(1);
+    const directory = join(runs, readdirSync(runs)[0]!);
+    expect(readdirSync(directory).filter((name) => name.includes("failure"))).toEqual(["failure.json"]);
+    const path = join(directory, "failure.json");
+    return { path, artifact: JSON.parse(readFileSync(path, "utf8")) };
+  };
+
+  it.each([
+    { name: "research deadline", message: "OpenCode session did not complete within 180000ms", underlying: new Error("Transport aborted") },
+    { name: "no JSON", message: "The SEO agent did not return a valid workflow JSON object.", underlying: new SyntaxError("Unexpected end of JSON input") },
+    { name: "UnexpectedStatus", message: "OpenCode prompt admission: UnexpectedStatus (HTTP 500)", underlying: new Error("UnexpectedStatus", { cause: new Error("provider unavailable") }) },
+  ])("persists session, transcript and the full cause for $name", async ({ message, underlying }) => {
+    const { root, graph, config } = fixture();
+    const transcript = { messages: [{ type: "assistant", content: [{ type: "text", text: "partial research" }] }] };
+    const error = new WorkflowHostError(message, "failed-session", transcript, underlying);
+    const close = vi.fn(async () => {});
+    const thrown = await runKeywordWorkflow({ root, graph, config, options }, {
+      acquireHost: async () => ({ model: { provider: "test", id: "model" }, research: async () => { throw error; }, continue: async () => { throw new Error("unexpected continuation"); }, close }),
+    }).catch((cause: unknown) => cause);
+    const { path, artifact } = readFailure(root);
+    expect(artifact).toMatchObject({ kind: "pagegraph-workflow-failure", schemaVersion: 1, id: expect.any(String), workflow: "research.keywords", stage: "research", sessionId: "failed-session", transcript, cause: { message, name: error.name, stack: expect.any(String), cause: { message: underlying.message, name: underlying.name } } });
+    if (underlying.cause instanceof Error) expect(artifact.cause.cause.cause).toMatchObject({ message: "provider unavailable", name: "Error" });
+    expect((thrown as Error).message).toContain(`Failure artifact: ${path}\nNext:`);
+    expect(close).toHaveBeenCalledTimes(1);
+  });
+
+  it("writes an acquire failure even when no session exists", async () => {
+    const { root, graph, config } = fixture();
+    const original = new Error("host unavailable", { cause: new Error("connection refused") });
+    const thrown = await runKeywordWorkflow({ root, graph, config, options }, { acquireHost: async () => { throw original; } }).catch((cause: unknown) => cause);
+    const { path, artifact } = readFailure(root);
+    expect(artifact).toMatchObject({ stage: "acquire", cause: { message: original.message, name: "Error", cause: { message: "connection refused" } } });
+    expect(artifact.sessionId == null).toBe(true);
+    expect((thrown as Error).message).toContain(`Failure artifact: ${path}\nNext:`);
+  });
+
+  it.each(["decide", "action"] as const)("writes a %s failure with the research session and transcript", async (stage) => {
+    const { root, graph, config } = fixture();
+    const testCase = mutationCases[1]!;
+    const transcript = { messages: ["completed research"] };
+    const original = new Error(`${stage} failed`, { cause: new Error("provider unavailable") });
+    const thrown = await runWorkflow({ root, graph, config, workflow: testCase.workflow, options: { ...options, dryRun: true } }, {
+      acquireHost: async () => ({ model: { provider: "test", id: "model" }, research: async () => ({ state: testCase.state, sessionId: "completed-research", transcript, executor: executorEvidence }), continue: async () => { throw original; }, close: async () => {} }),
+      decide: async () => { if (stage === "decide") throw original; return report(testCase.family); },
+    }).catch((cause: unknown) => cause);
+    const { path, artifact } = readFailure(root);
+    expect(artifact).toMatchObject({ stage, sessionId: "completed-research", transcript, cause: { message: expect.stringContaining(`${stage} failed`), cause: { message: original.message, cause: { message: "provider unavailable" } } } });
+    expect((thrown as Error).message).toContain(`Failure artifact: ${path}\nNext:`);
+  });
+});
+
+
+describe("workflow error boundaries", () => {
+  it("reports all schema issues within an individual decision input", () => {
+    const spec = getWorkflowSpec("improve.metadata");
+    let thrown: unknown;
+    try { spec.validateDecisionInput({ url: 42, intent: false, categoryLock: "email API", candidates: [] }); } catch (cause) { thrown = cause; }
+    expect(thrown).toBeInstanceOf(Error);
+    expect((thrown as Error).message).toContain("url");
+    expect((thrown as Error).message).toContain("intent");
+  });
+
+  it("keeps the original error when writing its failure artifact is impossible", async () => {
+    const { root, graph, config } = fixture();
+    const original = new Error("host unavailable");
+    const thrown = await runKeywordWorkflow({ root, graph, config, options, out: "AGENTS.md" }, {
+      acquireHost: async () => { throw original; },
+    }).catch((cause: unknown) => cause);
+    expect(thrown).toBe(original);
+    expect(original.message).toContain("host unavailable");
+    expect(original.message).toContain("Could not write failure artifact:");
+  });
+
+  it("keeps a research failure when closing the host also fails", async () => {
+    const { root, graph, config } = fixture();
+    const original = new WorkflowHostError("research failed", "cleanup-session", { messages: ["partial"] }, new Error("provider unavailable"));
+    const thrown = await runKeywordWorkflow({ root, graph, config, options }, {
+      acquireHost: async () => ({ model: { provider: "test", id: "model" }, research: async () => { throw original; }, continue: async () => { throw new Error("unexpected continuation"); }, close: async () => { throw new Error("cleanup failed"); } }),
+    }).catch((cause: unknown) => cause);
+    expect((thrown as Error).cause).toBe(original);
+    expect((thrown as Error).message).toContain("research failed");
+    const directory = join(root, ".pagegraph/runs", readdirSync(join(root, ".pagegraph/runs"))[0]!);
+    const artifact = JSON.parse(readFileSync(join(directory, "failure.json"), "utf8"));
+    expect(artifact).toMatchObject({ stage: "research", sessionId: "cleanup-session", cause: { message: "research failed", cause: { message: "provider unavailable" } } });
   });
 });

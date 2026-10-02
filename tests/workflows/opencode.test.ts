@@ -2,10 +2,12 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
+  acquireWorkflowHost,
   assertWorkflowSkillsAvailable,
+  WorkflowHostError,
   collectExecutorEvidence,
   interactionEventError,
   parseWorkflowStateWithRepair,
@@ -15,6 +17,11 @@ import {
   waitForActiveExecutorPlugin,
   waitForIdle,
 } from "../../src/workflows/opencode";
+
+const runtime = vi.hoisted(() => ({ create: vi.fn() }));
+vi.mock("../../src/workflows/runtime", () => ({
+  loadWorkflowOpenCode: async () => ({ OpenCode: { create: runtime.create } }),
+}));
 
 const tool = (id: string, name: string, input: unknown, content: unknown, metadata?: unknown) => ({
   type: "tool",
@@ -487,5 +494,56 @@ describe("OpenCode workflow evidence", () => {
   it("keeps the repaired transcript and fails when provider evidence is still missing", async () => {
     const repaired = { ...discovery, transcript: { messages: ["concrete provider error"] } };
     await expect(requireExecutorEvidence(discovery, async () => repaired)).rejects.toMatchObject({ result: repaired });
+  });
+});
+
+
+describe("OpenCode session failure context", () => {
+  it.each(["timeout", "no JSON", "unparseable JSON", "UnexpectedStatus"])("retains session and transcript on %s", async (kind) => {
+    const root = mkdtempSync(join(tmpdir(), "pagegraph-opencode-failure-"));
+    const text = kind === "unparseable JSON" ? '{"items": invalid}' : "Partial research without a JSON object";
+    const transcript = { messages: [{ type: "assistant", content: [{ type: "text", text }] }] };
+    const providerError = new Error("UnexpectedStatus", { cause: { status: 500, body: "provider unavailable" } });
+    const sessions = {
+      create: vi.fn(async () => ({ id: "failed-host-session" })),
+      update: vi.fn(async () => undefined),
+      prompt: vi.fn(async (_input: unknown, options: { signal: AbortSignal }) => {
+        if (kind === "UnexpectedStatus") throw providerError;
+        if (kind === "timeout") await new Promise<void>((_resolve, reject) => {
+          const abort = () => reject(new Error("Transport aborted"));
+          if (options.signal.aborted) abort(); else options.signal.addEventListener("abort", abort, { once: true });
+        });
+      }),
+      log: () => ({ async *[Symbol.asyncIterator]() { yield { type: "session.execution.succeeded", data: { sessionID: "failed-host-session" }, durable: { seq: 1 } }; } }),
+      export: vi.fn(async () => transcript),
+      interrupt: vi.fn(async () => ({ interrupted: true })),
+    };
+    runtime.create.mockResolvedValue({ sessions, plugin: { list: async () => ({ data: [{ source: "executor", state: { status: "active" } }] }) }, close: async () => {} });
+    try {
+      const host = await acquireWorkflowHost({ root, config: { configDirectory: ".pagegraph/opencode", defaultModel: "test/model", timeoutMs: kind === "timeout" ? 5 : 1000 } });
+      const thrown = await host.research("research", { skills: [] }).catch((cause: unknown) => cause);
+      expect(thrown).toBeInstanceOf(WorkflowHostError);
+      expect(thrown).toMatchObject({ sessionId: "failed-host-session", transcript, cause: expect.any(Error) });
+      if (kind === "timeout") {
+        expect((thrown as Error).message).toContain("did not complete within 5ms");
+        expect(sessions.interrupt).toHaveBeenCalledTimes(1);
+      } else if (kind === "UnexpectedStatus") {
+        expect((thrown as Error).message).toContain("UnexpectedStatus");
+        expect((thrown as Error).message).toContain("HTTP 500");
+        expect(((thrown as Error).cause as Error).cause).toBe(providerError);
+      } else {
+        expect((thrown as Error).message).toContain("valid workflow JSON");
+        expect(sessions.prompt).toHaveBeenCalledTimes(2);
+        expect((thrown as Error).cause).toBeInstanceOf(AggregateError);
+        expect(((thrown as Error).cause as AggregateError).errors).toHaveLength(2);
+        if (kind === "unparseable JSON") {
+          for (const error of ((thrown as Error).cause as AggregateError).errors) expect(error.cause).toBeInstanceOf(SyntaxError);
+        }
+      }
+      expect(sessions.export).toHaveBeenCalled();
+      await host.close();
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 });

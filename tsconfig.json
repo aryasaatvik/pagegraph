@@ -1,7 +1,14 @@
 {
   "compilerOptions": {
-    "lib": ["ES2023", "DOM", "DOM.Iterable"],
-    "types": ["node", "react"],
+    "lib": [
+      "ES2023",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "types": [
+      "node",
+      "react"
+    ],
     "jsx": "react-jsx",
     "jsxImportSource": "react",
     "module": "Preserve",
@@ -14,5 +21,14 @@
     "isolatedModules": true,
     "resolveJsonModule": true
   },
-  "include": ["src", "tests", "tegami.config.mts", "tsdown.config.mjs", "vitest.config.ts"]
+  "include": [
+    "src",
+    "tests",
+    "tegami.config.mts",
+    "tsdown.config.mjs",
+    "vitest.config.ts"
+  ],
+  "exclude": [
+    "tests/fixtures/tanstack-start-app"
+  ]
 }

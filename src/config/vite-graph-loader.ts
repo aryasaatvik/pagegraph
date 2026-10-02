@@ -24,10 +24,17 @@
 import { createServer, type InlineConfig, type PluginOption } from "vite";
 
 import type { SeoGraph } from "../core/graph";
+import type { RobotsConfig } from "../core/projections";
 
 /** A graph, plus the release of whatever producing it acquired. */
 export interface LoadedSeoGraph {
   readonly graph: SeoGraph;
+  /**
+   * The robots policy the app serves, when the loader knows it (the TanStack
+   * Start loader reads it from the `pagegraph()` plugin). `pagegraph robots`
+   * uses it instead of `seo.config.ts` fields.
+   */
+  readonly robots?: Pick<RobotsConfig, "disallow" | "contentSignal" | "directives"> | undefined;
   /** Called once the command is done with the graph, on success or failure. */
   readonly dispose: () => Promise<void>;
 }
@@ -77,7 +84,7 @@ const messageOf = (cause: unknown): string =>
  * `process.stdout.write`, so the stream swap alone would miss a plugin that
  * logs through the console.
  */
-const withCleanStdout = async <A>(run: () => Promise<A>): Promise<A> => {
+export const withCleanStdout = async <A>(run: () => Promise<A>): Promise<A> => {
   const originalWrite = process.stdout.write.bind(process.stdout);
   const originalLog = console.log;
   const originalInfo = console.info;

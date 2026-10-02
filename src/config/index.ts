@@ -66,10 +66,11 @@ export interface SeoCliConfig {
    */
   readonly origin: string;
   /**
-   * Path prefixes disallowed in robots.txt. Feed it the generated
+   * Path prefixes disallowed in robots.txt. Omit when the graph loader supplies
+   * the robots policy (`tanstackStartGraph`); otherwise feed it the generated
    * `routeConfig.robotsExclusions` if you run the `pagegraph/vite` plugin.
    */
-  readonly disallow: ReadonlyArray<string>;
+  readonly disallow?: ReadonlyArray<string> | undefined;
   /**
    * Origin-wide Content-Signal preferences, forwarded to `renderRobots`.
    * Omit for none. Preview (`--no-indexable`) never emits the line.

@@ -125,19 +125,24 @@ const assertPackageIdentity = (manifest: PackageManifest): void => {
     throw new Error("Package must expose only the pagegraph bin from dist/cli.js");
   }
 
-  const buildEntry = (entry: string) => ({
-    types: `./dist/${entry}.d.ts`,
+  const buildEntry = (entry: string, file = entry) => ({
+    types: `./dist/${file}.d.ts`,
     workerd: `./dist/build-only/${entry}.js`,
     worker: `./dist/build-only/${entry}.js`,
     browser: `./dist/build-only/${entry}.js`,
-    import: `./dist/${entry}.js`,
+    import: `./dist/${file}.js`,
   });
   const expectedExports = {
     ".": { types: "./dist/index.d.ts", import: "./dist/index.js" },
     "./react": { types: "./dist/react.d.ts", import: "./dist/react.js" },
+    "./tanstack-start/server": {
+      types: "./dist/tanstack-start/server.d.ts",
+      import: "./dist/tanstack-start/server.js",
+    },
     "./vite": buildEntry("vite"),
     "./config": buildEntry("config"),
     "./audit": buildEntry("audit"),
+    "./tanstack-start": buildEntry("tanstack-start", "tanstack-start/index"),
   };
   if (JSON.stringify(manifest.exports) !== JSON.stringify(expectedExports)) {
     throw new Error("Package exports do not match the supported public entry points");
@@ -209,6 +214,11 @@ try {
     "dist/build-only/vite.js",
     "dist/build-only/config.js",
     "dist/build-only/audit.js",
+    "dist/build-only/tanstack-start.js",
+    "dist/tanstack-start/index.js",
+    "dist/tanstack-start/index.d.ts",
+    "dist/tanstack-start/server.js",
+    "dist/tanstack-start/server.d.ts",
     "README.md",
     "LICENSE",
     "package.json",
@@ -294,7 +304,7 @@ try {
     [
       "bun",
       "-e",
-      `await Promise.all([import(${JSON.stringify(packageName)}), import(${JSON.stringify(`${packageName}/react`)}), import(${JSON.stringify(`${packageName}/vite`)}), import(${JSON.stringify(`${packageName}/config`)}), import(${JSON.stringify(`${packageName}/audit`)})]); console.log("public exports ok")`,
+      `await Promise.all([import(${JSON.stringify(packageName)}), import(${JSON.stringify(`${packageName}/react`)}), import(${JSON.stringify(`${packageName}/vite`)}), import(${JSON.stringify(`${packageName}/config`)}), import(${JSON.stringify(`${packageName}/audit`)}), import(${JSON.stringify(`${packageName}/tanstack-start`)})]); console.log("public exports ok")`,
     ],
     installDirectory,
   );
@@ -400,7 +410,7 @@ try {
   }
 
   // A Worker or browser bundle resolves build entries to a stub that names the mistake.
-  for (const entry of ["vite", "config", "audit"]) {
+  for (const entry of ["vite", "config", "audit", "tanstack-start"]) {
     const specifier = `${packageName}/${entry}`;
     const runtime = await run(
       ["node", "--conditions=workerd", "--input-type=module", "-e", `await import(${JSON.stringify(specifier)})`],

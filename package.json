@@ -46,6 +46,10 @@
       "types": "./dist/react.d.ts",
       "import": "./dist/react.js"
     },
+    "./tanstack-start/server": {
+      "types": "./dist/tanstack-start/server.d.ts",
+      "import": "./dist/tanstack-start/server.js"
+    },
     "./vite": {
       "types": "./dist/vite.d.ts",
       "workerd": "./dist/build-only/vite.js",
@@ -66,6 +70,13 @@
       "worker": "./dist/build-only/audit.js",
       "browser": "./dist/build-only/audit.js",
       "import": "./dist/audit.js"
+    },
+    "./tanstack-start": {
+      "types": "./dist/tanstack-start/index.d.ts",
+      "workerd": "./dist/build-only/tanstack-start.js",
+      "worker": "./dist/build-only/tanstack-start.js",
+      "browser": "./dist/build-only/tanstack-start.js",
+      "import": "./dist/tanstack-start/index.js"
     }
   },
   "publishConfig": {

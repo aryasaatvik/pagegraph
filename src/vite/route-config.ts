@@ -107,12 +107,12 @@ function normalizeRoutePrefix(route: string): string {
   return cleaned === "" ? "/" : cleaned;
 }
 
-interface RouteConfigShape {
+export interface RouteConfigShape {
   robotsExclusions: Array<string>;
   reservedSegments: Array<string>;
 }
 
-function deriveRouteConfig(
+export function deriveRouteConfig(
   routeNodes: ReadonlyArray<RouteNode>,
   options: ResolvedOptions,
 ): RouteConfigShape {
@@ -144,7 +144,7 @@ function deriveRouteConfig(
  * passes neither `staticData` (from which the SEO graph reads `staticData.seo`)
  * nor `head` has no path to correct metadata.
  */
-function findCoverageViolations(
+export function findCoverageViolations(
   routeNodes: ReadonlyArray<RouteNode>,
   options: ResolvedOptions,
 ): Array<string> {
@@ -161,7 +161,7 @@ function findCoverageViolations(
   return violations;
 }
 
-function coverageMessage(violations: ReadonlyArray<string>): string {
+export function coverageMessage(violations: ReadonlyArray<string>): string {
   return (
     `[${PLUGIN_NAME}] ${violations.length} page(s) declare neither staticData nor ` +
     `head. Every page in an SEO-enforced route group must declare its SEO — add ` +
@@ -222,7 +222,7 @@ function routeConfigGeneratorPlugin(options: ResolvedOptions): GeneratorPlugin {
  * Reads and stats of real files go to disk, which keeps the Generator's mtime
  * cache honest: a route edited mid-watch is always seen.
  */
-function inMemoryWriteFs(routeTreePath: string) {
+export function inMemoryWriteFs(routeTreePath: string) {
   const written = new Map<string, { content: string; mtimeMs: bigint }>();
   let clock = 0n;
   const tick = () => (clock += 1n);
@@ -299,7 +299,7 @@ export interface SeoRouteConfigOptions {
   routesDirectory?: string | undefined;
 }
 
-interface ResolvedOptions {
+export interface ResolvedOptions {
   outputPath: string;
   publicGroups: ReadonlyArray<string>;
   enforceCoverageIn: ReadonlyArray<string>;
@@ -310,7 +310,7 @@ interface ResolvedOptions {
   routesDirectory: string;
 }
 
-function resolveOptions(options: SeoRouteConfigOptions): ResolvedOptions {
+export function resolveOptions(options: SeoRouteConfigOptions): ResolvedOptions {
   return {
     outputPath: options.outputPath,
     publicGroups: options.publicGroups,

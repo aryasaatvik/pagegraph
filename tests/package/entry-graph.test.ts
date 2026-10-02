@@ -46,6 +46,7 @@ describe("runtime entries", () => {
   it.each([
     ["pagegraph", "src/core/index.ts", []],
     ["pagegraph/react", "src/react/index.ts", ["@tanstack/react-router", "react", "react/jsx-runtime"]],
+    ["pagegraph/tanstack-start/server", "src/tanstack-start/server.ts", ["virtual:pagegraph/runtime"]],
   ] as const)("%s imports only its runtime peers", async (_name, entry, allowed) => {
     const imports = await externalImports(entry);
     expect(imports.filter((specifier) => buildOnly.test(specifier))).toEqual([]);
@@ -58,7 +59,7 @@ describe("build entries", () => {
     readonly exports: Record<string, Record<string, string>>;
   };
 
-  it.each(["vite", "config", "audit"])("pagegraph/%s resolves to a throwing stub in runtime bundles", async (entry) => {
+  it.each(["vite", "config", "audit", "tanstack-start"])("pagegraph/%s resolves to a throwing stub in runtime bundles", async (entry) => {
     const conditions = manifest.exports[`./${entry}`];
     for (const condition of ["workerd", "worker", "browser"]) {
       expect(conditions?.[condition], condition).toBe(`./dist/build-only/${entry}.js`);
@@ -72,7 +73,7 @@ describe("build entries", () => {
   });
 
   it("keeps runtime entries free of build-only conditions", () => {
-    for (const entry of [".", "./react"]) {
+    for (const entry of [".", "./react", "./tanstack-start/server"]) {
       expect(Object.keys(manifest.exports[entry] ?? {})).toEqual(["types", "import"]);
     }
   });

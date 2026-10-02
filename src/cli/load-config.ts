@@ -18,7 +18,7 @@ import * as Effect from "effect/Effect";
 import * as Predicate from "effect/Predicate";
 import type * as Scope from "effect/Scope";
 
-import type { SeoCliConfig } from "../config";
+import type { LoadedSeoGraph, SeoCliConfig } from "../config";
 import type { CoverageRule } from "../core/checks";
 import type { SeoGraph } from "../core/graph";
 import { SeoCliError } from "./output";
@@ -110,7 +110,7 @@ const isSeoCliConfig = (value: unknown): value is SeoCliConfig =>
   Predicate.isObject(value) &&
   Predicate.isFunction(value["loadGraph"]) &&
   Predicate.isString(value["origin"]) &&
-  isStringArray(value["disallow"]) &&
+  (value["disallow"] === undefined || isStringArray(value["disallow"])) &&
   (value["contentSignal"] === undefined || Predicate.isString(value["contentSignal"])) &&
   (value["directives"] === undefined || isStringArray(value["directives"])) &&
   (value["transform"] === undefined || Predicate.isFunction(value["transform"])) &&
@@ -132,7 +132,7 @@ const loadConfigFile = (configPath: string): Effect.Effect<SeoCliConfig, SeoCliE
 
     if (!isSeoCliConfig(module.default)) {
       return yield* new SeoCliError({
-        message: `${configPath} must default-export defineSeoConfig({ origin, disallow, loadGraph }).`,
+        message: `${configPath} must default-export defineSeoConfig({ origin, loadGraph }).`,
       });
     }
     return module.default;
@@ -147,7 +147,7 @@ export const loadSeoConfig: Effect.Effect<SeoCliConfig, SeoCliError> = Effect.ge
   const configPath = findConfigFile(cwd);
   if (configPath === undefined) {
     return yield* new SeoCliError({
-      message: `No ${CONFIG_FILENAMES[0]} in ${cwd} or any parent directory. Create one that exports \`defineSeoConfig({ origin, disallow, loadGraph })\` from "pagegraph/config".`,
+      message: `No ${CONFIG_FILENAMES[0]} in ${cwd} or any parent directory. Create one that exports \`defineSeoConfig({ origin, loadGraph })\` from "pagegraph/config".`,
     });
   }
   return yield* loadConfigFile(configPath);
@@ -191,9 +191,9 @@ export const loadSeoConfigOptional: Effect.Effect<SeoCliConfig | undefined, SeoC
  * {@link viteGraphLoader}, an in-process Vite server) is released when the
  * surrounding `Effect.scoped` exits, on success or failure.
  */
-export const acquireGraph = (
+export const acquireLoadedGraph = (
   config: SeoCliConfig,
-): Effect.Effect<SeoGraph, SeoCliError, Scope.Scope> =>
+): Effect.Effect<LoadedSeoGraph, SeoCliError, Scope.Scope> =>
   Effect.gen(function* () {
     yield* Effect.logDebug("Loading the SEO graph…");
 
@@ -216,5 +216,11 @@ export const acquireGraph = (
     yield* Effect.logDebug(
       `Loaded SEO graph: ${loaded.graph.nodes.size} nodes, ${loaded.graph.edges.length} edges.`,
     );
-    return loaded.graph;
+    return loaded;
   });
+
+/** {@link acquireLoadedGraph}, for commands that need only the graph. */
+export const acquireGraph = (
+  config: SeoCliConfig,
+): Effect.Effect<SeoGraph, SeoCliError, Scope.Scope> =>
+  Effect.map(acquireLoadedGraph(config), (loaded) => loaded.graph);

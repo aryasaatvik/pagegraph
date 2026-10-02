@@ -3,9 +3,11 @@ import { defineConfig } from "tsdown";
 // One entry per public `exports` subpath, plus `cli` for the `bin`. Two passes so
 // the CLI can bundle Effect while the library entries stay dependency-free.
 //
-// The library entries are pure data + string rendering (the core) or adapters to
-// Vite/React. Their `node:` imports stay external and they never reach Effect, so a
-// consumer that only declares SEO on routes installs no runtime dependency.
+// Runtime entries (`index`, `react`) are pure data + string rendering and may run in
+// a Worker or browser; `tests/package/entry-graph.test.ts` pins what they import.
+// Build entries (`vite`, `config`, `audit`) load the app through Vite or drive Node
+// I/O. Each has a `build-only/*` twin that the `workerd`/`worker`/`browser` export
+// conditions resolve to, which throws a clear error at import.
 //
 // `cli` is the one entry that reaches Effect and the Bun platform adapter. It is
 // built as a separate pass that **bundles** `effect` and `@effect/*`: a published
@@ -41,6 +43,9 @@ export default defineConfig([
       vite: "src/vite/index.ts",
       config: "src/config/index.ts",
       audit: "src/audit/index.ts",
+      "build-only/vite": "src/build-only/vite.ts",
+      "build-only/config": "src/build-only/config.ts",
+      "build-only/audit": "src/build-only/audit.ts",
     },
     // `schema-dts` is types-only: it is bundled into the `.d.ts` and erases from
     // the JS, which is what keeps `.`/`./react` free of runtime dependencies.

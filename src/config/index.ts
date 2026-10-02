@@ -27,8 +27,7 @@
 export type { GraphLoaderInput, LoadedSeoGraph, SeoGraphLoader, ViteGraphLoaderOptions } from "./vite-graph-loader";
 export { viteGraphLoader } from "./vite-graph-loader";
 
-export { selectPageHeadNodes, pageHeads, loadPageHeads } from "./page-heads";
-export type { PageHead, PageHeadsOptions } from "./page-heads";
+export { loadPageHeads } from "./page-heads";
 
 import type { CoverageRule } from "../core/checks";
 import type { ContentPolicy } from "../core/content";

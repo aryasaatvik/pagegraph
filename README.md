@@ -25,17 +25,25 @@ bun add pagegraph
 bun add -D lighthouse   # only for `pagegraph audit` performance evidence
 ```
 
-| Entry                        | Exports                                                                                        | Peers                                       |
-| ---------------------------- | ---------------------------------------------------------------------------------------------- | ------------------------------------------- |
-| `pagegraph`        | `buildSeoGraph`, `renderSitemap`, `renderRobots`, `contentSignal`, `checkGraph`, `checkRenderedCoverage`, `decodeRenderedEdgeArtifact`, `inspectHtml` | —                                           |
-| `pagegraph/react`  | `createSeo` → `seoHead`, `Breadcrumbs`, JSON-LD generators                                     | `react`, `@tanstack/react-router`           |
-| `pagegraph/vite`   | `seoRouteConfig` coverage gate                                                                 | `vite`                                      |
-| `pagegraph/config` | `defineSeoConfig`, `viteGraphLoader`, `selectPageHeadNodes`, `pageHeads`, `loadPageHeads`                                                           | `vite`                                      |
-| `pagegraph/audit`  | Audit services, scanner protocol, rules, and report schemas                                    | `effect`                                    |
-| `pagegraph` bin                   | CLI over the same graph                                                                        | bundled — runs on Bun                        |
+## What runs where
 
-The core and React import graphs have **zero runtime dependencies** — everything they use is a
-peer, and only the entries you import need those peers loaded.
+Every entry belongs to one place. Runtime entries are safe in a Worker, an SSR server, or a
+browser; build entries load your app through Vite, parse routes natively, or drive Node I/O.
+
+| Entry              | Runs in                       | Exports                                                                                                   | Peers                             |
+| ------------------ | ----------------------------- | --------------------------------------------------------------------------------------------------------- | --------------------------------- |
+| `pagegraph`        | runtime (Worker, SSR, browser) | `buildSeoGraph`, `renderSitemap`, `renderRobots`, `contentSignal`, `pageHeads`, `selectPageHeadNodes`, checks, `inspectHtml` | —                                 |
+| `pagegraph/react`  | runtime                       | `createSeo` → `seoHead`, `Breadcrumbs`, JSON-LD generators                                                | `react`, `@tanstack/react-router` |
+| `pagegraph/vite`   | build (`vite.config.ts`)      | `seoRouteConfig` coverage gate                                                                            | `vite`, `@tanstack/router-generator` |
+| `pagegraph/config` | build (`seo.config.ts`, CLI)  | `defineSeoConfig`, `viteGraphLoader`, `loadPageHeads`                                                     | `vite`                            |
+| `pagegraph/audit`  | build / CLI (Node or Bun)     | Audit services, scanner protocol, rules, and report schemas                                               | `effect`                          |
+| `pagegraph` bin    | CLI (Bun)                     | CLI over the same graph                                                                                   | bundled                           |
+
+Build entries resolve to a stub under the `workerd`, `worker`, and `browser` export conditions.
+A Worker or browser bundle that reaches one fails at import with an error naming the entry,
+instead of crashing on a native binding when a request first runs the code. The runtime entries
+have **zero runtime dependencies** beyond their listed peers; a test pins each entry's import
+graph.
 
 The CLI **bundles PageGraph's Effect and TypeSafe provider runtime**, so it does not depend on the
 app's Effect version; it runs on [Bun](https://bun.sh) (`bunx pagegraph`). Agentic workflows load the
@@ -199,7 +207,7 @@ silently deduplicates entities.
 // lib/seo/graph.ts — also the module the CLI loads
 import { buildSeoGraph } from "pagegraph";
 
-export const loadSeoGraph = () =>
+export const loadSeoGraph = async () =>
   buildSeoGraph({ routeTree, collections: [blogCollection] });
 ```
 
@@ -207,8 +215,9 @@ export const loadSeoGraph = () =>
 // routes/sitemap[.]xml.ts — robots[.]txt.ts is symmetric
 import { renderRobots, renderSitemap } from "pagegraph";
 
-renderSitemap(loadSeoGraph(), { origin, indexable: true });
-renderRobots(loadSeoGraph(), {
+const graph = await loadSeoGraph();
+renderSitemap(graph, { origin, indexable: true });
+renderRobots(graph, {
   origin,
   indexable: true,
   disallow: routeConfig.robotsExclusions,
@@ -438,7 +447,7 @@ framework-specific route `head()` values into node instances; pagegraph selects
 and validates the resulting plain metadata:
 
 ```ts
-import { loadPageHeads, viteGraphLoader } from "pagegraph/config";
+import { loadPageHeads, viteGraphLoader } from "pagegraph/config"; // build-only
 
 const loader = viteGraphLoader<{ exclude: string[] }>({
   root: import.meta.dirname,
@@ -779,7 +788,7 @@ import {
   inspectHtml,
 } from "pagegraph";
 
-expect(hasStructuralViolations(checkGraph(loadSeoGraph()))).toBe(false);
+expect(hasStructuralViolations(checkGraph(await loadSeoGraph()))).toBe(false);
 
 // render a page however you like, then assert the head it actually ships
 const report = inspectHtml(url, 200, html);

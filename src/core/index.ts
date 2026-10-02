@@ -78,6 +78,9 @@ export type {
 export { hasBlockingIssues, inspectHtml } from "./inspect-html";
 export type { JsonLdReport, LiveHeadReport } from "./inspect-html";
 
+export { pageHeads, selectPageHeadNodes } from "./page-heads";
+export type { PageHead, PageHeadsOptions } from "./page-heads";
+
 export { resolveRouteLink } from "./resolve-route-link";
 
 export {

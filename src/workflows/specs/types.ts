@@ -67,8 +67,8 @@ export interface AnyWorkflowSpec {
 export const defineWorkflow = <State, Input>(
   definition: WorkflowSpecDefinition<State, Input>,
 ): AnyWorkflowSpec => {
-  const decodeState = Schema.decodeUnknownSync(definition.stateSchema);
-  const decodeInput = Schema.decodeUnknownSync(definition.family.input);
+  const decodeState = Schema.decodeUnknownSync(definition.stateSchema, { errors: "all" });
+  const decodeInput = Schema.decodeUnknownSync(definition.family.input, { errors: "all" });
   const inputsFrom = (state: unknown): ReadonlyArray<Input> =>
     definition.decisionInputs(decodeState(state));
   const decodedInputs = (inputs: ReadonlyArray<unknown>): ReadonlyArray<Input> =>

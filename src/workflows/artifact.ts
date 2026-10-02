@@ -63,7 +63,7 @@ export const writeResearchCheckpoint = (
   return path;
 };
 
-export const writeResearchFailure = (
+export const writeWorkflowFailure = (
   root: string,
   runsDirectory: string,
   id: string,
@@ -71,7 +71,23 @@ export const writeResearchFailure = (
 ): string => {
   const directory = resolve(root, runsDirectory, id);
   mkdirSync(directory, { recursive: true });
-  const path = resolve(directory, "research-failure.json");
+  const path = resolve(directory, "failure.json");
   writeFileSync(path, `${JSON.stringify(details, null, 2)}\n`, "utf8");
   return path;
+};
+
+export const serializeCause = (value: unknown, top = true, seen = new Set<unknown>()): unknown => {
+  if (seen.has(value)) return { name: "CircularCause", message: "Circular error cause" };
+  if (value !== null && typeof value === "object") {
+    seen.add(value);
+    const message = value instanceof Error ? value.message : "message" in value ? String(value.message) : JSON.stringify(value);
+    const name = value instanceof Error ? value.name : "name" in value ? String(value.name) : "Error";
+    return {
+      message, name,
+      ...(top && value instanceof Error ? { stack: value.stack } : {}),
+      ...("cause" in value ? { cause: serializeCause(value.cause, false, seen) } : {}),
+      ...(value instanceof AggregateError ? { errors: value.errors.map((error) => serializeCause(error, false, new Set(seen))) } : {}),
+    };
+  }
+  return { name: "Error", message: String(value) };
 };

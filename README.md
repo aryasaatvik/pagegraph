@@ -1,21 +1,22 @@
 # pagegraph
 
-Route-declared SEO for TanStack Router. Each route declares its SEO policy once, in
-`staticData.seo` — the sitemap, `robots.txt`, breadcrumbs, JSON-LD, cross-links, and
-the CI check all derive from that one declaration. There is no second place to update,
-so nothing drifts. A public page that ships without a declaration **fails the build**.
+Route-declared SEO for TanStack Start and TanStack Router. Each route declares its SEO
+policy and head once, in `staticData.seo` — the `<head>`, sitemap, `robots.txt`,
+breadcrumbs, JSON-LD, cross-links, and the CI check all derive from that one
+declaration. There is no second place to update, so nothing drifts. A public page that
+ships without a declaration **fails the build**.
 
 ```mermaid
 flowchart LR
   subgraph declare["declare once"]
-    route["staticData.seo<br/>+ head()"]
+    route["staticData.seo (+ head)<br/>head: seo.head"]
   end
-  route --> seograph["SeoGraph<br/>(nodes + edges)"]
+  route --> seograph["SeoGraph<br/>(built by the Vite plugin)"]
   seograph --> sitemap["sitemap.xml"]
   seograph --> robots["robots.txt"]
   seograph --> check["pagegraph check · CI gate"]
   route --> head["&lt;head&gt; meta · canonical<br/>Breadcrumbs · JSON-LD"]
-  gate["seoRouteConfig (vite)"] -. "fails undeclared pages" .-> route
+  gate["pagegraph() (vite)"] -. "fails undeclared pages" .-> route
 ```
 
 ## Install
@@ -32,8 +33,10 @@ browser; build entries load your app through Vite, parse routes natively, or dri
 
 | Entry              | Runs in                       | Exports                                                                                                   | Peers                             |
 | ------------------ | ----------------------------- | --------------------------------------------------------------------------------------------------------- | --------------------------------- |
-| `pagegraph`        | runtime (Worker, SSR, browser) | `buildSeoGraph`, `renderSitemap`, `renderRobots`, `contentSignal`, `pageHeads`, `selectPageHeadNodes`, checks, `inspectHtml` | —                                 |
-| `pagegraph/react`  | runtime                       | `createSeo` → `seoHead`, `Breadcrumbs`, JSON-LD generators                                                | `react`, `@tanstack/react-router` |
+| `pagegraph`        | runtime (Worker, SSR, browser) | `buildSeoGraph`, `contentCollection`, `renderSitemap`, `renderRobots`, `pageHeads`, `graphToJson`/`graphFromJson`, checks, `inspectHtml` | —                                 |
+| `pagegraph/react`  | runtime                       | `createSeo` → `seo.head`, `seoHead`, `Breadcrumbs`, JSON-LD generators                                    | `react`, `@tanstack/react-router` |
+| `pagegraph/tanstack-start/server` | runtime (Start server routes) | `robotsTxt`, `sitemapXml`, `seoGraph`, `seoSite`                                           | the `pagegraph()` plugin          |
+| `pagegraph/tanstack-start` | build (`vite.config.ts`, `seo.config.ts`) | `pagegraph()` Vite plugin, `tanstackStartGraph`, `evaluateAppGraph`                        | `vite`, `@tanstack/router-generator` |
 | `pagegraph/vite`   | build (`vite.config.ts`)      | `seoRouteConfig` coverage gate                                                                            | `vite`, `@tanstack/router-generator` |
 | `pagegraph/config` | build (`seo.config.ts`, CLI)  | `defineSeoConfig`, `viteGraphLoader`, `loadPageHeads`                                                     | `vite`                            |
 | `pagegraph/audit`  | build / CLI (Node or Bun)     | Audit services, scanner protocol, rules, and report schemas                                               | `effect`                          |
@@ -71,7 +74,7 @@ pagegraph skills get core
 
 The skill is maintained at [skill-data/core/SKILL.md](skill-data/core/SKILL.md) and compiled into the CLI, so the instructions match the installed Pagegraph version. `skills get core` prints Markdown to stdout; `--json` returns a structured payload.
 
-## Quick start
+## Quick start (TanStack Start)
 
 **1. Bind your site identity once.** Route files never see an origin or a brand name.
 
@@ -79,7 +82,7 @@ The skill is maintained at [skill-data/core/SKILL.md](skill-data/core/SKILL.md) 
 // lib/seo.ts
 import { createSeo } from "pagegraph/react";
 
-export const { seoHead } = createSeo({
+const site = createSeo({
   origin: "https://example.com",
   site: {
     name: "Example",
@@ -93,19 +96,17 @@ export const { seoHead } = createSeo({
     description: "What the company does.",
     sameAs: ["https://github.com/example"],
     contactPoint: { contactType: "support", email: "hi@example.com" },
-    address: {
-      streetAddress: "123 Example Street",
-      addressLocality: "Example City",
-      addressRegion: "CA",
-      postalCode: "94105",
-      addressCountry: "US",
-    },
   },
   website: { searchPath: "/docs?q={search_term_string}" },
 });
+
+export const seo = site; // seo.head for static routes
+export const { seoHead } = site;
 ```
 
-**2. Declare on the route.** Policy in `staticData.seo`, per-page content in `head()`.
+**2. Declare each page once.** `staticData.seo` holds the crawl policy and the head
+together; `seo.head` renders it. The graph and the checks read the same
+`staticData.seo.head` — the page and the graph cannot disagree.
 
 ```tsx
 export const Route = createFileRoute("/pricing")({
@@ -117,124 +118,111 @@ export const Route = createFileRoute("/pricing")({
       related: ["/features", "/docs"],
       link: { title: "Pricing", description: "Simple volume pricing." },
       modifiedAt: "2026-09-29", // sitemap <lastmod> and the freshness report
+      head: {
+        title: "Pricing — Example",
+        description: "Simple volume pricing.",
+        faqs: pricingFaqs,
+      },
     },
   },
-  head: (ctx) =>
-    seoHead(ctx, {
-      title: "Pricing — Example",
-      description: "Simple volume pricing.",
-    }),
+  head: seo.head,
+  component: PricingPage,
 });
 ```
 
-`seoHead` returns the `meta` + canonical `links` TanStack renders into `<head>` —
+`seo.head` returns the `meta` + canonical `links` TanStack renders into `<head>` —
 title, description, og/twitter cards, robots, and the JSON-LD each page warrants
-(BreadcrumbList always; Article, FAQPage, Service, ItemList when the instance
-declares them).
+(BreadcrumbList always; Article, FAQPage, Service, ItemList when the head declares
+them). A route that renders from `loaderData` calls `seoHead(ctx, instance)` in its
+own `head()` and declares a `titleTemplate` (`"%s | Example Blog"`): `seoHead` applies it,
+and the graph applies it to the route's collection pages.
 
-### Extensible JSON-LD
-
-The built-in generators are conveniences, not a closed schema registry. Define any
-`schema-dts` entity, link it to the plugin's stable site identities, and compose one
-site graph:
+**3. Register the plugin.** It builds the graph once per build (and on change in dev)
+inside your app's Vite pipeline — path aliases, `define`s, and content plugins such as
+Fumadocs apply, with no stubs — and ships it to the server runtime as data.
 
 ```ts
-import {
-  createSeo,
-  defineJsonLd,
-  extendJsonLd,
-  jsonLdRef,
-} from "pagegraph/react";
+// vite.config.ts
+import { pagegraph } from "pagegraph/tanstack-start";
 
-export const seo = createSeo({
-  // site, organization, and website as above
-  jsonLd: {
-    site: (ids) => [
-      defineJsonLd({
-        "@type": "SoftwareApplication",
-        "@id": "https://example.com/#product",
-        name: "Example",
-        applicationCategory: "DeveloperApplication",
-        operatingSystem: "Web",
-        provider: jsonLdRef(ids.organization),
-      }),
-    ],
-    transform: (entry) => {
-      if (entry.kind === "organization") {
-        return extendJsonLd(entry.document, {
-          slogan: "Ship with confidence.",
-        });
-      }
-      return entry.document;
-    },
+pagegraph({
+  origin: "https://example.com",
+  indexable: process.env.DEPLOY_ENV === "production", // previews disallow everything
+  robots: { contentSignal: "search=yes, ai-input=yes, ai-train=yes" },
+  collections: "src/lib/seo/collections.ts",
+  routeConfig: {
+    outputPath: fileURLToPath(new URL("./src/lib/route-config.ts", import.meta.url)),
+    publicGroups: ["(marketing)", "(docs)"],
+    enforceCoverageIn: ["(marketing)", "(docs)"],
+    alwaysDisallow: ["/dashboard", "/api"],
   },
 });
-
-const siteGraph = seo.generateSiteGraphSchema();
-```
-
-`generateSiteGraphSchema()` includes Organization, WebSite, and configured site
-entities in one `@graph`. Organization and WebSite use stable `#organization` and
-`#website` IDs; articles and services provided by the site reference the same
-Organization. Existing individual generators remain available and are not transformed.
-
-Add page-specific entities through `seoHead`:
-
-```ts
-head: (ctx) =>
-  seo.seoHead(ctx, {
-    title: "Example for developers",
-    description: "A focused description of the product.",
-    jsonLd: [
-      defineJsonLd({
-        "@type": "SoftwareApplication",
-        name: "Example",
-        url: "https://example.com/product",
-      }),
-    ],
-  });
-```
-
-The transform sees discriminated generated and custom entries plus `origin`,
-`canonical`, and `entityIds`. Return the document to keep it, no value (or `false`)
-to suppress it, or an array to expand it. Output preserves caller order and never
-silently deduplicates entities.
-
-**3. Serve the projections.** Build the graph from your route tree, render strings.
-
-```ts
-// lib/seo/graph.ts — also the module the CLI loads
-import { buildSeoGraph } from "pagegraph";
-
-export const loadSeoGraph = async () =>
-  buildSeoGraph({ routeTree, collections: [blogCollection] });
 ```
 
 ```ts
-// routes/sitemap[.]xml.ts — robots[.]txt.ts is symmetric
-import { renderRobots, renderSitemap } from "pagegraph";
+// src/lib/seo/collections.ts — evaluated in the app's Vite pipeline
+import { contentCollection } from "pagegraph";
+import { blogSource } from "../blog-source"; // e.g. a Fumadocs loader()
 
-const graph = await loadSeoGraph();
-renderSitemap(graph, { origin, indexable: true });
-renderRobots(graph, {
-  origin,
-  indexable: true,
-  disallow: routeConfig.robotsExclusions,
-  contentSignal: "search=yes, ai-input=yes, ai-train=yes",
+export const collections = () => [
+  contentCollection({
+    route: "/blog/$slug",
+    source: "blog",
+    pages: blogSource.getPages(),
+    entry: (page) => ({
+      title: page.data.title,
+      description: page.data.description,
+      publishedAt: page.data.date,
+      related: page.data.related,
+    }),
+  }),
+];
+```
+
+The plugin evaluates every route file that declares `staticData` — never the generated
+route tree — in a Node environment named `pagegraph`. A route that imports a module
+only the server runtime provides (`cloudflare:workers`) fails with its file name; add an
+app-only route to `exclude` (route-file globs).
+
+**4. Serve robots.txt and sitemap.xml.** One line each; the output depends on the
+deployment's origin and indexability, so they stay routes.
+
+```ts
+// src/routes/robots[.]txt.ts — sitemap[.]xml.ts is symmetric with sitemapXml
+import { robotsTxt } from "pagegraph/tanstack-start/server";
+
+export const Route = createFileRoute("/robots.txt")({ server: { handlers: { GET: robotsTxt } } });
+```
+
+**5. Gate CI.** The CLI reads the same graph through `seo.config.ts`:
+
+```ts
+// seo.config.ts
+import { defineSeoConfig } from "pagegraph/config";
+import { tanstackStartGraph } from "pagegraph/tanstack-start";
+
+export default defineSeoConfig({
+  origin: "https://example.com",
+  loadGraph: tanstackStartGraph({ root: import.meta.dirname }),
 });
 ```
+
+```bash
+pagegraph check
+```
+
+### Without TanStack Start
+
+`buildSeoGraph({ routeTree, collections })` builds the same graph from any TanStack
+Router tree; render it with `renderSitemap(graph, { origin, indexable })` and
+`renderRobots(graph, { origin, indexable, disallow, contentSignal })`, and point
+`seo.config.ts` at it with `viteGraphLoader` (see [CLI](#cli)).
 
 `renderRobots` does not invent a Content-Signal. Pass `contentSignal` for
 the value (the plugin prefixes `Content-Signal: `), `directives` for extra
 group lines, and `transform` if you need to wrap or replace the whole file.
 Preview hosts (`indexable: false`) drop `contentSignal` and `directives`;
 `transform` still runs.
-
-**4. Gate CI.** The same graph, the same rules, exit 1 on structural violations.
-
-```bash
-pagegraph check
-```
 
 ## Agentic workflows
 
@@ -391,9 +379,10 @@ route's date is never inherited by its instances. Undated pages emit no
 
 ## Coverage gate (Vite)
 
-`seoRouteConfig` parses the route tree with `@tanstack/router-generator` (the same
-parser as the router) and fails `vite build` when a page in an enforced group has
-neither `staticData` nor `head`:
+`pagegraph({ routeConfig })` — or `seoRouteConfig` from `pagegraph/vite` in a Router-only
+app — parses the route tree with `@tanstack/router-generator` (the same parser as the
+router) and fails `vite build` when a page in an enforced group has neither `staticData`
+nor `head`:
 
 ```ts
 // vite.config.ts
@@ -408,14 +397,15 @@ seoRouteConfig({
 ```
 
 It also derives a small config module from the route tree: `robotsExclusions`
-(feed to `renderRobots`) and `reservedSegments` (top-level segments an app must
-not hand out as tenant/org slugs).
+(the plugin adds them to robots.txt; a Router-only app feeds them to `renderRobots`) and
+`reservedSegments` (top-level segments an app must not hand out as tenant/org slugs).
 
 ## CLI
 
-The graph commands acquire your graph through `seo.config.ts` at the app root —
-the `viteGraphLoader` evaluates your graph module inside a headless Vite server,
-so path aliases, content plugins, and virtual modules all resolve:
+The graph commands acquire your graph through `seo.config.ts` at the app root. A
+TanStack Start app uses `tanstackStartGraph` (above), which also supplies the robots
+policy. Otherwise `viteGraphLoader` evaluates your graph module inside a headless Vite
+server, so path aliases, content plugins, and virtual modules all resolve:
 
 ```ts
 // seo.config.ts
@@ -435,26 +425,21 @@ export default defineSeoConfig({
 });
 ```
 
-`viteGraphLoader<Input>(options)` returns a loader whose JSON input is passed to
-its entry export. Existing zero-argument loaders remain valid. The host resolves
-framework-specific route `head()` values into node instances; pagegraph selects
-and validates the resulting plain metadata:
+Build-time consumers of page titles and descriptions read the same graph:
 
 ```ts
-import { loadPageHeads, viteGraphLoader } from "pagegraph/config"; // build-only
+import { loadPageHeads } from "pagegraph/config"; // build-only
+import { tanstackStartGraph } from "pagegraph/tanstack-start";
 
-const loader = viteGraphLoader<{ exclude: string[] }>({
-  root: import.meta.dirname,
-  entry: "/lib/seo/graph.ts",
-  exportName: "loadHeadGraph",
+const heads = await loadPageHeads(tanstackStartGraph({ root: import.meta.dirname }), {
+  exclude: ["/docs", "/docs/**"],
 });
-const exclude = ["/docs", "/docs/**", "/captured-page"];
-const heads = await loadPageHeads(() => loader({ exclude }), { exclude });
 ```
 
-`selectPageHeadNodes(graph, options)` selects nodes before host metadata resolution.
-`pageHeads(graph, options)` returns `{ path, title, description }[]`, requiring
-nonblank titles and descriptions and naming the page on failure. `loadPageHeads`
+`selectPageHeadNodes(graph, options)` selects the page nodes `pageHeads` reads.
+`pageHeads(graph, options)` returns `{ path, title, description }[]` from each node's
+`head` (a declared `staticData.seo.head`, or a collection instance through its route's title
+template), requiring nonblank titles and descriptions and naming the page on failure. `loadPageHeads`
 always disposes the acquired graph, including when validation fails. Page nodes
 carry a sitemap declaration or an instance; layouts are excluded. By default,
 selection excludes noindex pages, redirects and parameter templates, while retaining
@@ -781,8 +766,11 @@ import {
   hasStructuralViolations,
   inspectHtml,
 } from "pagegraph";
+import { evaluateAppGraph } from "pagegraph/tanstack-start";
 
-expect(hasStructuralViolations(checkGraph(await loadSeoGraph()))).toBe(false);
+// the graph the plugin ships, evaluated through your Vite config
+const { graph } = await evaluateAppGraph({ root: appRoot, mode: "production" });
+expect(hasStructuralViolations(checkGraph(graph))).toBe(false);
 
 // render a page however you like, then assert the head it actually ships
 const report = inspectHtml(url, 200, html);

@@ -48,11 +48,22 @@ const RUNTIME_ENTRY = "pagegraph/tanstack-start/server";
 /** Where a build writes the graph environment's output, relative to the Vite root. */
 const BUILD_DIRECTORY = "node_modules/.cache/pagegraph/build";
 /**
- * Runtime-provided modules (`cloudflare:workers`, `bun:sqlite`) stay external in
- * the graph build, so an unexcluded route that imports one fails at evaluation
- * with its file name rather than as an unresolved import.
+ * Runtime-provided modules (`cloudflare:workers`, `bun:sqlite`) that no plugin
+ * resolves stay external in the graph environment, so an unexcluded route that
+ * imports one fails at evaluation with its file name rather than as an
+ * unresolved import. Plugin-owned schemes (`fumadocs-mdx:`) resolve first.
  */
 const RUNTIME_SCHEME = /^(?!node:|data:|file:|virtual:)[a-z][a-z0-9+.-]*:/;
+
+const runtimeModulesPlugin: Plugin = {
+  name: "pagegraph:runtime-modules",
+  enforce: "post",
+  applyToEnvironment: (environment) => environment.name === GRAPH_ENVIRONMENT,
+  resolveId: {
+    filter: { id: RUNTIME_SCHEME },
+    handler: (id) => ({ id, external: true }),
+  },
+};
 
 /** What the plugin exposes to {@link evaluateAppGraph} through `plugin.api`. */
 export interface PagegraphPluginApi {
@@ -129,7 +140,6 @@ export function pagegraph(options: PagegraphOptions): Array<Plugin> {
               rolldownOptions: {
                 input: { entry: ENTRY_ID },
                 output: { entryFileNames: "[name].mjs", chunkFileNames: "chunks/[name]-[hash].mjs" },
-                external: (id) => RUNTIME_SCHEME.test(id),
               },
             },
           },
@@ -206,7 +216,11 @@ export function pagegraph(options: PagegraphOptions): Array<Plugin> {
     },
   };
 
-  return options.routeConfig === undefined
-    ? [graphPlugin]
-    : [graphPlugin, seoRouteConfig({ ...options.routeConfig, routesDirectory: options.routesDirectory })];
+  return [
+    graphPlugin,
+    runtimeModulesPlugin,
+    ...(options.routeConfig === undefined
+      ? []
+      : [seoRouteConfig({ ...options.routeConfig, routesDirectory: options.routesDirectory })]),
+  ];
 }

@@ -89,6 +89,19 @@ describe("pagegraph() in a build", () => {
       },
     );
   });
+
+  it("names a route that cannot evaluate in the built graph environment", async () => {
+    await withFixtureCopy(
+      (root) => {
+        const config = join(root, "vite.config.ts");
+        writeFileSync(config, readFileSync(config, "utf8").replace('exclude: ["app-only.tsx"],', ""));
+      },
+      async (root) => {
+        const builder = await createBuilder({ root, configFile: join(root, "vite.config.ts"), logLevel: "silent" });
+        await expect(builder.buildApp()).rejects.toThrow(/could not evaluate src\/routes\/app-only\.tsx/);
+      },
+    );
+  });
 });
 
 describe("pagegraph() in dev", async () => {

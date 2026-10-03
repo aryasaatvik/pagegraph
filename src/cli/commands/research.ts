@@ -7,7 +7,7 @@ import * as Flag from "effect/cli/Flag";
 import type { SeoCliConfig } from "../../config";
 import type { SiteRuntime } from "../../config";
 import type { SeoGraph } from "../../core/graph";
-import type { WorkflowId, WorkflowRunV1, WorkflowTargetOptions } from "../../workflows/model";
+import type { WorkflowId, WorkflowRunV2, WorkflowTargetOptions } from "../../workflows/model";
 import { runWorkflow } from "../../workflows/run";
 import { acquireLoadedGraph, loadSeoProjectConfig } from "../load-config";
 import { jsonFlag, printJson, printText, SeoCliError } from "../output";
@@ -24,7 +24,7 @@ export interface WorkflowCommandInput {
 }
 
 export interface WorkflowCommandResult {
-  readonly run: WorkflowRunV1;
+  readonly run: WorkflowRunV2;
   readonly directory: string;
 }
 
@@ -71,11 +71,11 @@ const refreshFlag = Flag.Boolean("refresh").pipe(
   Flag.withDefault(false),
 );
 const modelFlag = Flag.String("model").pipe(
-  Flag.withDescription("OpenCode provider/model override"),
+  Flag.withDescription("Agent provider/model override"),
   Flag.optional,
 );
-const configFlag = Flag.String("opencode-config").pipe(
-  Flag.withDescription("OpenCode config-directory override"),
+const presetDirectoryFlag = Flag.String("preset-directory").pipe(
+  Flag.withDescription("Agent preset-directory override"),
   Flag.optional,
 );
 const outFlag = Flag.String("out").pipe(
@@ -103,7 +103,7 @@ const baseFlags = {
   limit: limitFlag,
   refresh: refreshFlag,
   model: modelFlag,
-  opencodeConfig: configFlag,
+  presetDirectory: presetDirectoryFlag,
   out: outFlag,
   json: jsonFlag,
 } as const;
@@ -177,7 +177,7 @@ export const runWorkflowCommand = async (
     throw new Error("pagegraph.config.ts has no workflows configuration; run `pagegraph init` and add it.");
   }
 
-  const configured = optionalString(flags.opencodeConfig);
+  const configured = optionalString(flags.presetDirectory);
   const config =
     configured === undefined
       ? project.config
@@ -185,9 +185,9 @@ export const runWorkflowCommand = async (
           ...project.config,
           workflows: {
             ...project.config.workflows,
-            opencode: {
-              ...project.config.workflows.opencode,
-              configDirectory: configured,
+            agent: {
+              ...project.config.workflows.agent,
+              presetDirectory: configured,
             },
           },
         };
@@ -262,7 +262,7 @@ export const workflowCommand = (input: {
 };
 
 export const researchCommandGroup = Command.make("research").pipe(
-  Command.withDescription("Research page-backed organic-search opportunities with OpenCode and Executor"),
+  Command.withDescription("Research page-backed organic-search opportunities with Pi and Executor"),
   Command.withSubcommands([
     workflowCommand({
       name: "keywords",

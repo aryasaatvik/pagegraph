@@ -69,13 +69,15 @@ export default defineConfig([
   {
     ...base,
     entry: { cli: "src/cli/bin.ts" },
+    // Provider SDK dependencies can expose only main; the CLI runs in Node/Bun.
+    inputOptions: { resolve: { mainFields: ["module", "main"] } },
     // The library pass owns the clean; this pass appends the CLI artifacts.
     clean: false,
     deps: {
       neverBundle: [/^node:/, /^virtual:/],
       // Effect and every `@effect/*` package are bundled for the built CLI and
       // workflow runtime, so consumers do not resolve a different Effect version.
-      alwaysBundle: [/^effect(\/|$)/, /^@effect\//],
+      alwaysBundle: [/^effect(\/|$)/, /^@effect\//, /^@earendil-works\/pi-/],
     },
   },
 ]);

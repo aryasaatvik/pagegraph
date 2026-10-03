@@ -20,7 +20,7 @@ structured state. Do not treat an errored call or empty dataset as proof of inde
 Distinguish project market settings from the country, language, device, and date filters actually
 applied to provider data; report only the segments supported by the call and its response.
 
-Return only one JSON object matching this JSON Schema:
+{{resultInstruction}} matching this JSON Schema:
 {{stateSchema}}
 
 Market: {{market}}

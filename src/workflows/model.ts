@@ -1,3 +1,6 @@
+import type { AgentMessage } from "@earendil-works/pi-agent-core";
+import type { Usage } from "@earendil-works/pi-ai";
+
 import type { DecisionBatchReport } from "../decide/record";
 import type { SerializedGraph } from "../cli/serialize";
 import type { LinksSuggestionReport } from "../core/link-suggestions";
@@ -77,9 +80,23 @@ export interface KeywordResearchState {
   readonly opportunities: ReadonlyArray<KeywordOpportunity>;
 }
 
-export interface WorkflowRunV1 {
+export type WorkflowAgentArtifact =
+  | {
+    readonly runtime: "pi";
+    readonly model: { readonly provider: string; readonly id: string };
+    readonly messages: ReadonlyArray<AgentMessage>;
+    readonly usage: Usage;
+  }
+  | {
+    readonly runtime: "opencode";
+    readonly model: { readonly provider: string; readonly id: string };
+    readonly sessionId: string;
+    readonly transcript: unknown;
+  };
+
+export interface WorkflowRunV2 {
   readonly kind: "pagegraph-workflow-run";
-  readonly schemaVersion: 1;
+  readonly schemaVersion: 2;
   readonly id: string;
   readonly workflow: WorkflowId;
   readonly startedAt: string;
@@ -94,8 +111,7 @@ export interface WorkflowRunV1 {
   };
   readonly evidence: {
     readonly graph: SerializedGraph;
-    /** Optional so existing V1 run artifacts remain readable. */
-    readonly neighborhood?: WorkflowGraphNeighborhood | undefined;
+    readonly neighborhood: WorkflowGraphNeighborhood;
     readonly sources: ReadonlyArray<{ readonly path: string; readonly content: string }>;
     readonly suggestions?: LinksSuggestionReport | undefined;
     readonly executor: ExecutorEvidence;
@@ -113,13 +129,13 @@ export interface WorkflowRunV1 {
     readonly providerCalls: ReadonlyArray<string>;
   };
   readonly result: unknown;
-  readonly opencode: { readonly agent: "seo"; readonly sessionId: string; readonly transcript: unknown };
+  readonly agent: WorkflowAgentArtifact;
 }
 
 /** Incomplete research-stage evidence; it is not a final workflow recommendation. */
-export interface WorkflowResearchCheckpointV1 {
+export interface WorkflowResearchCheckpointV2 {
   readonly kind: "pagegraph-workflow-research-checkpoint";
-  readonly schemaVersion: 1;
+  readonly schemaVersion: 2;
   readonly id: string;
   readonly workflow: WorkflowId;
   readonly startedAt: string;
@@ -140,10 +156,16 @@ export interface WorkflowResearchCheckpointV1 {
   };
   readonly state: unknown;
   readonly decisionInputs: ReadonlyArray<unknown>;
-  readonly opencode: {
-    readonly agent: "seo";
-    readonly sessionId: string;
-    readonly model: { readonly provider: string; readonly id: string };
-    readonly transcript: unknown;
-  };
+  readonly agent: WorkflowAgentArtifact;
+}
+
+export interface WorkflowFailureV2 {
+  readonly kind: "pagegraph-workflow-failure";
+  readonly schemaVersion: 2;
+  readonly id: string;
+  readonly workflow: WorkflowId;
+  readonly stage: string;
+  /** Acquisition can fail before a runtime has produced an agent record. */
+  readonly agent?: WorkflowAgentArtifact | undefined;
+  readonly cause: unknown;
 }

@@ -520,7 +520,7 @@ describe("OpenCode session failure context", () => {
     };
     runtime.create.mockResolvedValue({ sessions, plugin: { list: async () => ({ data: [{ source: "executor", state: { status: "active" } }] }) }, close: async () => {} });
     try {
-      const host = await acquireWorkflowHost({ root, config: { configDirectory: ".pagegraph/opencode", defaultModel: "test/model", timeoutMs: kind === "timeout" ? 5 : 1000 } });
+      const host = await acquireWorkflowHost({ root, config: { presetDirectory: ".pagegraph/opencode", defaultModel: "test/model", timeoutMs: kind === "timeout" ? 5 : 1000 } });
       const thrown = await host.research("research", { skills: [] }).catch((cause: unknown) => cause);
       expect(thrown).toBeInstanceOf(WorkflowHostError);
       expect(thrown).toMatchObject({ sessionId: "failed-host-session", transcript, cause: expect.any(Error) });

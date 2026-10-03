@@ -80,19 +80,12 @@ export interface KeywordResearchState {
   readonly opportunities: ReadonlyArray<KeywordOpportunity>;
 }
 
-export type WorkflowAgentArtifact =
-  | {
-    readonly runtime: "pi";
-    readonly model: { readonly provider: string; readonly id: string };
-    readonly messages: ReadonlyArray<AgentMessage>;
-    readonly usage: Usage;
-  }
-  | {
-    readonly runtime: "opencode";
-    readonly model: { readonly provider: string; readonly id: string };
-    readonly sessionId: string;
-    readonly transcript: unknown;
-  };
+export interface WorkflowAgentArtifact {
+  readonly runtime: "pi";
+  readonly model: { readonly provider: string; readonly id: string };
+  readonly messages: ReadonlyArray<AgentMessage>;
+  readonly usage: Usage;
+}
 
 export interface WorkflowRunV2 {
   readonly kind: "pagegraph-workflow-run";

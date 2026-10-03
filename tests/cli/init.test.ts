@@ -70,19 +70,19 @@ plugin({ name: "deny-pi", setup(build) {
     directories.push(root);
     const preview = run(root, ["--dry-run", "--json"]);
     expect(preview.status).toBe(0);
-    expect(JSON.parse(preview.stdout).created).toContain(".pagegraph/opencode/opencode.jsonc");
+    expect(JSON.parse(preview.stdout).created).toContain(".pagegraph/agent/AGENTS.md");
     expect(existsSync(join(root, ".pagegraph"))).toBe(false);
 
     expect(run(root, []).status).toBe(0);
-    const config = join(root, ".pagegraph/opencode/opencode.jsonc");
-    expect(readFileSync(config, "utf8")).toContain("Executor plugin");
-    expect(readFileSync(join(root, ".pagegraph/opencode/agents/seo.md"), "utf8")).toContain(
+    const config = join(root, ".pagegraph/agent/AGENTS.md");
+    expect(readFileSync(config, "utf8")).toContain('workflows.agent.presetDirectory: ".pagegraph/agent"');
+    expect(readFileSync(join(root, ".pagegraph/agent/agents/seo.md"), "utf8")).toContain(
       "Research is read-only",
     );
     expect(
-      readFileSync(join(root, ".pagegraph/opencode/skills/keyword-research/SKILL.md"), "utf8"),
+      readFileSync(join(root, ".pagegraph/agent/skills/keyword-research/SKILL.md"), "utf8"),
     ).toContain("Executor Starters");
-    expect(run(root, []).stdout).toContain("Kept 26 existing file(s)");
+    expect(run(root, []).stdout).toContain("Kept 25 existing file(s)");
   }, 30_000);
 
   it("refuses a dirty tree unless --allow-dirty is explicit", () => {
@@ -95,7 +95,7 @@ plugin({ name: "deny-pi", setup(build) {
     const allowed = run(root, ["--allow-dirty", "--json"]);
     expect(allowed.status).toBe(0);
     expect(JSON.parse(allowed.stdout).created).toContain(
-      ".pagegraph/opencode/skills/keyword-research/SKILL.md",
+      ".pagegraph/agent/skills/keyword-research/SKILL.md",
     );
   });
 
@@ -112,7 +112,7 @@ plugin({ name: "deny-pi", setup(build) {
     directories.push(root);
     expect(run(root, []).status).toBe(0);
     const skill = (name: string, file = "SKILL.md") =>
-      readFileSync(join(root, `.pagegraph/opencode/skills/${name}/${file}`), "utf8");
+      readFileSync(join(root, `.pagegraph/agent/skills/${name}/${file}`), "utf8");
 
     const names = [
       "keyword-research",
@@ -130,8 +130,9 @@ plugin({ name: "deny-pi", setup(build) {
     for (const name of names) {
       expect(skill(name)).toContain("references/executor.md");
       const executor = skill(name, "references/executor.md");
-      expect(executor).toContain("tools.executor.search");
-      expect(executor).toContain("search({ query:");
+      expect(executor).toContain("executor_search");
+      expect(executor).toContain("executor_execute");
+      expect(executor).toContain("return await tools.discovered_namespace.discovered_tool(");
       expect(executor).toContain("starting points");
     }
     expect(skill("keyword-research", "references/executor.md")).toContain("Google Search Console");

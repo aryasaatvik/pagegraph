@@ -42,7 +42,7 @@ const externalImports = async (entry: string): Promise<Array<string>> => {
 };
 
 /** Anything that cannot run in workerd or a browser. */
-const buildOnly = /^(node:|vite$|vite\/|@tanstack\/router-generator|@tanstack\/start-plugin-core|effect|@effect\/|lighthouse|@opencode\/)|\.node$/;
+const buildOnly = /^(node:|vite$|vite\/|@tanstack\/router-generator|@tanstack\/start-plugin-core|effect|@effect\/|lighthouse)|\.node$/;
 
 describe("runtime entries", () => {
   it("keeps non-bundled dependencies visible to the external-import assertions", async () => {

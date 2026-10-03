@@ -377,7 +377,11 @@ describe("markdown twins", () => {
       [{ document }],
       "https://example.com",
     );
+    expect(first).toContain("<!-- pagegraph:llms:start -->");
+    expect(first).toContain("<!-- pagegraph:llms:end -->");
     expect(appendLlmsSection(first, [{ document }], "https://example.com")).toBe(first);
+    expect(() => appendLlmsSection("<!-- pagegraph:llms:start -->", [{ document }], "https://example.com"))
+      .toThrow("Malformed document llms.txt section markers");
     const override = appendLlmsSection(
       first,
       [{ document, llms: "Guides" }],

@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 
 import { build, type Rolldown } from "vite";
 import { describe, expect, it } from "vitest";
+import { libraryAlwaysBundle } from "../../scripts/bundle-policy.mjs";
 
 const root = fileURLToPath(new URL("../..", import.meta.url));
 
@@ -30,6 +31,7 @@ const externalImports = async (entry: string): Promise<Array<string>> => {
         enforce: "pre",
         resolveId(source, importer) {
           if (importer === undefined || source.startsWith(".") || source.startsWith("/") || source.startsWith("\0")) return null;
+          if (libraryAlwaysBundle.some((pattern) => pattern.test(source))) return null;
           external.add(source);
           return { id: source, external: true };
         },
@@ -43,6 +45,10 @@ const externalImports = async (entry: string): Promise<Array<string>> => {
 const buildOnly = /^(node:|vite$|vite\/|@tanstack\/router-generator|@tanstack\/start-plugin-core|effect|@effect\/|lighthouse|@opencode\/)|\.node$/;
 
 describe("runtime entries", () => {
+  it("keeps non-bundled dependencies visible to the external-import assertions", async () => {
+    expect(await externalImports("tests/package/fixtures/non-bundled.ts")).toEqual(["react"]);
+  });
+
   it.each([
     ["pagegraph", "src/core/index.ts", []],
     ["pagegraph/react", "src/react/index.ts", ["@tanstack/react-router", "react", "react/jsx-runtime"]],

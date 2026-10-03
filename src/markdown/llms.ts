@@ -27,8 +27,8 @@ export function llmsMarkdown(pages: ReadonlyArray<LlmsPage>, site: string): stri
     .join("\n");
 }
 
-const begin = "<!-- @samva/copy:start -->";
-const end = "<!-- @samva/copy:end -->";
+const begin = "<!-- pagegraph:llms:start -->";
+const end = "<!-- pagegraph:llms:end -->";
 /** Replace only our generated section, retaining an adopter's existing llms.txt. */
 export function appendLlmsSection(
   existing: string,

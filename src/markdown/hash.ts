@@ -1,6 +1,5 @@
-// Explicit installed-file imports keep source entry checks aligned with the bundled library.
-import { sha256 } from "../../node_modules/@noble/hashes/sha2.js";
-import { bytesToHex } from "../../node_modules/@noble/hashes/utils.js";
+import { sha256 } from "@noble/hashes/sha2.js";
+import { bytesToHex } from "@noble/hashes/utils.js";
 
 /** Key order is not content; array order is. Reject values JSON cannot represent. */
 export function stableJson(value: unknown): string {

@@ -45,7 +45,7 @@ describe("document capture replay", () => {
 
   it("rejects a marker that has no recorded render", () => {
     const collector = createCollector({ path: "/page", site: "https://example.com" });
-    expect(() => finishDocument(collector, metadata, '<template data-copy-record="missing"></template>'))
+    expect(() => finishDocument(collector, metadata, '<template data-document-record="missing"></template>'))
       .toThrow("Unknown document record on /page");
   });
 });

@@ -69,7 +69,7 @@ describe("copy primitives", () => {
         <Layout />
       </DocumentProvider>,
     );
-    expect(html.replace(/<template data-copy-record="[^"]*"><\/template>/g, "")).toBe(ordinary);
+    expect(html.replace(/<template data-document-record="[^"]*"><\/template>/g, "")).toBe(ordinary);
     expect(ordinary).toBe(
       '<header><div><h2 class="heading">Features</h2></div></header><div><h3>Try 8 attempts</h3></div>Body',
     );
@@ -192,7 +192,7 @@ describe("copy primitives", () => {
         </Section>
       </DocumentProvider>,
     );
-    expect(html.replace(/<template data-copy-record="[^"]*"><\/template>/g, "")).toBe("");
+    expect(html.replace(/<template data-document-record="[^"]*"><\/template>/g, "")).toBe("");
     const document = finishDocument(collector, { title: "Visual", description: "Diagram" }, html);
     expect(document.messages).toEqual([]);
     expect(document.sections[0]?.body).toEqual([

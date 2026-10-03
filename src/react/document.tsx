@@ -123,7 +123,7 @@ export function DocumentProvider({
 
 function record(context: CaptureContext, id: string, apply: () => void) {
   context.collector.records.set(id, apply);
-  return <template data-copy-record={id} />;
+  return <template data-document-record={id} />;
 }
 
 const sourceOf = (source: string | undefined): string => source ?? "<inline>:1";
@@ -210,14 +210,14 @@ export function messageText(
 function messageFor(node: ReactNode, source: string | undefined, context: CaptureContext): Message {
   const options = context.collector;
   // A whole-card destination is serialized on the item, rather than repeated on every message.
-  const copy =
+  const linkedContent =
     context.link === undefined || context.link === context.item?.href ? (
       node
     ) : (
       <a href={context.link}>{node}</a>
     );
-  const tree = inlineTree(copy, options);
-  const authored = inlineTree(copy, options.facts === undefined ? {} : { facts: options.facts });
+  const tree = inlineTree(linkedContent, options);
+  const authored = inlineTree(linkedContent, options.facts === undefined ? {} : { facts: options.facts });
   const refs = new Set<string>();
   const visit = (nodes: ReadonlyArray<InlineNode>): void => {
     for (const child of nodes) {
@@ -475,7 +475,7 @@ export function finishDocument(
   collector.messages.length = 0;
   collector.sectionCount = 0;
   collector.links.clear();
-  for (const marker of html.matchAll(/<template data-copy-record="([^"]+)"><\/template>/g)) {
+  for (const marker of html.matchAll(/<template data-document-record="([^"]+)"><\/template>/g)) {
     const apply = collector.records.get(marker[1] ?? "");
     if (apply === undefined) throw new Error(`Unknown document record on ${collector.path}`);
     apply();

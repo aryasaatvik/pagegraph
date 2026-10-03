@@ -1,4 +1,5 @@
 import { defineConfig } from "tsdown";
+import { libraryAlwaysBundle } from "./scripts/bundle-policy.mjs";
 
 // One entry per public `exports` subpath, plus `cli` for the `bin`. Two passes so
 // the CLI can bundle Effect while the library entries stay dependency-free.
@@ -56,7 +57,7 @@ export default defineConfig([
     // `schema-dts` is types-only: it is bundled into the `.d.ts` and erases from
     // the JS, which is what keeps `.`/`./react` free of runtime dependencies.
     // Authored document hashes are synchronous and portable; consumers need no noble dependency.
-    deps: { ...base.deps, alwaysBundle: [/^@noble\/hashes(\/|$)/] },
+    deps: { ...base.deps, alwaysBundle: libraryAlwaysBundle },
     clean: true,
   },
   {

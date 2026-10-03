@@ -1,4 +1,4 @@
-function importedCopyNames(program) {
+function importedDocumentNames(program) {
   const namespaces = new Set();
   const suppressNames = new Set();
   let runtimeImport = false;
@@ -99,7 +99,7 @@ export default {
       suppressedRanges.some(([start, end]) => node.start >= start && node.end <= end);
     return {
       Program(node) {
-        const imports = importedCopyNames(node);
+        const imports = importedDocumentNames(node);
         active = imports.runtimeImport;
         names = imports;
       },

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { Suspense, use } from "react";
 import type { ReactNode } from "react";
 import { renderToReadableStream, renderToStaticMarkup } from "react-dom/server";
@@ -11,6 +11,9 @@ import {
   createCollector,
   finishDocument,
 } from "../../src/react/document";
+
+vi.mock("virtual:pagegraph/runtime", () => ({ graph: null, site: null, markdown: null, facts: undefined }));
+import { markdownRequest } from "../../src/tanstack-start/markdown";
 
 const metadata = { title: "Native page", description: "Native capture" };
 async function capture(path: string, children: ReactNode) {
@@ -84,5 +87,12 @@ describe("completed SSR document capture", () => {
     expect(left.messages.map((message) => message.text)).toEqual(["Left"]);
     expect(right.messages.map((message) => message.text)).toEqual(["Right"]);
     expect(repeat).toEqual(left);
+  });
+});
+
+describe("malformed capture request paths", () => {
+  it("passes through malformed escapes without capturing", async () => {
+    for (const path of ["/guides/%ZZ.md", "/guides/%E0%A4.document.json"])
+      expect(await markdownRequest(new Request(`https://example.com${path}`))).toBeNull();
   });
 });

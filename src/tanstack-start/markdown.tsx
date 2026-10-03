@@ -99,7 +99,10 @@ export async function markdownRequest(
   request: Request,
   options?: RequestOptions<Register>,
 ): Promise<Response | null> {
-  const path = new URL(request.url).pathname.replace(/\/$/, "");
+  let path: string;
+  try {
+    path = decodeURIComponent(new URL(request.url).pathname).replace(/\/$/, "");
+  } catch { return null; }
   const privatePath = path === "/__pagegraph" || path.startsWith("/__pagegraph/") || path.endsWith(".document.json");
   const enabled = import.meta.env?.DEV || (typeof process !== "undefined" && process.env.TSS_PRERENDERING === "true");
   if (!enabled) return privatePath ? new Response(request.method === "HEAD" ? null : "Not found", { status: 404 }) : null;

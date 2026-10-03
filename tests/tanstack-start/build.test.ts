@@ -194,6 +194,20 @@ describe("rendered markdown in a real Start Worker build", () => {
       expect(documents.map((document) => document.title)).toEqual(["Guide: email", "Guide: replies", "Guide: email"]);
       expect(documents[0]?.messages.map((message) => message.text)).toEqual(["Start with 3,000 emails."]);
       expect(documents[2]).toEqual(documents[0]);
+      for (const [decoded, encoded] of [["café", "caf%C3%A9"], ["hello world", "hello%20world"]]) {
+        for (const method of ["GET", "HEAD"]) {
+          const twin = await fetch(new URL(`guides/${encoded}.md`, dev.origin), { method, signal: AbortSignal.timeout(15_000) });
+          expect(twin.status).toBe(200);
+          expect(await twin.text()).toBe(method === "HEAD" ? "" : await readFile(join(root, `dist/client/guides/${decoded}.md`), "utf8"));
+          const document = await fetch(new URL(`guides/${encoded}.document.json`, dev.origin), { method, signal: AbortSignal.timeout(15_000) });
+          expect(document.status).toBe(200);
+          if (method === "HEAD") expect(await document.text()).toBe("");
+          else expect((await document.json()).path).toBe(`/guides/${decoded}`);
+        }
+      }
+      const malformed = await fetch(new URL("guides/%ZZ.md", dev.origin), { signal: AbortSignal.timeout(15_000) });
+      expect(malformed.status).toBe(400);
+      expect(malformed.headers.get("x-pagegraph-error")).toBeNull();
       const twin = await fetch(new URL("index.md", dev.origin), { signal: AbortSignal.timeout(15_000) });
       expect(twin.status).toBe(200);
       expect(await twin.text()).toContain("Runtime: workerd.");

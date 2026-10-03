@@ -22,10 +22,9 @@ const config = (edges: string, coverage: string): string => `const node = (path)
 });
 
 export default {
-  origin: "https://example.com",
-  disallow: [],
   ${coverage}
   loadGraph: async () => ({
+    site: { origin: "https://example.com", indexable: true, robots: { disallow: [] } },
     graph: {
       nodes: new Map([
         ["/pricing", node("/pricing")],

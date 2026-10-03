@@ -14,6 +14,7 @@ import type { RouteNode } from "@tanstack/router-generator";
 import { globToRegExp } from "../core/checks";
 import { buildSeoGraph, type SeoCollection, type SeoGraph, type SeoRouteNode } from "../core/graph";
 import type { RobotsConfig } from "../core/projections";
+import type { SiteRuntime } from "../config/vite-graph-loader";
 import { deriveRouteConfig, resolveOptions, type SeoRouteConfigOptions } from "../vite/route-config";
 import { scanRoutes, type ScannedRoutes } from "./routes";
 import { decodeFacts, type Facts } from "../markdown/facts";
@@ -29,12 +30,7 @@ export interface AppGraph {
   readonly facts: Facts | undefined;
 }
 
-/** Site identity and robots policy, baked into the runtime module per build. */
-export interface SiteRuntime {
-  readonly origin: string;
-  readonly indexable: boolean;
-  readonly robots: RobotsPolicy;
-}
+export type { SiteRuntime };
 
 export interface PagegraphOptions {
   /** This build's canonical origin, no trailing slash, e.g. `https://example.com`. */

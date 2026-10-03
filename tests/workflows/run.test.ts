@@ -46,10 +46,9 @@ const fixture = () => {
     ]),
     edges: [],
   };
+  const site = { origin: "https://example.com", indexable: true, robots: { disallow: [] } };
   const config: SeoCliConfig = {
-    origin: "https://example.com",
-    disallow: [],
-    loadGraph: async () => ({ graph, dispose: async () => {} }),
+    loadGraph: async () => ({ graph, site, dispose: async () => {} }),
     workflows: {
       opencode: { configDirectory: ".pagegraph/opencode", defaultModel: "test/model" },
       context: { files: ["AGENTS.md"] },
@@ -62,7 +61,7 @@ const fixture = () => {
   git(root, "config", "user.email", "pagegraph@example.com");
   git(root, "add", "AGENTS.md");
   git(root, "commit", "-m", "test fixture");
-  return { root, graph, config };
+  return { root, graph, site, config };
 };
 
 const options = {
@@ -194,7 +193,7 @@ afterEach(() => {
 
 describe("workflow runner", () => {
   it("runs default TypeSafe decisions through HTTP and persists their verdict", async () => {
-    const { root, graph, config } = fixture();
+    const { root, graph, site, config } = fixture();
     const opportunity = {
       query: "email api",
       intent: "commercial",
@@ -230,7 +229,7 @@ describe("workflow runner", () => {
     });
     vi.stubGlobal("fetch", fetch);
     const close = vi.fn(async () => {});
-    const result = await runKeywordWorkflow({ config, graph, root, options }, {
+    const result = await runKeywordWorkflow({ config, graph, site, root, options }, {
       acquireHost: async () => ({
         model: { provider: "test", id: "model" },
         research: async () => ({
@@ -268,7 +267,7 @@ describe("workflow runner", () => {
   });
 
   it("persists bounded read-only evidence without changing a dirty tree", async () => {
-    const { root, graph, config } = fixture();
+    const { root, graph, site, config } = fixture();
     writeFileSync(join(root, "AGENTS.md"), "Use primary evidence.\nExisting user change.\n");
     let closed = false;
     const researched: WorkflowHostResult = {
@@ -297,7 +296,7 @@ describe("workflow runner", () => {
     };
 
     const result = await runKeywordWorkflow(
-      { config, graph, root, options },
+      { config, graph, site, root, options },
       {
         now: (() => {
           const dates = [new Date("2026-09-21T10:00:00.000Z"), new Date("2026-09-21T10:00:01.000Z")];
@@ -343,14 +342,14 @@ describe("workflow runner", () => {
   });
 
   it("preserves validated research when the decision provider fails", async () => {
-    const { root, graph, config } = fixture();
+    const { root, graph, site, config } = fixture();
     const providerError = new Error("decision transport failed");
     let closed = false;
 
     let thrown: unknown;
     try {
       await runKeywordWorkflow(
-        { config, graph, root, options },
+        { config, graph, site, root, options },
         {
           now: () => new Date("2026-09-21T10:00:00.000Z"),
           acquireHost: async () => ({
@@ -414,12 +413,12 @@ describe("workflow runner", () => {
   });
 
   it("detects checkpoint edits made after research during a read-only workflow", async () => {
-    const { root, graph, config } = fixture();
+    const { root, graph, site, config } = fixture();
     let thrown: unknown;
 
     try {
       await runKeywordWorkflow(
-        { config, graph, root, options },
+        { config, graph, site, root, options },
         {
           acquireHost: async () => ({
             model: { provider: "test", id: "model" },
@@ -459,7 +458,7 @@ describe("workflow runner", () => {
   });
 
   it.each(mutationCases)("applies $name in the same session and records its source diff", async (testCase) => {
-    const { root, graph, config } = fixture();
+    const { root, graph, site, config } = fixture();
     mkdirSync(dirname(join(root, testCase.file)), { recursive: true });
     writeFileSync(join(root, testCase.file), testCase.before);
     git(root, "add", testCase.file);
@@ -467,7 +466,7 @@ describe("workflow runner", () => {
     let actionSession: string | undefined;
 
     const result = await runWorkflow(
-      { config, graph, root, workflow: testCase.workflow, options },
+      { config, graph, site, root, workflow: testCase.workflow, options },
       {
         acquireHost: async () => ({
           model: { provider: "test", id: "model" },
@@ -516,15 +515,15 @@ describe("workflow runner", () => {
   });
 
   it.each(["skip", "review"])("never opens an edit turn for %s link suggestions", async (verdict) => {
-    const { root, graph, config } = fixture();
+    const { root, graph, site, config } = fixture();
     graph.nodes.set("/docs/email", { path: "/docs/email", kind: "page", source: "route", policy: { kind: "page", sitemap: { priority: 0.5, changeFrequency: "monthly" } } });
     const suggestion = { source: "/docs/email", destination: "/pricing", cluster: "kind:page", reason: "same kind; pricing options are relevant", sentence: "See the pricing options for transactional email teams.", anchor: "pricing options", targetSentence: "Pricing options include usage based plans for teams.", score: 4, scores: { topical: 2, rarity: 1, inboundNeed: 1, graph: 0.5 } };
     const path = join(root, "suggestions.json");
-    writeFileSync(path, JSON.stringify({ kind: "links-candidates", schemaVersion: 2, origin: config.origin, limit: 1, pageLimit: 2, maxBodyBytes: 3_000_000, total: 1, truncated: false, skipped: [], candidates: [suggestion] }));
+    writeFileSync(path, JSON.stringify({ kind: "links-candidates", schemaVersion: 2, origin: site.origin, limit: 1, pageLimit: 2, maxBodyBytes: 3_000_000, total: 1, truncated: false, skipped: [], candidates: [suggestion] }));
     git(root, "add", "suggestions.json"); git(root, "commit", "-m", "add suggestions");
     const state = { summary: "One candidate", items: [{ from: suggestion.source, to: suggestion.destination, anchor: suggestion.anchor, context: suggestion.sentence, relation: "pricing" }] };
     let continued = false;
-    const result = await runWorkflow({ config, graph, root, workflow: "improve.links", options: { ...options, limit: 2, suggestions: path } }, {
+    const result = await runWorkflow({ config, graph, site, root, workflow: "improve.links", options: { ...options, limit: 2, suggestions: path } }, {
       acquireHost: async () => ({
         model: { provider: "test", id: "model" },
         research: async (prompt) => { expect(prompt).toContain(suggestion.sentence); return { state, sessionId: "links", transcript: {}, executor: executorEvidence }; },
@@ -540,39 +539,39 @@ describe("workflow runner", () => {
   });
 
   it("rejects a wrong-origin suggestion before acquiring a host", async () => {
-    const { root, graph, config } = fixture();
+    const { root, graph, site, config } = fixture();
     const path = join(root, "wrong.json");
     writeFileSync(path, JSON.stringify({ kind: "links-candidates", schemaVersion: 2, origin: "https://other.example", candidates: [] }));
     git(root, "add", "wrong.json"); git(root, "commit", "-m", "add wrong suggestions");
     let acquired = false;
-    await expect(runWorkflow({ config, graph, root, workflow: "improve.links", options: { ...options, suggestions: path } }, {
+    await expect(runWorkflow({ config, graph, site, root, workflow: "improve.links", options: { ...options, suggestions: path } }, {
       acquireHost: async () => { acquired = true; throw new Error("host acquired"); },
     })).rejects.toThrow("Expected schema-version-2 suggestions");
     expect(acquired).toBe(false);
   });
 
   it("rejects suggestions outside --page targets before acquiring a host", async () => {
-    const { root, graph, config } = fixture();
+    const { root, graph, site, config } = fixture();
     graph.nodes.set("/docs/email", { path: "/docs/email", kind: "page", source: "route", policy: { kind: "page", sitemap: { priority: 0.5, changeFrequency: "monthly" } } });
     const path = join(root, "suggestions.json");
-    writeFileSync(path, JSON.stringify({ kind: "links-candidates", schemaVersion: 2, origin: config.origin, limit: 1, pageLimit: 2, maxBodyBytes: 3_000_000, total: 1, truncated: false, skipped: [], candidates: [{ source: "/docs/email", destination: "/pricing", cluster: "kind:page", reason: "same kind", sentence: "See the pricing options for transactional email teams.", anchor: "pricing options", targetSentence: "Pricing options include usage based plans for teams.", score: 4, scores: { topical: 2, rarity: 1, inboundNeed: 1, graph: 0.5 } }] }));
+    writeFileSync(path, JSON.stringify({ kind: "links-candidates", schemaVersion: 2, origin: site.origin, limit: 1, pageLimit: 2, maxBodyBytes: 3_000_000, total: 1, truncated: false, skipped: [], candidates: [{ source: "/docs/email", destination: "/pricing", cluster: "kind:page", reason: "same kind", sentence: "See the pricing options for transactional email teams.", anchor: "pricing options", targetSentence: "Pricing options include usage based plans for teams.", score: 4, scores: { topical: 2, rarity: 1, inboundNeed: 1, graph: 0.5 } }] }));
     git(root, "add", "suggestions.json"); git(root, "commit", "-m", "add suggestions");
     let acquired = false;
-    await expect(runWorkflow({ config, graph, root, workflow: "improve.links", options: { ...options, pages: ["/pricing"], suggestions: path } }, {
+    await expect(runWorkflow({ config, graph, site, root, workflow: "improve.links", options: { ...options, pages: ["/pricing"], suggestions: path } }, {
       acquireHost: async () => { acquired = true; throw new Error("host acquired"); },
     })).rejects.toThrow("outside workflow page/kind/limit targets");
     expect(acquired).toBe(false);
   });
 
   it("blocks an accepted edit when served suggestion copy has changed", async () => {
-    const { root, graph, config } = fixture();
+    const { root, graph, site, config } = fixture();
     graph.nodes.set("/docs/email", { path: "/docs/email", kind: "page", source: "route", policy: { kind: "page", sitemap: { priority: 0.5, changeFrequency: "monthly" } } });
     const candidate = { source: "/docs/email", destination: "/pricing", cluster: "kind:page", reason: "same kind", sentence: "See the pricing options for transactional email teams.", anchor: "pricing options", targetSentence: "Pricing options include usage based plans for teams.", score: 4, scores: { topical: 2, rarity: 1, inboundNeed: 1, graph: 0.5 } };
     const path = join(root, "suggestions.json");
-    writeFileSync(path, JSON.stringify({ kind: "links-candidates", schemaVersion: 2, origin: config.origin, limit: 1, pageLimit: 2, maxBodyBytes: 3_000_000, total: 1, truncated: false, skipped: [], candidates: [candidate] }));
+    writeFileSync(path, JSON.stringify({ kind: "links-candidates", schemaVersion: 2, origin: site.origin, limit: 1, pageLimit: 2, maxBodyBytes: 3_000_000, total: 1, truncated: false, skipped: [], candidates: [candidate] }));
     git(root, "add", "suggestions.json"); git(root, "commit", "-m", "add suggestions");
     let continued = false;
-    await expect(runWorkflow({ config, graph, root, workflow: "improve.links", options: { ...options, limit: 2, suggestions: path } }, {
+    await expect(runWorkflow({ config, graph, site, root, workflow: "improve.links", options: { ...options, limit: 2, suggestions: path } }, {
       acquireHost: async () => ({
         model: { provider: "test", id: "model" },
         research: async () => ({ state: { summary: "One suggestion", items: [{ from: candidate.source, to: candidate.destination, anchor: candidate.anchor, context: candidate.sentence, relation: "plans" }] }, sessionId: "links", transcript: {}, executor: executorEvidence }),
@@ -589,11 +588,11 @@ describe("workflow runner", () => {
   });
 
   it("passes only the accepted item when links share the same source and target", async () => {
-    const { root, graph, config } = fixture();
+    const { root, graph, site, config } = fixture();
     const accepted = { from: "/docs/email", to: "/pricing", anchor: "pricing options", context: "See pricing options for teams.", relation: "plans" };
     const rejected = { ...accepted, anchor: "cheap offers", context: "Find cheap offers today." };
     let actionPrompt = "";
-    await runWorkflow({ config, graph, root, workflow: "improve.links", options }, {
+    await runWorkflow({ config, graph, site, root, workflow: "improve.links", options }, {
       acquireHost: async () => ({
         model: { provider: "test", id: "model" },
         research: async () => ({ state: { summary: "Two proposals", items: [accepted, rejected] }, sessionId: "links", transcript: {}, executor: executorEvidence }),
@@ -608,10 +607,10 @@ describe("workflow runner", () => {
   });
 
   it("keeps an accepted suggestion read-only in dry-run mode", async () => {
-    const { root, graph, config } = fixture();
+    const { root, graph, site, config } = fixture();
     const item = { from: "/docs/email", to: "/pricing", anchor: "pricing options", context: "See pricing options for teams.", relation: "plans" };
     let continued = false;
-    const result = await runWorkflow({ config, graph, root, workflow: "improve.links", options: { ...options, dryRun: true } }, {
+    const result = await runWorkflow({ config, graph, site, root, workflow: "improve.links", options: { ...options, dryRun: true } }, {
       acquireHost: async () => ({
         model: { provider: "test", id: "model" },
         research: async () => ({ state: { summary: "One proposal", items: [item] }, sessionId: "links", transcript: {}, executor: executorEvidence }),
@@ -630,10 +629,10 @@ describe("workflow runner", () => {
   });
 
   it("repairs a schema-invalid research state before decisions or an edit turn", async () => {
-    const { root, graph, config } = fixture();
+    const { root, graph, site, config } = fixture();
     let turns = 0;
     let decisions = 0;
-    const result = await runWorkflow({ config, graph, root, workflow: "improve.links", options: { ...options, dryRun: true } }, {
+    const result = await runWorkflow({ config, graph, site, root, workflow: "improve.links", options: { ...options, dryRun: true } }, {
       acquireHost: async () => ({
         model: { provider: "test", id: "model" },
         research: async () => ({ state: { items: [] }, sessionId: "links", transcript: { messages: ["original"] }, executor: executorEvidence }),
@@ -655,10 +654,10 @@ describe("workflow runner", () => {
   });
 
   it("preserves a failed research repair and never asks for decisions or edits", async () => {
-    const { root, graph, config } = fixture();
+    const { root, graph, site, config } = fixture();
     let turns = 0;
     let decisions = 0;
-    await expect(runWorkflow({ config, graph, root, workflow: "improve.links", options }, {
+    await expect(runWorkflow({ config, graph, site, root, workflow: "improve.links", options }, {
       acquireHost: async () => ({
         model: { provider: "test", id: "model" },
         research: async () => ({ state: { items: [] }, sessionId: "links", transcript: { messages: ["original"] }, executor: executorEvidence }),
@@ -685,10 +684,10 @@ describe("workflow runner", () => {
 
  describe("workflow research failures", () => {
   it("persists the actual transcript when discovery has no completed provider call", async () => {
-    const { root, graph, config } = fixture();
+    const { root, graph, site, config } = fixture();
     const result = { state: { items: [] }, sessionId: "empty-evidence", transcript: { messages: ["discovery only"] }, executor: { searches: [], calls: [] } };
     let closed = false;
-    await expect(runKeywordWorkflow({ root, graph, config, options }, {
+    await expect(runKeywordWorkflow({ root, graph, site, config, options }, {
       acquireHost: async () => ({ model: { provider: "test", id: "model" },
         research: async () => { throw new MissingExecutorEvidenceError(result); },
         continue: async () => { throw new Error("unexpected continuation"); },
@@ -701,14 +700,14 @@ describe("workflow runner", () => {
   });
 
   it("repairs metadata that parses but has too few candidates before calling decisions", async () => {
-    const { root, graph, config } = fixture();
+    const { root, graph, site, config } = fixture();
     const valid = { summary: "Candidates", items: [{ url: "/pricing", intent: "pricing", categoryLock: "email API", candidates: [
       { id: "a", title: "Email API pricing", description: "Pricing plans" },
       { id: "b", title: "Samva pricing", description: "Email API plans" },
     ] }] };
     let repairs = 0;
     const result = { state: valid, sessionId: "metadata", transcript: {}, executor: executorEvidence };
-    const run = await runWorkflow({ root, graph, config, workflow: "improve.metadata", options: { ...options, dryRun: true } }, {
+    const run = await runWorkflow({ root, graph, site, config, workflow: "improve.metadata", options: { ...options, dryRun: true } }, {
       acquireHost: async () => ({ model: { provider: "test", id: "model" },
         research: async () => ({ ...result, state: { ...valid, items: valid.items.map((item) => ({ ...item, candidates: item.candidates.slice(0, 1) })) } }),
         continue: async (_id, prompt) => {
@@ -734,7 +733,7 @@ describe("workflow wire JSON normalization", () => {
   });
 
   it.each([false, true])("decodes a null optional demand in %s repaired research", async (repair) => {
-    const { root, graph, config } = fixture();
+    const { root, graph, site, config } = fixture();
     const state = { summary: "Supported", opportunities: [{ query: "email api", intent: "commercial", rationale: "Fits pricing", demand: null, candidates: [], evidence: [] }] };
     const result = { state, sessionId: "null-demand", transcript: {}, executor: executorEvidence };
     const continued = vi.fn(async () => result);
@@ -742,7 +741,7 @@ describe("workflow wire JSON normalization", () => {
       expect(inputs).toEqual([{ query: "email api", intent: "commercial", rationale: "Fits pricing", candidates: [], evidence: [] }]);
       return report("workflow-keywords");
     });
-    await runKeywordWorkflow({ root, graph, config, options }, {
+    await runKeywordWorkflow({ root, graph, site, config, options }, {
       acquireHost: async () => ({ model: { provider: "test", id: "model" }, research: async () => repair ? { ...result, state: { opportunities: [] } } : result, continue: continued, close: async () => {} }),
       decide,
     });
@@ -751,10 +750,10 @@ describe("workflow wire JSON normalization", () => {
   });
 
   it("includes every invalid state field and its path in the repair prompt", async () => {
-    const { root, graph, config } = fixture();
+    const { root, graph, site, config } = fixture();
     const valid = { summary: "Supported", opportunities: [{ query: "email api", intent: "commercial", rationale: "Fits pricing", candidates: [], evidence: [] }] };
     const result = { state: valid, sessionId: "all-errors", transcript: {}, executor: executorEvidence };
-    await runKeywordWorkflow({ root, graph, config, options }, {
+    await runKeywordWorkflow({ root, graph, site, config, options }, {
       acquireHost: async () => ({ model: { provider: "test", id: "model" },
         research: async () => ({ ...result, state: { ...valid, opportunities: [{ ...valid.opportunities[0], query: 42, intent: false }] } }),
         continue: async (_id, prompt) => { expect(prompt).toContain('["opportunities"][0]["query"]'); expect(prompt).toContain('["opportunities"][0]["intent"]'); return result; },
@@ -764,12 +763,12 @@ describe("workflow wire JSON normalization", () => {
   });
 
   it("includes every failing decision input in the repair prompt", async () => {
-    const { root, graph, config } = fixture();
+    const { root, graph, site, config } = fixture();
     const first = { url: "/pricing", intent: "pricing", categoryLock: "email API", candidates: [{ id: "a", title: "Pricing", description: "Plans" }] };
     const second = { ...first, url: "/docs", candidates: [...first.candidates, ...first.candidates] };
     const repaired = { state: { summary: "No candidates", items: [] }, sessionId: "all-inputs", transcript: {}, executor: executorEvidence };
     let repairs = 0;
-    await runWorkflow({ root, graph, config, workflow: "improve.metadata", options: { ...options, limit: 2, dryRun: true } }, {
+    await runWorkflow({ root, graph, site, config, workflow: "improve.metadata", options: { ...options, limit: 2, dryRun: true } }, {
       acquireHost: async () => ({ model: { provider: "test", id: "model" },
         research: async () => ({ ...repaired, state: { summary: "Invalid candidates", items: [first, second] } }),
         continue: async (_id, prompt) => {
@@ -800,11 +799,11 @@ describe("workflow failure artifacts", () => {
     { name: "no JSON", message: "The SEO agent did not return a valid workflow JSON object.", underlying: new SyntaxError("Unexpected end of JSON input") },
     { name: "UnexpectedStatus", message: "OpenCode prompt admission: UnexpectedStatus (HTTP 500)", underlying: new Error("UnexpectedStatus", { cause: new Error("provider unavailable") }) },
   ])("persists session, transcript and the full cause for $name", async ({ message, underlying }) => {
-    const { root, graph, config } = fixture();
+    const { root, graph, site, config } = fixture();
     const transcript = { messages: [{ type: "assistant", content: [{ type: "text", text: "partial research" }] }] };
     const error = new WorkflowHostError(message, "failed-session", transcript, underlying);
     const close = vi.fn(async () => {});
-    const thrown = await runKeywordWorkflow({ root, graph, config, options }, {
+    const thrown = await runKeywordWorkflow({ root, graph, site, config, options }, {
       acquireHost: async () => ({ model: { provider: "test", id: "model" }, research: async () => { throw error; }, continue: async () => { throw new Error("unexpected continuation"); }, close }),
     }).catch((cause: unknown) => cause);
     const { path, artifact } = readFailure(root);
@@ -815,9 +814,9 @@ describe("workflow failure artifacts", () => {
   });
 
   it("writes an acquire failure even when no session exists", async () => {
-    const { root, graph, config } = fixture();
+    const { root, graph, site, config } = fixture();
     const original = new Error("host unavailable", { cause: new Error("connection refused") });
-    const thrown = await runKeywordWorkflow({ root, graph, config, options }, { acquireHost: async () => { throw original; } }).catch((cause: unknown) => cause);
+    const thrown = await runKeywordWorkflow({ root, graph, site, config, options }, { acquireHost: async () => { throw original; } }).catch((cause: unknown) => cause);
     const { path, artifact } = readFailure(root);
     expect(artifact).toMatchObject({ stage: "acquire", cause: { message: original.message, name: "Error", cause: { message: "connection refused" } } });
     expect(artifact.sessionId == null).toBe(true);
@@ -825,11 +824,11 @@ describe("workflow failure artifacts", () => {
   });
 
   it.each(["decide", "action"] as const)("writes a %s failure with the research session and transcript", async (stage) => {
-    const { root, graph, config } = fixture();
+    const { root, graph, site, config } = fixture();
     const testCase = mutationCases[1]!;
     const transcript = { messages: ["completed research"] };
     const original = new Error(`${stage} failed`, { cause: new Error("provider unavailable") });
-    const thrown = await runWorkflow({ root, graph, config, workflow: testCase.workflow, options: { ...options, dryRun: true } }, {
+    const thrown = await runWorkflow({ root, graph, site, config, workflow: testCase.workflow, options: { ...options, dryRun: true } }, {
       acquireHost: async () => ({ model: { provider: "test", id: "model" }, research: async () => ({ state: testCase.state, sessionId: "completed-research", transcript, executor: executorEvidence }), continue: async () => { throw original; }, close: async () => {} }),
       decide: async () => { if (stage === "decide") throw original; return report(testCase.family); },
     }).catch((cause: unknown) => cause);
@@ -851,9 +850,9 @@ describe("workflow error boundaries", () => {
   });
 
   it("keeps the original error when writing its failure artifact is impossible", async () => {
-    const { root, graph, config } = fixture();
+    const { root, graph, site, config } = fixture();
     const original = new Error("host unavailable");
-    const thrown = await runKeywordWorkflow({ root, graph, config, options, out: "AGENTS.md" }, {
+    const thrown = await runKeywordWorkflow({ root, graph, site, config, options, out: "AGENTS.md" }, {
       acquireHost: async () => { throw original; },
     }).catch((cause: unknown) => cause);
     expect(thrown).toBe(original);
@@ -862,9 +861,9 @@ describe("workflow error boundaries", () => {
   });
 
   it("keeps a research failure when closing the host also fails", async () => {
-    const { root, graph, config } = fixture();
+    const { root, graph, site, config } = fixture();
     const original = new WorkflowHostError("research failed", "cleanup-session", { messages: ["partial"] }, new Error("provider unavailable"));
-    const thrown = await runKeywordWorkflow({ root, graph, config, options }, {
+    const thrown = await runKeywordWorkflow({ root, graph, site, config, options }, {
       acquireHost: async () => ({ model: { provider: "test", id: "model" }, research: async () => { throw original; }, continue: async () => { throw new Error("unexpected continuation"); }, close: async () => { throw new Error("cleanup failed"); } }),
     }).catch((cause: unknown) => cause);
     expect((thrown as Error).cause).toBe(original);

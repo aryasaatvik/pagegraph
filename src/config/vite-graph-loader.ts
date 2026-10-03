@@ -26,15 +26,18 @@ import { createServer, type InlineConfig, type PluginOption } from "vite";
 import type { SeoGraph } from "../core/graph";
 import type { RobotsConfig } from "../core/projections";
 
+/** Identity and robots policy produced by the graph's host. */
+export interface SiteRuntime {
+  readonly origin: string;
+  readonly indexable: boolean;
+  readonly robots: Pick<RobotsConfig, "disallow" | "contentSignal" | "directives">;
+}
+
 /** A graph, plus the release of whatever producing it acquired. */
 export interface LoadedSeoGraph {
   readonly graph: SeoGraph;
-  /**
-   * The robots policy the app serves, when the loader knows it (the TanStack
-   * Start loader reads it from the `pagegraph()` plugin). `pagegraph robots`
-   * uses it instead of `pagegraph.config.ts` fields.
-   */
-  readonly robots?: Pick<RobotsConfig, "disallow" | "contentSignal" | "directives"> | undefined;
+  /** The site's identity and policy belong to the graph-producing host. */
+  readonly site: SiteRuntime;
   /** Called once the command is done with the graph, on success or failure. */
   readonly dispose: () => Promise<void>;
 }
@@ -54,6 +57,8 @@ export interface ViteGraphLoaderOptions {
   readonly root: string;
   /** Module exporting the graph loader, root-relative (e.g. `/lib/seo/graph.ts`). */
   readonly entry: string;
+  /** Site identity and robots policy for this graph. */
+  readonly site: SiteRuntime;
   /** Named export on `entry` returning `Promise<SeoGraph>`. Defaults to `loadSeoGraph`. */
   readonly exportName?: string | undefined;
   /** Vite plugins the app's module graph needs — a content/MDX plugin, say. */
@@ -169,5 +174,5 @@ export const viteGraphLoader =
       throw new Error(`Could not build the SEO graph: ${messageOf(cause)}`);
     });
 
-    return { graph, dispose: () => withCleanStdout(() => server.close()) };
+    return { graph, site: options.site, dispose: () => withCleanStdout(() => server.close()) };
   };

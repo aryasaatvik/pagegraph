@@ -77,10 +77,9 @@ const node = (path, policy = {}, instance) => ({
 });
 
 export default {
-  origin: "https://example.com",
-  disallow: [],
   ${extra}
   loadGraph: async () => ({
+    site: { origin: "https://example.com", indexable: true, robots: { disallow: [] } },
     graph: {
       nodes: new Map([
         ["/pricing", node("/pricing", { modifiedAt: "2026-09-01" })],

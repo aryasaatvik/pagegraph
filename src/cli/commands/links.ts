@@ -24,7 +24,7 @@ import {
   type SimpleEdge,
 } from "../../core/links";
 import { isSitemapEligible } from "../../core/projections";
-import { acquireGraph, loadSeoConfig, loadSeoConfigOptional } from "../load-config";
+import { acquireLoadedGraph, loadSeoConfig, loadSeoConfigOptional } from "../load-config";
 import { jsonFlag, printJson, printText, SeoCliError } from "../output";
 import {
   renderLinksCandidatesReport,
@@ -153,16 +153,6 @@ const analyzeDeclared = (
       return { declaredEdges: undefined, coverage: undefined, warnings };
     }
 
-    let configOrigin: string;
-    try {
-      configOrigin = new URL(config.origin).origin;
-    } catch {
-      const message = `Ignoring declared graph: pagegraph.config.ts origin "${config.origin}" is not a valid URL.`;
-      if (assertCoverage) return yield* new SeoCliError({ message });
-      warnings.push(message);
-      return { declaredEdges: undefined, coverage: undefined, warnings };
-    }
-
     const rules: ReadonlyArray<CoverageRule> = config.coverage ?? [];
     if (assertCoverage && rules.length === 0) {
       return yield* new SeoCliError({
@@ -170,22 +160,25 @@ const analyzeDeclared = (
       });
     }
 
-    if (configOrigin !== crawlOrigin) {
-      const mismatch = `declared graph origin ${configOrigin} differs from crawled origin ${crawlOrigin}`;
-      if (assertCoverage) {
-        return yield* new SeoCliError({
-          message: `Cannot assert coverage: ${mismatch}.`,
-        });
-      }
-      warnings.push(
-        `${mismatch.charAt(0).toUpperCase()}${mismatch.slice(1)}; skipping the declared-vs-rendered diff.`,
-      );
-      return { declaredEdges: undefined, coverage: undefined, warnings };
-    }
-
     return yield* Effect.scoped(
       Effect.gen(function* () {
-        const graph = yield* acquireGraph(config);
+        const loaded = yield* acquireLoadedGraph(config);
+        let configOrigin: string;
+        try {
+          configOrigin = new URL(loaded.site.origin).origin;
+        } catch {
+          const message = `Ignoring declared graph: loaded site origin "${loaded.site.origin}" is not a valid URL.`;
+          if (assertCoverage) return yield* new SeoCliError({ message });
+          warnings.push(message);
+          return { declaredEdges: undefined, coverage: undefined, warnings };
+        }
+        if (configOrigin !== crawlOrigin) {
+          const mismatch = `declared graph origin ${configOrigin} differs from crawled origin ${crawlOrigin}`;
+          if (assertCoverage) return yield* new SeoCliError({ message: `Cannot assert coverage: ${mismatch}.` });
+          warnings.push(`${mismatch.charAt(0).toUpperCase()}${mismatch.slice(1)}; skipping the declared-vs-rendered diff.`);
+          return { declaredEdges: undefined, coverage: undefined, warnings };
+        }
+        const graph = loaded.graph;
         if (assertCoverage && crawlState.nonHtml.length > 0) {
           const declaredPaths = new Set([...graph.nodes.values()].filter(isSitemapEligible).map((node) => normalizePath(new URL(node.path, crawlOrigin))));
           const missed = crawlState.nonHtml.find((item) =>
@@ -581,7 +574,8 @@ const linksCandidatesCommand = Command.make("candidates", {
       }
 
       const config = yield* loadSeoConfig;
-      const graph = yield* Effect.scoped(acquireGraph(config));
+      const loaded = yield* Effect.scoped(acquireLoadedGraph(config));
+      const graph = loaded.graph;
       const renderedEdges = yield* readRenderedEdges(Option.getOrUndefined(options.rendered));
 
       const site = Option.getOrUndefined(options.site);
@@ -589,9 +583,9 @@ const linksCandidatesCommand = Command.make("candidates", {
         const report = yield* Effect.tryPromise({
           try: async (): Promise<LinksSuggestionReport> => {
             const target = new URL(site);
-            const configured = new URL(config.origin);
+            const configured = new URL(loaded.site.origin);
             if (!["http:", "https:"].includes(target.protocol) || target.origin !== configured.origin) {
-              throw new Error(`--site origin must match pagegraph.config.ts (${configured.origin})`);
+              throw new Error(`--site origin must match the loaded graph (${configured.origin})`);
             }
             const requestedTargets = new Set(options.target);
             const requestedSources = new Set(options.source);

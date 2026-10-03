@@ -409,7 +409,7 @@ try {
 
   await Bun.write(
     path.join(installDirectory, "pagegraph.config.mjs"),
-    `import { defineSeoConfig } from ${JSON.stringify(`${packageName}/config`)};\n\nexport default defineSeoConfig({\n  origin: "https://example.com",\n  disallow: [],\n  loadGraph: async () => ({\n    graph: {\n      nodes: new Map([["/", { path: "/", kind: "page", source: "route", policy: { kind: "page" } }]]),\n      edges: [],\n    },\n    dispose: async () => {},\n  }),\n});\n`,
+    `import { defineSeoConfig } from ${JSON.stringify(`${packageName}/config`)};\n\nexport default defineSeoConfig({\n  loadGraph: async () => ({\n    graph: {\n      nodes: new Map([["/", { path: "/", kind: "page", source: "route", policy: { kind: "page" } }]]),\n      edges: [],\n    },\n    site: { origin: "https://example.com", indexable: true, robots: { disallow: [] } },\n    dispose: async () => {},\n  }),\n});\n`,
   );
   const checkOutput = await runSuccessfully([executable, "check", "--json"], installDirectory);
   const check = JSON.parse(checkOutput) as { readonly ok?: unknown; readonly structural?: unknown };

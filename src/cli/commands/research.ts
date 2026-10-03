@@ -5,15 +5,17 @@ import * as Command from "effect/cli/Command";
 import * as Flag from "effect/cli/Flag";
 
 import type { SeoCliConfig } from "../../config";
+import type { SiteRuntime } from "../../config";
 import type { SeoGraph } from "../../core/graph";
 import type { WorkflowId, WorkflowRunV1, WorkflowTargetOptions } from "../../workflows/model";
 import { runWorkflow } from "../../workflows/run";
-import { acquireGraph, loadSeoProjectConfig } from "../load-config";
+import { acquireLoadedGraph, loadSeoProjectConfig } from "../load-config";
 import { jsonFlag, printJson, printText, SeoCliError } from "../output";
 
 export interface WorkflowCommandInput {
   readonly config: SeoCliConfig;
   readonly graph: SeoGraph;
+  readonly site: SiteRuntime;
   readonly root: string;
   readonly workflow: WorkflowCommandId;
   readonly options: WorkflowTargetOptions;
@@ -192,10 +194,11 @@ export const runWorkflowCommand = async (
   return Effect.runPromise(
     Effect.scoped(
       Effect.gen(function* () {
-        const graph = yield* acquireGraph(config);
+        const loaded = yield* acquireLoadedGraph(config);
         const input: WorkflowCommandInput = {
           config,
-          graph,
+          graph: loaded.graph,
+          site: loaded.site,
           root: project.root,
           workflow,
           options: optionsFrom(flags, extra),

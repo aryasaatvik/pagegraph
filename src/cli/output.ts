@@ -27,26 +27,30 @@ export const jsonFlag = Flag.Boolean("json").pipe(
 
 /**
  * Absolute origin the sitemap/robots projection is rendered under. It carries no
- * static default: the fallback is the host's own `origin` from `pagegraph.config.ts`,
- * which is not known until the config is loaded. Resolve it with {@link originOf}.
+ * static default: the fallback comes from the loaded graph's site, which is not
+ * known until the graph is acquired. Resolve it with {@link originOf}.
  */
 export const originFlag = Flag.String("origin").pipe(
-  Flag.withDescription("Absolute origin for URLs (default: `origin` from pagegraph.config.ts)"),
+  Flag.withDescription("Absolute origin for URLs (default: origin from the loaded graph)"),
   Flag.optional,
 );
 
-/** The `--origin` flag when given, else the origin the config declares. */
+/** The `--origin` flag when given, else the origin in the loaded graph's site identity. */
 export const originOf = (flag: Option.Option<string>, configured: string): string =>
   Option.getOrElse(flag, () => configured);
 
 /**
- * `--indexable` (default true) / `--no-indexable`. A non-indexable host yields a
- * disallow-all robots.txt with no Sitemap line — the preview posture.
+ * `--indexable` / `--no-indexable`. When omitted, the loaded graph's site identity
+ * decides; a non-indexable host yields a disallow-all robots.txt with no Sitemap line.
  */
 export const indexableFlag = Flag.Boolean("indexable").pipe(
   Flag.withDescription("Render as an indexable host; --no-indexable = disallow-all robots.txt"),
-  Flag.withDefault(true),
+  Flag.optional,
 );
+
+/** The `--indexable` flag when given, else the graph host's indexability. */
+export const indexableOf = (flag: Option.Option<boolean>, configured: boolean): boolean =>
+  Option.getOrElse(flag, () => configured);
 
 /** Data plane: pretty-printed JSON on stdout. */
 export const printJson = (value: unknown) => Console.log(JSON.stringify(value, null, 2));

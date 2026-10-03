@@ -43,7 +43,9 @@ export const initCommand = Command.make("init", {
   allowDirty: allowDirtyFlag,
   json: jsonFlag,
 }).pipe(
-  Command.withDescription("Scaffold a user-owned PageGraph OpenCode SEO preset"),
+  Command.withDescription(
+    "Scaffold the PageGraph CLI preset; configure graph access in pagegraph.config.ts",
+  ),
   Command.withExamples([
     {
       command: "pagegraph init",

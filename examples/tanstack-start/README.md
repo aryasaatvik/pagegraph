@@ -224,14 +224,14 @@ import { defineSeoConfig } from "pagegraph/config";
 import { tanstackStartGraph } from "pagegraph/tanstack-start";
 
 export default defineSeoConfig({
-  origin: "https://example.com",
   loadGraph: tanstackStartGraph({ root: import.meta.dirname }),
 });
 ```
 
-`tanstackStartGraph` evaluates the app's Vite config the way the dev server does (command `serve`) in
-`production` mode and returns the plugin's
-graph and robots policy. Do not repeat `disallow` or `contentSignal` here; the plugin owns them.
+`tanstackStartGraph` returns the graph and site identity from the Vite plugin. It uses the built
+site by default; pass `command: "serve"` with `mode: "development"` to inspect a dev host. Keep
+origin, indexability, and robots settings in `pagegraph()`; the CLI config owns audit and workflow
+policy.
 Build-time consumers of page titles and descriptions use
 `loadPageHeads(tanstackStartGraph({ root }), { exclude })` from `pagegraph/config`.
 
@@ -287,7 +287,7 @@ or derived from a collection instance through its route's `titleTemplate`.
 ```ts
 // before: src/lib/seo/graph.ts + pagegraph.config.ts
 export const loadSeoGraph = async () => buildSeoGraph({ routeTree, collections });
-// pagegraph.config.ts: loadGraph: viteGraphLoader({ root, entry: "/src/lib/seo/graph.ts", exportName: "loadSeoGraph" })
+// pagegraph.config.ts: loadGraph: viteGraphLoader({ root, site: { origin, indexable, robots: { disallow, contentSignal } }, entry: "/src/lib/seo/graph.ts", exportName: "loadSeoGraph" })
 
 // after: vite.config.ts and pagegraph.config.ts
 pagegraph({ origin, collections: "src/lib/seo/collections.ts" });
@@ -318,8 +318,9 @@ import { robotsTxt } from "pagegraph/tanstack-start/server";
 export const Route = createFileRoute("/robots.txt")({ server: { handlers: { GET: robotsTxt } } });
 ```
 
-**`pagegraph.config.ts` drops `disallow` and `contentSignal`.** They move to `pagegraph({ robots })`; do
-not repeat them when `tanstackStartGraph` supplies them.
+**`pagegraph.config.ts` owns audit and workflow policy.** Origin, indexability, routes, collections,
+Markdown, and robots settings belong to `pagegraph()` in Vite. `tanstackStartGraph` supplies the
+graph and site identity together.
 
 **`@tanstack/router-generator` is an optional peer.** Install it alongside `pagegraph/tanstack-start`
 or `pagegraph/vite`.

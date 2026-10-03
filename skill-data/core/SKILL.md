@@ -163,12 +163,11 @@ import { defineSeoConfig } from "pagegraph/config";
 import { tanstackStartGraph } from "pagegraph/tanstack-start";
 
 export default defineSeoConfig({
-  origin: "https://example.com",
   loadGraph: tanstackStartGraph({ root: import.meta.dirname }),
 });
 ```
 
-`tanstackStartGraph` evaluates the app's Vite config the way the dev server does (command `serve`) in `production` mode, and returns the plugin's graph and robots policy. Optional fields: `coverage` (`[{ path, minInbound }]`, contextual-link minimums enforced by `check`), `content`, `freshness`, and `workflows`. Build-time head consumers use `loadPageHeads(tanstackStartGraph({ root }), { exclude })` from `pagegraph/config`.
+`tanstackStartGraph` returns the graph and site identity from the Vite plugin. It uses the built site by default; pass `command: "serve"` with `mode: "development"` to inspect a dev host. Keep origin, indexability, and robots settings in `pagegraph()`. Optional CLI fields: `coverage` (`[{ path, minInbound }]`, contextual-link minimums enforced by `check`), `content`, `freshness`, and `workflows`. Build-time head consumers use `loadPageHeads(tanstackStartGraph({ root }), { exclude })` from `pagegraph/config`.
 
 ## Rules that bite
 

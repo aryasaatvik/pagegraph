@@ -102,10 +102,9 @@ const configFor = (origin: string, coverage: string): string => `const node = (p
 });
 
 export default {
-  origin: ${JSON.stringify(origin)},
-  disallow: [],
   ${coverage}
   loadGraph: async () => ({
+    site: { origin: ${JSON.stringify(origin)}, indexable: true, robots: { disallow: [] } },
     graph: {
       nodes: new Map([["/", node("/")], ["/about", node("/about")], ["/pricing", node("/pricing")]]),
       edges: [{ from: "/about", to: "/pricing", type: "related" }],

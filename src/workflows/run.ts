@@ -6,7 +6,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import * as FetchHttpClient from "effect/http/FetchHttpClient";
 
-import type { SeoCliConfig } from "../config";
+import type { SeoCliConfig, SiteRuntime } from "../config";
 import { allowedByRobots, robotsRules } from "../audit/crawl";
 import { probeHttp } from "../audit/scanners/http";
 import type { SeoGraph } from "../core/graph";
@@ -29,6 +29,7 @@ import { TextTemplate } from "./template";
 export interface WorkflowInput {
   readonly config: SeoCliConfig;
   readonly graph: SeoGraph;
+  readonly site: SiteRuntime;
   readonly root: string;
   readonly workflow: WorkflowId;
   readonly options: WorkflowTargetOptions;
@@ -189,7 +190,7 @@ export const runWorkflow = async (
     );
     const suggestionReport = input.options.suggestions === undefined ? undefined : (() => {
       if (spec.id !== "improve.links") throw new Error("--suggestions is only valid for improve links");
-      const report = decodeLinksSuggestionReport(JSON.parse(readFileSync(resolve(input.root, input.options.suggestions), "utf8")), new URL(input.config.origin).origin);
+      const report = decodeLinksSuggestionReport(JSON.parse(readFileSync(resolve(input.root, input.options.suggestions), "utf8")), new URL(input.site.origin).origin);
       const selectedSources = selectGraph(input.graph, input.options).nodes;
       for (const candidate of report.candidates) {
         if (!input.graph.nodes.has(candidate.source) || !input.graph.nodes.has(candidate.destination)) {

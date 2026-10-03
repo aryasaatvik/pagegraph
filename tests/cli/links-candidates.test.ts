@@ -18,9 +18,8 @@ const CONFIG = `const node = (path, kind, source = "route") => ({
 });
 
 export default {
-  origin: "https://example.com",
-  disallow: [],
   loadGraph: async () => ({
+    site: { origin: "https://example.com", indexable: true, robots: { disallow: [] } },
     graph: {
       nodes: new Map([
         ["/blog/a", node("/blog/a", "article", "blog")],

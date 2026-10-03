@@ -162,9 +162,8 @@ describe("pagegraph links verify", () => {
     writeFileSync(
       join(directory, "pagegraph.config.mjs"),
       `export default {
-  origin: ${JSON.stringify(new URL(target).origin)},
-  disallow: [],
   loadGraph: async () => ({
+    site: { origin: ${JSON.stringify(new URL(target).origin)}, indexable: true, robots: { disallow: [] } },
     graph: {
       nodes: new Map([["/", { path: "/", kind: "page", source: "route", policy: { kind: "page" } }]]),
       edges: [{ from: "/", to: "/declared-only", type: "related" }],
@@ -199,9 +198,8 @@ describe("pagegraph links verify", () => {
     writeFileSync(
       join(directory, "pagegraph.config.mjs"),
       `export default {
-  origin: "https://elsewhere.example",
-  disallow: [],
   loadGraph: async () => ({
+    site: { origin: "https://elsewhere.example", indexable: true, robots: { disallow: [] } },
     graph: {
       nodes: new Map([["/", { path: "/", kind: "page", source: "route", policy: { kind: "page" } }]]),
       edges: [{ from: "/", to: "/declared-only", type: "related" }],

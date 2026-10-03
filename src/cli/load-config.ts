@@ -61,7 +61,7 @@ const configNotFoundMessage = (cwd: string): string => {
   if (findLegacyConfigFile(cwd) !== undefined) {
     return "seo.config.ts was renamed to pagegraph.config.ts; rename the file";
   }
-  return `No ${CONFIG_FILENAMES[0]} in ${cwd} or any parent directory. Create one that exports \`defineSeoConfig({ origin, loadGraph })\` from "pagegraph/config".`;
+  return `No ${CONFIG_FILENAMES[0]} in ${cwd} or any parent directory. Create one that exports \`defineSeoConfig({ loadGraph })\` from "pagegraph/config".`;
 };
 
 const isStringArray = (value: unknown): value is ReadonlyArray<string> =>
@@ -122,19 +122,23 @@ const isWorkflowConfig = (value: unknown): boolean => {
   );
 };
 
+const CLI_CONFIG_FIELDS = new Set([
+  "loadGraph",
+  "transform",
+  "coverage",
+  "content",
+  "freshness",
+  "workflows",
+]);
+
 /**
  * `pagegraph.config.ts` is the consumer's file and may be plain JS, so its types are
- * a suggestion, not a guarantee. Check every field the commands actually read —
- * an undefined `origin` would otherwise surface as "undefined/pricing" in a
- * rendered sitemap rather than as an error here.
+ * a suggestion, not a guarantee. Check every field the CLI consumes at this boundary.
  */
 const isSeoCliConfig = (value: unknown): value is SeoCliConfig =>
   Predicate.isObject(value) &&
+  Object.keys(value).every((key) => CLI_CONFIG_FIELDS.has(key)) &&
   Predicate.isFunction(value["loadGraph"]) &&
-  Predicate.isString(value["origin"]) &&
-  (value["disallow"] === undefined || isStringArray(value["disallow"])) &&
-  (value["contentSignal"] === undefined || Predicate.isString(value["contentSignal"])) &&
-  (value["directives"] === undefined || isStringArray(value["directives"])) &&
   (value["transform"] === undefined || Predicate.isFunction(value["transform"])) &&
   (value["coverage"] === undefined || isCoverageRules(value["coverage"])) &&
   (value["content"] === undefined || isContentPolicy(value["content"])) &&
@@ -153,8 +157,13 @@ const loadConfigFile = (configPath: string): Effect.Effect<SeoCliConfig, SeoCliE
     });
 
     if (!isSeoCliConfig(module.default)) {
+      const duplicatedField = Predicate.isObject(module.default)
+        ? Object.keys(module.default).find((key) => !CLI_CONFIG_FIELDS.has(key))
+        : undefined;
       return yield* new SeoCliError({
-        message: `${configPath} must default-export defineSeoConfig({ origin, loadGraph }).`,
+        message: duplicatedField === undefined
+          ? `${configPath} must default-export defineSeoConfig({ loadGraph }).`
+          : `${configPath} contains unsupported field "${duplicatedField}"; pagegraph.config.ts accepts only CLI fields, while site identity and plugin options belong to the graph loader and pagegraph() in vite.config.ts.`,
       });
     }
     return module.default;
@@ -220,9 +229,30 @@ export const acquireLoadedGraph = (
   Effect.gen(function* () {
     yield* Effect.logDebug("Loading the SEO graph…");
 
+    const load = async (): Promise<LoadedSeoGraph> => {
+      const loaded: unknown = await config.loadGraph();
+      if (!isLoadedSeoGraph(loaded)) {
+        let disposeFailure: unknown;
+        if (Predicate.isObject(loaded) && Predicate.isFunction(loaded["dispose"])) {
+          try {
+            await loaded["dispose"]();
+          } catch (cause) {
+            disposeFailure = cause;
+          }
+        }
+        const contractError = "The graph loader must return { graph, site: { origin, indexable, robots }, dispose }.";
+        throw new Error(
+          disposeFailure === undefined
+            ? contractError
+            : `${contractError} Releasing the invalid result also failed: ${messageOf(disposeFailure)}`,
+        );
+      }
+      return loaded;
+    };
+
     const loaded = yield* Effect.acquireRelease(
       Effect.tryPromise({
-        try: () => config.loadGraph(),
+        try: load,
         catch: (cause) => new SeoCliError({ message: messageOf(cause) }),
       }),
       // The graph is already in hand by release time, so a failed dispose must
@@ -241,6 +271,38 @@ export const acquireLoadedGraph = (
     );
     return loaded;
   });
+
+const isLoadedSeoGraph = (value: unknown): value is LoadedSeoGraph => {
+  if (
+    !Predicate.isObject(value) ||
+    !Predicate.isObject(value["graph"]) ||
+    !(value["graph"]["nodes"] instanceof Map) ||
+    !Array.isArray(value["graph"]["edges"]) ||
+    !Predicate.isFunction(value["dispose"]) ||
+    !Predicate.isObject(value["site"])
+  ) return false;
+  const site = value["site"];
+  const robots = site["robots"];
+  let canonicalOrigin = false;
+  if (Predicate.isString(site["origin"])) {
+    try {
+      const url = new URL(site["origin"]);
+      canonicalOrigin =
+        (url.protocol === "http:" || url.protocol === "https:") &&
+        url.origin === site["origin"];
+    } catch {
+      canonicalOrigin = false;
+    }
+  }
+  return (
+    canonicalOrigin &&
+    Predicate.isBoolean(site["indexable"]) &&
+    Predicate.isObject(robots) &&
+    isStringArray(robots["disallow"]) &&
+    (robots["contentSignal"] === undefined || Predicate.isString(robots["contentSignal"])) &&
+    (robots["directives"] === undefined || isStringArray(robots["directives"]))
+  );
+};
 
 /** {@link acquireLoadedGraph}, for commands that need only the graph. */
 export const acquireGraph = (

@@ -7,6 +7,8 @@
 
 import { relative, resolve } from "node:path";
 
+import type { ClaimsOptions } from "../decide/families/claims";
+
 import type { RouteNode } from "@tanstack/router-generator";
 
 import { globToRegExp } from "../core/checks";
@@ -60,6 +62,8 @@ export interface PagegraphOptions {
   readonly collections?: string | undefined;
   /** Canonical origin for rendered documents; serverEntry is relative to the Vite root. */
   readonly markdown?: { readonly origin: string; readonly serverEntry?: string | undefined } | undefined;
+  /** Committed claims answers gate the rendered documents and graph heads at build time. */
+  readonly claims?: ClaimsOptions | undefined;
   /** Root-relative module exporting the code-owned document facts. */
   readonly facts?: string | undefined;
   /**

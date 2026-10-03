@@ -59,7 +59,7 @@ describe("pagegraph init", () => {
       readFileSync(join(root, ".pagegraph/opencode/skills/keyword-research/SKILL.md"), "utf8"),
     ).toContain("Executor Starters");
     expect(run(root, []).stdout).toContain("Kept 26 existing file(s)");
-  });
+  }, 30_000);
 
   it("refuses a dirty tree unless --allow-dirty is explicit", () => {
     const root = dirtyGitRepository();

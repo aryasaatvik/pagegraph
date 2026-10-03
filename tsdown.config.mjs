@@ -24,7 +24,6 @@ const base = {
   sourcemap: true,
   platform: "neutral",
   loader: {
-    ".jsonc": "text",
     ".md": "text",
     ".txt": "text",
   },

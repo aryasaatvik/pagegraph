@@ -13,5 +13,5 @@ leave them in the artifact for a human. If nothing is safely resolved, return no
 
 Repository mutation mode: {{mutationMode}}. {{mutationInstruction}}
 
-Return only one JSON object with this shape:
+Call submit_result with the final action result matching this shape:
 {"summary":"...","files":["relative/path"],"outcome":"applied|dry-run|no-change"}

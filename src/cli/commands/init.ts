@@ -7,7 +7,7 @@ import * as Command from "effect/cli/Command";
 import * as Flag from "effect/cli/Flag";
 
 import presetGitignore from "../preset/gitignore.txt" with { type: "text" };
-import { opencodePreset } from "../preset/opencode/preset";
+import { agentPreset } from "../preset/agent/preset";
 import { inspectGit } from "../../workflows/git";
 import { printJson, printText, SeoCliError } from "../output";
 import { jsonFlag } from "../output";
@@ -23,7 +23,7 @@ const allowDirtyFlag = Flag.Boolean("allow-dirty").pipe(
 
 const PRESET: Readonly<Record<string, string>> = {
   ".pagegraph/.gitignore": presetGitignore,
-  ...opencodePreset,
+  ...agentPreset,
 };
 
 const repositoryRoot = (): string => {
@@ -44,12 +44,12 @@ export const initCommand = Command.make("init", {
   json: jsonFlag,
 }).pipe(
   Command.withDescription(
-    "Scaffold the PageGraph agent preset; configure workflows.agent in pagegraph.config.ts",
+    "Scaffold the PageGraph agent preset; set workflows.agent.presetDirectory to .pagegraph/agent in pagegraph.config.ts",
   ),
   Command.withExamples([
     {
       command: "pagegraph init",
-      description: "Create .pagegraph/opencode without overwriting files",
+      description: "Create .pagegraph/agent without overwriting files",
     },
     { command: "pagegraph init --dry-run --json", description: "Preview the scaffold as JSON" },
   ]),

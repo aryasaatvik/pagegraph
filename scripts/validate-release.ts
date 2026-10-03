@@ -308,7 +308,7 @@ try {
 
   const executable = path.join(installDirectory, "node_modules", ".bin", "pagegraph");
   // The packed bin must run without PageGraph's optional Effect peers. Its own
-  // Effect/Jev runtime is bundled; OpenCode's private runtime is SDK-owned.
+  // Effect/Jev and Pi runtimes are bundled.
   const bundledBin = await runSuccessfully([executable, "--help"], installDirectory);
   if (!bundledBin.includes("pagegraph <subcommand>")) {
     throw new Error("Packed pagegraph bin did not run standalone (Effect must be bundled)");

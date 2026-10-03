@@ -156,14 +156,6 @@ const loadConfigFile = (configPath: string): Effect.Effect<SeoCliConfig, SeoCliE
         new SeoCliError({ message: `Could not load ${configPath}: ${messageOf(cause)}` }),
     });
 
-    if (Predicate.isObject(module.default) &&
-      Predicate.isObject(module.default["workflows"]) &&
-      "opencode" in module.default["workflows"]) {
-      return yield* new SeoCliError({
-        message: `${configPath}: workflows.opencode was replaced by workflows.agent; rename configDirectory to presetDirectory.`,
-      });
-    }
-
     if (!isSeoCliConfig(module.default)) {
       const duplicatedField = Predicate.isObject(module.default)
         ? Object.keys(module.default).find((key) => !CLI_CONFIG_FIELDS.has(key))

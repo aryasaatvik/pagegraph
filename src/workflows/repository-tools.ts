@@ -1,5 +1,5 @@
-import { open, readdir, realpath } from "node:fs/promises";
-import { isAbsolute, relative, resolve, sep } from "node:path";
+import { lstat, mkdir, open, readFile, readdir, realpath, writeFile } from "node:fs/promises";
+import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
 
 import type { AgentOptions, AgentTool } from "@earendil-works/pi-agent-core";
 import { Type } from "@earendil-works/pi-ai";
@@ -9,6 +9,51 @@ const MAX_ENTRIES = 500;
 const MAX_MATCHES = 200;
 const MAX_OUTPUT_CHARACTERS = 32 * 1024;
 const repositoryToolNames = new Set(["read_file", "list_files", "search_text"]);
+const writeToolNames = new Set(["write_file", "edit_file"]);
+
+export interface RepositoryWriteOptions {
+  readonly presetDirectory: string;
+  readonly runsDirectory: string;
+}
+
+const missingPath = (cause: unknown): boolean => cause instanceof Error && "code" in cause && cause.code === "ENOENT";
+
+// Missing leaves retain the real target of their existing ancestor; dangling symlinks are rejected.
+const resolveWritablePath = async (path: string): Promise<string> => {
+  let ancestor = path;
+  const suffix: string[] = [];
+  while (true) {
+    try { return resolve(await realpath(ancestor), ...suffix); }
+    catch (cause) {
+      if (!missingPath(cause)) throw cause;
+      try {
+        if ((await lstat(ancestor)).isSymbolicLink()) throw new Error(`Repository path has a dangling symlink: ${path}`);
+      } catch (statCause) { if (!missingPath(statCause)) throw statCause; }
+      const parent = dirname(ancestor);
+      if (parent === ancestor) throw cause;
+      suffix.unshift(relative(parent, ancestor));
+      ancestor = parent;
+    }
+  }
+};
+
+const writableRepositoryPath = async (root: string, path: string, options: RepositoryWriteOptions): Promise<string> => {
+  const projectRoot = await realpath(root);
+  const requested = resolve(projectRoot, path);
+  if (!insideRoot(projectRoot, requested)) throw new Error(`Repository path escapes project root: ${path}`);
+  const resolved = await resolveWritablePath(requested);
+  if (!insideRoot(projectRoot, resolved)) throw new Error(`Repository path escapes project root through a symlink: ${path}`);
+  if ([requested, resolved].some((target) => relative(projectRoot, target).split(sep).some((part) => part === ".git" || part === "node_modules"))) {
+    throw new Error(`Repository write targets a protected directory: ${path}`);
+  }
+  const forbidden = [resolve(projectRoot, ".git"), resolve(projectRoot, "node_modules"),
+    resolve(projectRoot, options.runsDirectory), resolve(projectRoot, options.presetDirectory)];
+  for (const directory of forbidden) {
+    const actual = await resolveWritablePath(directory);
+    if (insideRoot(directory, requested) || insideRoot(actual, resolved)) throw new Error(`Repository write targets a protected directory: ${path}`);
+  }
+  return resolved;
+};
 
 const insideRoot = (root: string, path: string): boolean => {
   const pathFromRoot = relative(root, path);
@@ -33,11 +78,14 @@ const pathArgument = (args: unknown): string => {
   return args.path;
 };
 
-export const guardRepositoryToolCall = (root: string): AgentOptions["beforeToolCall"] => async ({ toolCall, args }, signal) => {
-  if (!repositoryToolNames.has(toolCall.name)) return undefined;
+export const guardRepositoryToolCall = (root: string, writeOptions?: RepositoryWriteOptions): AgentOptions["beforeToolCall"] => async ({ toolCall, args }, signal) => {
+  if (!repositoryToolNames.has(toolCall.name) && !writeToolNames.has(toolCall.name)) return undefined;
   try {
     signal?.throwIfAborted();
-    await repositoryPath(root, pathArgument(args));
+    if (writeToolNames.has(toolCall.name)) {
+      if (!writeOptions) throw new Error("Repository writes are unavailable in this workflow phase");
+      await writableRepositoryPath(root, pathArgument(args), writeOptions);
+    } else await repositoryPath(root, pathArgument(args));
     return undefined;
   } catch (error) {
     return { block: true, reason: error instanceof Error ? error.message : String(error) };
@@ -126,6 +174,49 @@ export const createRepositoryTools = (root: string): AgentTool[] => [
         if (matches.length >= MAX_MATCHES) break;
       }
       return result(matches.join("\n").slice(0, MAX_OUTPUT_CHARACTERS));
+    },
+  },
+];
+
+const stringArgument = (args: unknown, key: string): string => {
+  if (typeof args !== "object" || args === null || !(key in args) || typeof Reflect.get(args, key) !== "string") {
+    throw new Error(`Repository tools require a string ${key}`);
+  }
+  return Reflect.get(args, key);
+};
+
+export const createRepositoryWriteTools = (root: string, options: RepositoryWriteOptions): AgentTool[] => [
+  {
+    name: "write_file", label: "Write repository file",
+    description: "Create or overwrite a UTF-8 repository file. Protected directories and symlink escapes are blocked.",
+    parameters: Type.Object({ path: Type.String(), content: Type.String() }),
+    execute: async (_id, args, signal) => {
+      signal?.throwIfAborted();
+      const requested = pathArgument(args);
+      const path = await writableRepositoryPath(root, requested, options);
+      await mkdir(dirname(path), { recursive: true });
+      signal?.throwIfAborted();
+      await writeFile(await writableRepositoryPath(root, pathArgument(args), options), stringArgument(args, "content"), "utf8");
+      return result(`Wrote ${pathArgument(args)}`);
+    },
+  },
+  {
+    name: "edit_file", label: "Edit repository file",
+    description: "Replace exact text in a UTF-8 repository file. oldText must match exactly one region; protected directories and symlink escapes are blocked.",
+    parameters: Type.Object({ path: Type.String(), oldText: Type.String({ minLength: 1 }), newText: Type.String() }),
+    execute: async (_id, args, signal) => {
+      signal?.throwIfAborted();
+      const oldText = stringArgument(args, "oldText");
+      const newText = stringArgument(args, "newText");
+      if (oldText.length === 0) throw new Error("edit_file oldText must be nonempty");
+      const requested = pathArgument(args);
+      const path = await writableRepositoryPath(root, requested, options);
+      const content = await readFile(path, "utf8");
+      const index = content.indexOf(oldText);
+      if (index < 0 || content.indexOf(oldText, index + 1) >= 0) throw new Error("edit_file oldText must match exactly once");
+      signal?.throwIfAborted();
+      await writeFile(await writableRepositoryPath(root, pathArgument(args), options), content.slice(0, index) + newText + content.slice(index + oldText.length), "utf8");
+      return result(`Edited ${pathArgument(args)}`);
     },
   },
 ];

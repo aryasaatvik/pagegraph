@@ -8,12 +8,13 @@
  * ```
  */
 
-import { graph as graphJson, site as siteRuntime } from "virtual:pagegraph/runtime";
+import { graph as graphJson, site as siteRuntime, markdown } from "virtual:pagegraph/runtime";
 
 import type { SeoGraph } from "../core/graph";
 import { renderRobots, renderSitemap } from "../core/projections";
 import { graphFromJson } from "../core/wire";
 import type { SiteRuntime } from "./graph";
+import { appendLlmsSection } from "../markdown/llms";
 
 let decoded: SeoGraph | undefined;
 
@@ -56,4 +57,30 @@ export function sitemapXml(): Response {
       "Cache-Control": "public, max-age=3600",
     },
   });
+}
+
+/** Generated llms.txt groups, using graph metadata without rendering pages. */
+export function llmsSection(): string {
+  if (markdown === null)
+    throw new Error('llmsSection requires pagegraph({ markdown: { origin } }) in vite.config.ts');
+  const pages = [...seoGraph().nodes.values()]
+    .filter((node) => !node.path.includes("$") && (node.markdown === "rendered" || node.llms !== undefined))
+    .map((node) => {
+      if (node.head?.description === undefined)
+        throw new Error(`Markdown page ${node.path} must declare a graph head with title and description for llms.txt`);
+      return {
+        document: { path: node.path, title: node.head.title, description: node.head.description },
+        ...(node.llms === undefined ? {} : { llms: node.llms }),
+      };
+    });
+  return appendLlmsSection("", pages, markdown.origin);
+}
+
+/** `GET /llms.txt`: graph-derived links to rendered and explicitly grouped Markdown pages. */
+export function llmsTxt(options: { sections?: ReadonlyArray<string> } = {}): () => Response {
+  return () => new Response(
+    [llmsSection().trimEnd(), ...(options.sections ?? []).map((section) => section.trim())]
+      .filter(Boolean).join("\n\n") + "\n",
+    { headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "public, max-age=3600" } },
+  );
 }

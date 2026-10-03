@@ -139,6 +139,18 @@ const assertPackageIdentity = (manifest: PackageManifest): void => {
       types: "./dist/tanstack-start/server.d.ts",
       import: "./dist/tanstack-start/server.js",
     },
+    "./tanstack-start/markdown": {
+      types: "./dist/tanstack-start/markdown.d.ts",
+      import: "./dist/tanstack-start/markdown.js",
+    },
+    "./tanstack-start/react": {
+      types: "./dist/tanstack-start/react.d.ts",
+      import: "./dist/tanstack-start/react.js",
+    },
+    "./tanstack-start/prerender-worker": {
+      types: "./dist/tanstack-start/prerender-worker.d.ts",
+      import: "./dist/tanstack-start/prerender-worker.js",
+    },
     "./vite": buildEntry("vite"),
     "./config": buildEntry("config"),
     "./audit": buildEntry("audit"),
@@ -223,6 +235,12 @@ try {
     "dist/tanstack-start/index.d.ts",
     "dist/tanstack-start/server.js",
     "dist/tanstack-start/server.d.ts",
+    "dist/tanstack-start/markdown.js",
+    "dist/tanstack-start/markdown.d.ts",
+    "dist/tanstack-start/react.js",
+    "dist/tanstack-start/react.d.ts",
+    "dist/tanstack-start/prerender-worker.js",
+    "dist/tanstack-start/prerender-worker.d.ts",
     "README.md",
     "LICENSE",
     "package.json",
@@ -470,6 +488,9 @@ try {
     ["dist/index.js", []],
     ["dist/react.js", ["@tanstack/react-router", "react", "react/jsx-runtime"]],
     ["dist/tanstack-start/server.js", ["virtual:pagegraph/runtime"]],
+    ["dist/tanstack-start/markdown.js", ["react", "react/jsx-runtime", "react-dom/server", "@tanstack/react-router", "@tanstack/react-start/server", "@tanstack/react-router/ssr/server", "virtual:pagegraph/runtime"]],
+    ["dist/tanstack-start/react.js", ["react", "react/jsx-runtime", "@tanstack/react-router"]],
+    ["dist/tanstack-start/prerender-worker.js", ["virtual:pagegraph/prerender-server"]],
   ] as const) {
     const unexpected = [...(await runtimeImports(entry))].filter((specifier) => !(allowed as ReadonlyArray<string>).includes(specifier));
     if (unexpected.length > 0) throw new Error(`${entry} imports build-only modules: ${unexpected.join(", ")}`);

@@ -36,6 +36,8 @@ import {
 import { graphToJson } from "../core/wire";
 import { seoRouteConfig } from "../vite/route-config";
 import { evaluateGraph, planGraph, type AppGraph, type GraphModuleRunner, type GraphPlan, type PagegraphOptions } from "./graph";
+import { MARKDOWN_CAPTURE_PATH, persistMarkdownCapture } from "./persist-markdown";
+import { transformDocumentSource } from "./source";
 
 export const GRAPH_ENVIRONMENT = "pagegraph";
 export const PLUGIN_NAME = "pagegraph";
@@ -44,7 +46,7 @@ const RESOLVED_RUNTIME_ID = `\0${RUNTIME_ID}`;
 const ENTRY_ID = "virtual:pagegraph/entry";
 const RESOLVED_ENTRY_ID = `\0${ENTRY_ID}`;
 /** The runtime entry imports the virtual module, so dep pre-bundling must leave it to this plugin. */
-const RUNTIME_ENTRY = "pagegraph/tanstack-start/server";
+const RUNTIME_ENTRIES = ["pagegraph/tanstack-start/server", "pagegraph/tanstack-start/markdown", "pagegraph/tanstack-start/react"];
 /** Where a build writes the graph environment's output, relative to the Vite root. */
 const BUILD_DIRECTORY = "node_modules/.cache/pagegraph/build";
 /**
@@ -70,12 +72,12 @@ export interface PagegraphPluginApi {
   readonly options: PagegraphOptions;
 }
 
-const runtimeModule = ({ graph, site }: AppGraph): string =>
-  `export const graph = ${JSON.stringify(graphToJson(graph))};\nexport const site = ${JSON.stringify(site)};\n`;
+const runtimeModule = ({ graph, site, markdown, facts }: AppGraph): string =>
+  `export const graph = ${JSON.stringify(graphToJson(graph))};\nexport const site = ${JSON.stringify(site)};\nexport const markdown = ${JSON.stringify(markdown)};\nexport const facts = ${JSON.stringify(facts) ?? "undefined"};\n`;
 
 /** The graph environment's build entry: a loader per module the plan evaluates. */
 const entryModule = (plan: GraphPlan): string => {
-  const files = [...plan.routeFiles, ...(plan.collectionsFile === undefined ? [] : [plan.collectionsFile])];
+  const files = [...plan.routeFiles, ...(plan.collectionsFile === undefined ? [] : [plan.collectionsFile]), ...(plan.factsFile === undefined ? [] : [plan.factsFile])];
   const loaders = files.map((file) => `  ${JSON.stringify(file)}: () => import(${JSON.stringify(file)}),`);
   return `export const modules = {\n${loaders.join("\n")}\n};\n`;
 };
@@ -97,9 +99,18 @@ const buildGraph = async (builder: ViteBuilder, environment: BuildEnvironment, p
   return evaluateGraph(runner, plan);
 };
 
-export function pagegraph(options: PagegraphOptions): Array<Plugin> {
+/** Start prerenders this private endpoint once; its callback writes public Markdown twins. */
+export interface MarkdownPrerenderPage {
+  readonly path: string;
+  readonly sitemap: { readonly exclude: true };
+  readonly prerender: { readonly onSuccess: (result: { html: string }) => Promise<void> };
+}
+export type PagegraphPlugins = Array<Plugin> & { readonly prerenderPages: Array<MarkdownPrerenderPage> };
+
+export function pagegraph(options: PagegraphOptions): PagegraphPlugins {
   const api: PagegraphPluginApi = { options };
-  let root = "";
+  let root = process.cwd();
+  let clientOutDir = resolve(root, "dist/client");
   let server: ViteDevServer | undefined;
   let devEnvironment: RunnableDevEnvironment | undefined;
   /** The plan the graph environment's build entry is generated from. */
@@ -153,14 +164,19 @@ export function pagegraph(options: PagegraphOptions): Array<Plugin> {
         return;
       }
       environmentConfig.optimizeDeps ??= {};
-      environmentConfig.optimizeDeps.exclude = [...(environmentConfig.optimizeDeps.exclude ?? []), RUNTIME_ENTRY];
+      environmentConfig.optimizeDeps.exclude = [...(environmentConfig.optimizeDeps.exclude ?? []), ...RUNTIME_ENTRIES];
     },
     configResolved(resolved) {
       root = resolved.root;
+      clientOutDir = resolve(root, resolved.environments.client?.build.outDir ?? "dist/client");
     },
-    configureServer(devServer) {
-      server = devServer;
-      devEnvironment = devServer.environments[GRAPH_ENVIRONMENT] as RunnableDevEnvironment | undefined;
+    configureServer: {
+      // Cloudflare inspects SSR exports in its server hook, which can import the graph runtime.
+      order: "pre",
+      handler(devServer) {
+        server = devServer;
+        devEnvironment = devServer.environments[GRAPH_ENVIRONMENT] as RunnableDevEnvironment | undefined;
+      },
     },
     // Runs after Vite invalidates the changed file in each environment, so the
     // next evaluation reads fresh modules.
@@ -202,7 +218,7 @@ export function pagegraph(options: PagegraphOptions): Array<Plugin> {
           return entryModule(buildPlan);
         }
         // A page evaluated for the graph may import the runtime; it never serves from it.
-        if (this.environment.name === GRAPH_ENVIRONMENT) return "export const graph = null;\nexport const site = null;\n";
+        if (this.environment.name === GRAPH_ENVIRONMENT) return "export const graph = null;\nexport const site = null;\nexport const markdown = null;\nexport const facts = undefined;\n";
         if (current === undefined) {
           if (devEnvironment === undefined) {
             throw new Error(
@@ -216,11 +232,50 @@ export function pagegraph(options: PagegraphOptions): Array<Plugin> {
     },
   };
 
-  return [
+  const markdownPlugin: Plugin = {
+    name: "pagegraph:markdown",
+    enforce: "pre",
+    applyToEnvironment: (environment) => environment.name !== GRAPH_ENVIRONMENT,
+    resolveId: {
+      filter: { id: /^virtual:pagegraph\/prerender-server$/ },
+      handler: (id) => `\0${id}`,
+    },
+    load: {
+      filter: { id: /^\0virtual:pagegraph\/prerender-server$/ },
+      handler: () => `export { default } from ${JSON.stringify(resolve(root, options.markdown?.serverEntry ?? "dist/server/index.js"))};`,
+    },
+    transform: {
+      filter: { id: /\.[jt]sx?(\?|$)/, code: /pagegraph\/react/ },
+      handler(code, id) {
+        const file = id.split("?")[0];
+        if (file === undefined || file.includes("/node_modules/") || file.endsWith(".gen.ts") || !file.startsWith(`${root}/`)) return;
+        return transformDocumentSource(code, file, root);
+      },
+    },
+    configurePreviewServer(previewServer) {
+      // Start reports status only; retain the route/capture diagnostic across the Worker boundary.
+      previewServer.middlewares.use((_request, response, next) => {
+        response.on("finish", () => {
+          const error = response.getHeader("x-pagegraph-error");
+          if (typeof error === "string") previewServer.config.logger.error(decodeURIComponent(error));
+        });
+        next();
+      });
+    },
+  };
+
+  return Object.assign([
     graphPlugin,
+    markdownPlugin,
     runtimeModulesPlugin,
     ...(options.routeConfig === undefined
       ? []
       : [seoRouteConfig({ ...options.routeConfig, routesDirectory: options.routesDirectory })]),
-  ];
+  ], {
+    prerenderPages: options.markdown === undefined ? [] : [{
+      path: MARKDOWN_CAPTURE_PATH,
+      sitemap: { exclude: true as const },
+      prerender: { onSuccess: ({ html }: { html: string }) => persistMarkdownCapture(html, root, clientOutDir) },
+    }],
+  });
 }

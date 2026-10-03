@@ -50,6 +50,18 @@
       "types": "./dist/tanstack-start/server.d.ts",
       "import": "./dist/tanstack-start/server.js"
     },
+    "./tanstack-start/markdown": {
+      "types": "./dist/tanstack-start/markdown.d.ts",
+      "import": "./dist/tanstack-start/markdown.js"
+    },
+    "./tanstack-start/react": {
+      "types": "./dist/tanstack-start/react.d.ts",
+      "import": "./dist/tanstack-start/react.js"
+    },
+    "./tanstack-start/prerender-worker": {
+      "types": "./dist/tanstack-start/prerender-worker.d.ts",
+      "import": "./dist/tanstack-start/prerender-worker.js"
+    },
     "./vite": {
       "types": "./dist/vite.d.ts",
       "workerd": "./dist/build-only/vite.js",
@@ -103,17 +115,20 @@
     "release": "bun run release:check && bun run tegami publish"
   },
   "devDependencies": {
+    "@cloudflare/vite-plugin": "^1.62.5",
     "@effect/ai-typesafe": "4.0.0",
     "@effect/platform-bun": "4.0.0",
     "@effect/platform-node-shared": "4.0.0",
     "@effect/vitest": "4.0.0",
     "@noble/hashes": "^2.4.0",
     "@opencode/sdk": "2.0.22",
-    "@tanstack/react-router": "^1.170.18",
+    "@tanstack/react-router": "^1.170.26",
+    "@tanstack/react-start": "^1.168.56",
     "@tanstack/router-generator": "^1.167.21",
     "@types/node": "^24.0.0",
     "@types/react": "19.2.18",
     "@types/react-dom": "19.2.3",
+    "@vitejs/plugin-react": "^6.0.6",
     "effect": "4.0.0",
     "lighthouse": "13.4.1",
     "oxlint": "^1.83.0",
@@ -134,7 +149,9 @@
     "effect": "^4.0.0",
     "lighthouse": ">=13.0.0",
     "react": "^19.0.0",
-    "vite": "^8.0.0"
+    "vite": "^8.0.0",
+    "@tanstack/react-start": "^1.168.56",
+    "react-dom": "^19.0.0"
   },
   "peerDependenciesMeta": {
     "@effect/ai-typesafe": {
@@ -157,6 +174,12 @@
     },
     "vite": {
       "optional": true
+    },
+    "@tanstack/react-start": {
+      "optional": true
+    },
+    "react-dom": {
+      "optional": true
     }
   },
   "overrides": {
@@ -164,5 +187,8 @@
       "@effect/platform-node-shared": "4.0.0-rc.112",
       "effect": "4.0.0-rc.112"
     }
+  },
+  "dependencies": {
+    "oxc-parser": "0.150.0"
   }
 }

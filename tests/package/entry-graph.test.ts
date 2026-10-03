@@ -53,6 +53,9 @@ describe("runtime entries", () => {
     ["pagegraph", "src/core/index.ts", []],
     ["pagegraph/react", "src/react/index.ts", ["@tanstack/react-router", "react", "react/jsx-runtime"]],
     ["pagegraph/tanstack-start/server", "src/tanstack-start/server.ts", ["virtual:pagegraph/runtime"]],
+    ["pagegraph/tanstack-start/markdown", "src/tanstack-start/markdown.tsx", ["@tanstack/react-router", "@tanstack/react-router/ssr/server", "@tanstack/react-start/server", "react", "react-dom/server", "react/jsx-runtime", "virtual:pagegraph/runtime"]],
+    ["pagegraph/tanstack-start/react", "src/tanstack-start/react.tsx", ["@tanstack/react-router", "react", "react/jsx-runtime"]],
+    ["pagegraph/tanstack-start/prerender-worker", "src/tanstack-start/prerender-worker.ts", ["virtual:pagegraph/prerender-server"]],
   ] as const)("%s imports only its runtime peers", async (_name, entry, allowed) => {
     const imports = await externalImports(entry);
     expect(imports.filter((specifier) => buildOnly.test(specifier))).toEqual([]);
@@ -79,7 +82,7 @@ describe("build entries", () => {
   });
 
   it("keeps runtime entries free of build-only conditions", () => {
-    for (const entry of [".", "./react", "./tanstack-start/server"]) {
+    for (const entry of [".", "./react", "./tanstack-start/server", "./tanstack-start/markdown", "./tanstack-start/react", "./tanstack-start/prerender-worker"]) {
       expect(Object.keys(manifest.exports[entry] ?? {})).toEqual(["types", "import"]);
     }
   });

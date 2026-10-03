@@ -16,7 +16,9 @@ describe("page heads", () => {
     const layout = node("/layout"); layout.kind = "layout";
     const pages = graph([node("/page"), node("/docs"), node("/docs/api"), node("/captured"), node("/blog/$slug"), hidden, redirect, layout]);
     expect(pageHeads(pages, { exclude: ["/docs", "/docs/**", "/captured"] })).toEqual([{ path: "/page", title: "Title", description: "Description" }]);
-    expect(selectPageHeadNodes(pages, { indexable: false })).toHaveLength(7);
+    expect(selectPageHeadNodes(pages, { indexable: false }).map((page) => page.path)).toEqual([
+      "/page", "/docs", "/docs/api", "/captured", "/hidden", "/redirect",
+    ]);
     expect(pageHeads(graph([node("/docs")]))).toHaveLength(1);
   });
   it.each(["title", "description"] as const)("names the page missing %s and releases the loader", async (field) => {

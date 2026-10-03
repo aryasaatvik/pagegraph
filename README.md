@@ -80,16 +80,134 @@ audience-specific text; markdown excludes human-only content. `messageText` extr
 inline markdown for head metadata. The root entry also provides `hashDocument`,
 `createMarkdownLock`, and pure `llmsMarkdown`/`llmsSection`/`appendLlmsSection` string builders.
 
+## Rendered markdown with TanStack Start
+
+Declare rendered pages on the route that owns `DocumentProvider`. Collection instances inherit
+these fields from their parameter route; the parameter template itself is never captured.
+
+```tsx
+import { createFileRoute } from "@tanstack/react-router";
+import { DocumentProvider, Section, T, Title } from "pagegraph/react";
+import { Link } from "pagegraph/tanstack-start/react";
+
+export const Route = createFileRoute("/pricing")({
+  staticData: {
+    seo: { kind: "page", head: { title: "Pricing", description: "Plans for your team." } },
+    markdown: "rendered",
+    llms: "Product",
+  },
+  head: () => ({ meta: [{ title: "Pricing" }, { name: "description", content: "Plans for your team." }] }),
+  component: () => (
+    <DocumentProvider>
+      <Section kind="prose" id="plans">
+        <h1><Title>Plans for your team</Title></h1>
+        <Link to="/"><T>Back home</T></Link>
+      </Section>
+    </DocumentProvider>
+  ),
+});
+```
+
+`markdown: "source"` identifies pages whose Markdown is supplied by the application; pagegraph
+captures only `"rendered"` pages. `llms` sets an optional llms.txt group. Use the capture-aware
+`Link` for authored links: it uses TanStack's ordinary Link outside a capture and records resolved
+anchor destinations during capture. The plugin adds `source=` locations to authored JSX imported
+from `pagegraph/react`. In development, `DocumentProvider` rejects a current route lacking
+`staticData.markdown: "rendered"`.
+
+Configure the plugin and pass its fixed capture page to Start:
+
+```ts
+import { pagegraph } from "pagegraph/tanstack-start";
+
+const graph = pagegraph({
+  origin: "https://preview.example.com", // this deployment's SEO origin
+  collections: "src/collections.ts",
+  markdown: {
+    origin: "https://example.com", // canonical document and twin links
+    serverEntry: "dist/server/index.js", // default; relative to the Vite root
+  },
+  facts: "src/facts.ts", // exports `facts`; evaluated in the pagegraph environment
+});
+
+// In your Vite plugins:
+// tanstackStart({
+//   prerender: { enabled: true, autoStaticPathsDiscovery: false, crawlLinks: false, failOnError: true },
+//   pages: [...graph.prerenderPages],
+// }), graph
+```
+
+For Cloudflare, wire the non-deployed prerender Worker to the compiled Start server. Add this to
+`cloudflare()` alongside the production Worker's configuration:
+
+```ts
+experimental: {
+  prerenderWorker: {
+    config: {
+      name: "app-markdown-prerender",
+      main: "pagegraph/tanstack-start/prerender-worker",
+      compatibility_date: "2026-09-20",
+      compatibility_flags: ["nodejs_compat"],
+      vars: { TSS_PRERENDERING: "true" },
+      assets: { binding: "ASSETS", run_worker_first: true },
+    },
+  },
+},
+```
+
+Call the capture adapter before your normal Start handler, forwarding the same request options:
+
+```ts
+import handler from "@tanstack/react-start/server-entry";
+import { markdownRequest } from "pagegraph/tanstack-start/markdown";
+
+export default {
+  async fetch(request: Request) {
+    return await markdownRequest(request) ?? handler.fetch(request);
+  },
+};
+```
+
+Only dev and the prerender Worker capture documents. `GET` and `HEAD` on
+`/__pagegraph/markdown.json` capture all rendered pages; `/pricing.md` and
+`/pricing.document.json` capture one page in dev. Ordinary requests return `null`. In production,
+private capture paths return 404 and Markdown twins fall through to your static asset server.
+`markdownPagePaths()` exposes the concrete rendered page paths.
+
+After prerender, the plugin writes `dist/client/pricing.md` (`/` becomes `index.md`),
+`.pagegraph/documents/pricing.json`, and `.pagegraph/heads.json`, and removes the emitted private
+capture response. Stale valid documents at their derived paths are pruned; unrelated files are
+preserved. Ignore the private generated documents and heads in Git. Claims replay is reserved for
+a separate integration.
+
+Serve graph-derived llms.txt without rendering pages:
+
+```ts
+import { createFileRoute } from "@tanstack/react-router";
+import { llmsTxt } from "pagegraph/tanstack-start/server";
+
+export const Route = createFileRoute("/llms.txt")({
+  server: { handlers: { GET: llmsTxt({ sections: ["## Docs\n\nRead our documentation."] }) } },
+});
+```
+
+`llmsSection()` returns the generated section for custom composition. It includes rendered twins
+and explicitly grouped pages, using graph titles and descriptions and `markdown.origin`.
+
 ## What runs where
 
-Every entry belongs to one place. Runtime entries are safe in a Worker, an SSR server, or a
-browser; build entries load your app through Vite, parse routes natively, or drive Node I/O.
+Every entry belongs to one place. Runtime entries use portable graph and document code with
+the framework peers listed below; the capture adapter runs on a Start server. Build entries
+load your app through Vite, parse routes natively, or drive Node I/O.
 
 | Entry              | Runs in                       | Exports                                                                                                   | Peers                             |
 | ------------------ | ----------------------------- | --------------------------------------------------------------------------------------------------------- | --------------------------------- |
 | `pagegraph`        | runtime (Worker, SSR, browser) | `buildSeoGraph`, `contentCollection`, `renderSitemap`, `renderRobots`, `pageHeads`, `graphToJson`/`graphFromJson`, checks, `inspectHtml`, document types, facts, markdown and locks | —                                 |
 | `pagegraph/react`  | runtime                       | `createSeo` → `seo.head`, `seoHead`, `Breadcrumbs`, JSON-LD generators, authored page primitives                                    | `react`, `@tanstack/react-router` |
-| `pagegraph/tanstack-start/server` | runtime (Start server routes) | `robotsTxt`, `sitemapXml`, `seoGraph`, `seoSite`                                           | the `pagegraph()` plugin          |
+| `pagegraph/tanstack-start/server` | runtime (Start server routes) | `robotsTxt`, `sitemapXml`, `llmsTxt`, `llmsSection`, `seoGraph`, `seoSite`                                           | the `pagegraph()` plugin          |
+| `pagegraph/tanstack-start/markdown` | runtime (Start server) | `markdownRequest`, `markdownPagePaths` | `react`, `react-dom`, `@tanstack/react-start`, `@tanstack/react-router` |
+| `pagegraph/tanstack-start/react` | runtime | capture-aware `Link` | `react`, `@tanstack/react-router` |
+| `pagegraph/tanstack-start/prerender-worker` | non-deployed prerender Worker | compiled Start server | the `pagegraph()` plugin |
 | `pagegraph/tanstack-start` | build (`vite.config.ts`, `seo.config.ts`) | `pagegraph()` Vite plugin, `tanstackStartGraph`, `evaluateAppGraph`                        | `vite`, `@tanstack/router-generator` |
 | `pagegraph/vite`   | build (`vite.config.ts`)      | `seoRouteConfig` coverage gate                                                                            | `vite`, `@tanstack/router-generator` |
 | `pagegraph/config` | build (`seo.config.ts`, CLI)  | `defineSeoConfig`, `viteGraphLoader`, `loadPageHeads`                                                     | `vite`                            |

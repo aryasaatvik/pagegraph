@@ -11,7 +11,7 @@ import type {
   SectionItem,
 } from "../markdown/document";
 import { documentLinkHref, inlineMarkdown, plainText } from "../markdown/inline";
-import { hashDocument } from "../markdown/document";
+import { RESERVED_SECTION_ID_PREFIX, hashDocument } from "../markdown/document";
 import { resolveFact } from "../markdown/facts";
 import type { Facts } from "../markdown/facts";
 import { contentHash } from "../markdown/hash";
@@ -405,6 +405,8 @@ function SectionRoot({
     audience: context.audience,
   };
   const marker = record(context, key, () => {
+    if (id.startsWith(RESERVED_SECTION_ID_PREFIX))
+      throw new Error(`Document Section id "${id}" on ${context.collector.path} uses reserved prefix "${RESERVED_SECTION_ID_PREFIX}"`);
     if (context.collector.sections.some((entry) => entry.id === id))
       throw new Error(`Duplicate document Section id "${id}" on ${context.collector.path}`);
     context.collector.sectionCount++;

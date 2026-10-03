@@ -7,11 +7,14 @@
 
 import { relative, resolve } from "node:path";
 
+import type { ClaimsOptions } from "../decide/families/claims";
+
 import type { RouteNode } from "@tanstack/router-generator";
 
 import { globToRegExp } from "../core/checks";
 import { buildSeoGraph, type SeoCollection, type SeoGraph, type SeoRouteNode } from "../core/graph";
 import type { RobotsConfig } from "../core/projections";
+import type { SiteRuntime } from "../config/vite-graph-loader";
 import { deriveRouteConfig, resolveOptions, type SeoRouteConfigOptions } from "../vite/route-config";
 import { scanRoutes, type ScannedRoutes } from "./routes";
 import { decodeFacts, type Facts } from "../markdown/facts";
@@ -27,12 +30,7 @@ export interface AppGraph {
   readonly facts: Facts | undefined;
 }
 
-/** Site identity and robots policy, baked into the runtime module per build. */
-export interface SiteRuntime {
-  readonly origin: string;
-  readonly indexable: boolean;
-  readonly robots: RobotsPolicy;
-}
+export type { SiteRuntime };
 
 export interface PagegraphOptions {
   /** This build's canonical origin, no trailing slash, e.g. `https://example.com`. */
@@ -60,6 +58,8 @@ export interface PagegraphOptions {
   readonly collections?: string | undefined;
   /** Canonical origin for rendered documents; serverEntry is relative to the Vite root. */
   readonly markdown?: { readonly origin: string; readonly serverEntry?: string | undefined } | undefined;
+  /** Committed claims answers gate the rendered documents and graph heads at build time. */
+  readonly claims?: ClaimsOptions | undefined;
   /** Root-relative module exporting the code-owned document facts. */
   readonly facts?: string | undefined;
   /**

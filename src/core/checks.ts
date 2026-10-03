@@ -37,7 +37,7 @@ export interface Violation {
  * A contextual-link coverage rule: every sitemap-eligible page matching the
  * `path` glob must have at least `minInbound` incoming contextual links. Unlike
  * the static rules, these come from project policy (a CLI flag or
- * `seo.config.ts`), because "which pages are money pages" is app knowledge.
+ * `pagegraph.config.ts`), because "which pages are money pages" is app knowledge.
  *
  * The same rule shape is evaluated twice: `checkCoverage` counts declared
  * `related` edges, and `checkRenderedCoverage` counts the contextual anchors a
@@ -505,7 +505,7 @@ export function checkCoverage(
  * distinction the declared pass draws by counting `related` edges alone.
  *
  * The target universe is the declared graph's sitemap-eligible pages: the globs
- * in `seo.config.ts` are written against declared paths, and the crawl is what
+ * in `pagegraph.config.ts` are written against declared paths, and the crawl is what
  * supplies the served edges. Pass the crawl's `internalEdges` (each edge carries
  * its `region`).
  */

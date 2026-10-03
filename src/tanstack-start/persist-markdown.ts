@@ -1,7 +1,11 @@
 import { mkdir, readdir, readFile, unlink, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 
+import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
+
+import { replayClaims, type ClaimsOptions } from "../claims";
+import type { Facts } from "../markdown/facts";
 
 import type { PageDocument } from "../markdown/document";
 import { hashDocument } from "../markdown/document";
@@ -49,7 +53,9 @@ async function pruneDocuments(directory: string, paths: ReadonlySet<string>): Pr
 }
 
 /** Documents, twins, and graph heads are persisted before prerender onSuccess returns. */
-export async function persistMarkdownCapture(html: string, root: string, clientOutDir: string): Promise<void> {
+export async function persistMarkdownCapture(
+  html: string, root: string, clientOutDir: string, claims?: ClaimsOptions, facts: Facts = {},
+): Promise<void> {
   const bundle = Schema.decodeUnknownSync(Schema.fromJsonString(CaptureBundle))(html, { onExcessProperty: "error" });
   const origin = new URL(bundle.origin);
   if ((origin.protocol !== "https:" && origin.protocol !== "http:") || origin.origin !== bundle.origin)
@@ -78,4 +84,6 @@ export async function persistMarkdownCapture(html: string, root: string, clientO
   }
   await pruneDocuments(directory, active);
   await writeFile(resolve(root, ".pagegraph/heads.json"), `${JSON.stringify(bundle.heads)}\n`);
+  if (claims !== undefined)
+    await Effect.runPromise(replayClaims(root, bundle.documents, bundle.heads, facts, claims));
 }

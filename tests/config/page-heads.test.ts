@@ -7,6 +7,7 @@ import { pageHeads, selectPageHeadNodes } from "../../src/core";
 import type { SeoGraph, SeoNode } from "../../src/core/graph";
 
 const node = (path: string): SeoNode => ({ path, kind: "page", source: "route", policy: { kind: "page", sitemap: false }, head: { title: "Title", description: "Description" } });
+const site = { origin: "https://example.com", indexable: true, robots: { disallow: [] } };
 const graph = (nodes: Array<SeoNode>): SeoGraph => ({ nodes: new Map(nodes.map((node) => [node.path, node])), edges: [] });
 
 describe("page heads", () => {
@@ -24,22 +25,22 @@ describe("page heads", () => {
   it.each(["title", "description"] as const)("names the page missing %s and releases the loader", async (field) => {
     const page = node("/broken"); page.head = { ...page.head!, [field]: " " };
     const dispose = vi.fn(async () => {});
-    await expect(loadPageHeads(async () => ({ graph: graph([page]), dispose }))).rejects.toThrow(`/broken: missing ${field}`);
+    await expect(loadPageHeads(async () => ({ graph: graph([page]), site, dispose }))).rejects.toThrow(`/broken: missing ${field}`);
     expect(dispose).toHaveBeenCalledOnce();
     expect(() => pageHeads(graph([{ ...page, head: undefined }]))).toThrow("/broken: missing title");
   });
   it("releases a successful load", async () => {
     const dispose = vi.fn(async () => {});
-    expect(await loadPageHeads(async () => ({ graph: graph([node("/page")]), dispose }))).toHaveLength(1);
+    expect(await loadPageHeads(async () => ({ graph: graph([node("/page")]), site, dispose }))).toHaveLength(1);
     expect(dispose).toHaveBeenCalledOnce();
   });
   it("passes JSON input to a real Vite entry and preserves zero-argument exports", async () => {
     const root = mkdtempSync(join(tmpdir(), "pagegraph-input-"));
     writeFileSync(join(root, "graph.js"), `export function loadSeoGraph(input) { return { nodes: new Map([[input?.path ?? '/default', { path: input?.path ?? '/default', kind: 'page', source: 'route', policy: { kind: 'page', sitemap: false }, head: {title: 'Title', description: 'Description'} }]]), edges: [] }; }`);
     try {
-      const loader = viteGraphLoader<{ path: string }>({ root, entry: "/graph.js" });
+      const loader = viteGraphLoader<{ path: string }>({ root, site, entry: "/graph.js" });
       expect(await loadPageHeads(() => loader({ path: "/input" }))).toEqual([{ path: "/input", title: "Title", description: "Description" }]);
-      expect((await loadPageHeads(viteGraphLoader({ root, entry: "/graph.js" })))[0]?.path).toBe("/default");
+      expect((await loadPageHeads(viteGraphLoader({ root, site, entry: "/graph.js" })))[0]?.path).toBe("/default");
     } finally { rmSync(root, { recursive: true, force: true }); }
   });
 });

@@ -23,18 +23,26 @@
 
 import { createServer, type InlineConfig, type PluginOption } from "vite";
 
+import type { PagegraphOptions } from "../tanstack-start/graph";
+import type { Facts } from "../markdown/facts";
+
 import type { SeoGraph } from "../core/graph";
 import type { RobotsConfig } from "../core/projections";
+
+/** Identity and robots policy produced by the graph's host. */
+export interface SiteRuntime {
+  readonly origin: string;
+  readonly indexable: boolean;
+  readonly robots: Pick<RobotsConfig, "disallow" | "contentSignal" | "directives">;
+}
 
 /** A graph, plus the release of whatever producing it acquired. */
 export interface LoadedSeoGraph {
   readonly graph: SeoGraph;
-  /**
-   * The robots policy the app serves, when the loader knows it (the TanStack
-   * Start loader reads it from the `pagegraph()` plugin). `pagegraph robots`
-   * uses it instead of `seo.config.ts` fields.
-   */
-  readonly robots?: Pick<RobotsConfig, "disallow" | "contentSignal" | "directives"> | undefined;
+  /** The site's identity and policy belong to the graph-producing host. */
+  readonly site: SiteRuntime;
+  /** Settings and artifacts from the same resolved app that produced the graph. */
+  readonly pagegraph?: { readonly root: string; readonly options: PagegraphOptions; readonly facts: Facts } | undefined;
   /** Called once the command is done with the graph, on success or failure. */
   readonly dispose: () => Promise<void>;
 }
@@ -47,13 +55,22 @@ export interface LoadedSeoGraph {
 /** JSON input that can be supplied by config files to an app graph export. */
 export type GraphLoaderInput = null | boolean | number | string | ReadonlyArray<GraphLoaderInput> | { readonly [key: string]: GraphLoaderInput };
 
-export type SeoGraphLoader<Input extends GraphLoaderInput | void = void> = (input: Input) => Promise<LoadedSeoGraph>;
+/** Per-invocation evaluation settings, separate from the graph module's JSON input. */
+export interface GraphLoaderEnvironment {
+  readonly command?: "serve" | "build" | undefined;
+  readonly mode?: string | undefined;
+}
+
+export type SeoGraphLoader<Input extends GraphLoaderInput | void = void> =
+  (input: Input, environment?: GraphLoaderEnvironment) => Promise<LoadedSeoGraph>;
 
 export interface ViteGraphLoaderOptions {
   /** The app's Vite root — the directory its aliases and plugins resolve against. */
   readonly root: string;
   /** Module exporting the graph loader, root-relative (e.g. `/lib/seo/graph.ts`). */
   readonly entry: string;
+  /** Site identity and robots policy for this graph. */
+  readonly site: SiteRuntime;
   /** Named export on `entry` returning `Promise<SeoGraph>`. Defaults to `loadSeoGraph`. */
   readonly exportName?: string | undefined;
   /** Vite plugins the app's module graph needs — a content/MDX plugin, say. */
@@ -120,10 +137,10 @@ const seedEnv = (env: Readonly<Record<string, string>>): void => {
   }
 };
 
-const inlineConfigFor = (options: ViteGraphLoaderOptions): InlineConfig => ({
+const inlineConfigFor = (options: ViteGraphLoaderOptions, environment?: GraphLoaderEnvironment): InlineConfig => ({
   configFile: false,
   root: options.root,
-  mode: "production",
+  mode: environment?.mode ?? "production",
   logLevel: "error",
   appType: "custom",
   clearScreen: false,
@@ -141,11 +158,11 @@ const inlineConfigFor = (options: ViteGraphLoaderOptions): InlineConfig => ({
  */
 export const viteGraphLoader =
   <Input extends GraphLoaderInput | void = void>(options: ViteGraphLoaderOptions): SeoGraphLoader<Input> =>
-  async (input) => {
+  async (input, environment) => {
     const exportName = options.exportName ?? "loadSeoGraph";
     if (options.env) seedEnv(options.env);
 
-    const server = await withCleanStdout(() => createServer(inlineConfigFor(options))).catch(
+    const server = await withCleanStdout(() => createServer(inlineConfigFor(options, environment))).catch(
       (cause: unknown) => {
         throw new Error(`Could not start the Vite loader: ${messageOf(cause)}`);
       },
@@ -169,5 +186,5 @@ export const viteGraphLoader =
       throw new Error(`Could not build the SEO graph: ${messageOf(cause)}`);
     });
 
-    return { graph, dispose: () => withCleanStdout(() => server.close()) };
+    return { graph, site: options.site, dispose: () => withCleanStdout(() => server.close()) };
   };

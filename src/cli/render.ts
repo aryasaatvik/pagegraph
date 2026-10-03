@@ -266,7 +266,7 @@ export interface LinksCrawlFailure {
 /**
  * `pagegraph links verify` report: what a crawler actually receives, computed
  * from the served HTML, plus the gap against the declared graph when the app
- * has a `seo.config.ts`. This is the same object `--json` emits.
+ * has a `pagegraph.config.ts`. This is the same object `--json` emits.
  */
 export interface LinksVerifyReport {
   readonly kind: "links-verify";
@@ -312,7 +312,7 @@ export interface LinksVerifyReport {
 }
 
 /**
- * The outcome of asserting `seo.config.ts` coverage against the rendered graph:
+ * The outcome of asserting `pagegraph.config.ts` coverage against the rendered graph:
  * every rule that matched a sitemap-eligible declared page, evaluated over the
  * anchors a crawler actually received.
  */
@@ -347,7 +347,7 @@ export const renderLinksReport = (report: LinksVerifyReport): string => {
 
   if (report.declared === null) {
     if (report.warnings.length === 0) {
-      lines.push("", "No seo.config.ts declared graph — rendered-only report.");
+      lines.push("", "No pagegraph.config.ts declared graph — rendered-only report.");
     }
   } else {
     lines.push(

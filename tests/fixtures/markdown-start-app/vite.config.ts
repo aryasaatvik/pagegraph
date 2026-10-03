@@ -4,11 +4,14 @@ import react from "@vitejs/plugin-react";
 import { pagegraph } from "pagegraph/tanstack-start";
 import { defineConfig } from "vite";
 
+import { claims } from "./claims";
+
 const graph = pagegraph({
   origin: "https://example.com",
   markdown: { origin: "https://example.com" },
   collections: "src/collections.ts",
   facts: "src/facts.ts",
+  ...(process.env.PAGEGRAPH_FIXTURE_CLAIMS === "1" ? { claims } : {}),
 });
 
 export default defineConfig({

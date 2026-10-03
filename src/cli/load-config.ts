@@ -2,7 +2,7 @@
  * Config discovery and graph acquisition for the `pagegraph` CLI.
  *
  * The CLI knows how to *view* a graph; the host knows how to *produce* one. That
- * seam is a `seo.config.ts` at the app root, found by walking up from the working
+ * seam is a `pagegraph.config.ts` at the app root, found by walking up from the working
  * directory — so `bun run pagegraph check` works from anywhere inside the app.
  *
  * The config is a TypeScript module the CLI imports directly, which is one of the
@@ -18,17 +18,18 @@ import * as Effect from "effect/Effect";
 import * as Predicate from "effect/Predicate";
 import type * as Scope from "effect/Scope";
 
-import type { LoadedSeoGraph, SeoCliConfig } from "../config";
+import type { GraphLoaderEnvironment, LoadedSeoGraph, SeoCliConfig } from "../config";
 import type { CoverageRule } from "../core/checks";
 import type { SeoGraph } from "../core/graph";
 import { SeoCliError } from "./output";
 
-const CONFIG_FILENAMES = ["seo.config.ts", "seo.config.js", "seo.config.mjs"] as const;
+const CONFIG_FILENAMES = ["pagegraph.config.ts", "pagegraph.config.js", "pagegraph.config.mjs"] as const;
+const LEGACY_CONFIG_FILENAMES = ["seo.config.ts", "seo.config.js", "seo.config.mjs"] as const;
 
 const messageOf = (cause: unknown): string =>
   cause instanceof Error ? cause.message : String(cause);
 
-/** First `seo.config.*` at or above `from`, or undefined at the filesystem root. */
+/** First `pagegraph.config.*` at or above `from`, or undefined at the filesystem root. */
 const findConfigFile = (from: string): string | undefined => {
   let directory = resolve(from);
   for (;;) {
@@ -40,6 +41,27 @@ const findConfigFile = (from: string): string | undefined => {
     if (parent === directory) return undefined;
     directory = parent;
   }
+};
+
+/** Find an old config only to provide the explicit breaking-rename error. */
+const findLegacyConfigFile = (from: string): string | undefined => {
+  let directory = resolve(from);
+  for (;;) {
+    for (const filename of LEGACY_CONFIG_FILENAMES) {
+      const candidate = join(directory, filename);
+      if (existsSync(candidate)) return candidate;
+    }
+    const parent = dirname(directory);
+    if (parent === directory) return undefined;
+    directory = parent;
+  }
+};
+
+const configNotFoundMessage = (cwd: string): string => {
+  if (findLegacyConfigFile(cwd) !== undefined) {
+    return "seo.config.ts was renamed to pagegraph.config.ts; rename the file";
+  }
+  return `No ${CONFIG_FILENAMES[0]} in ${cwd} or any parent directory. Create one that exports \`defineSeoConfig({ loadGraph })\` from "pagegraph/config".`;
 };
 
 const isStringArray = (value: unknown): value is ReadonlyArray<string> =>
@@ -100,19 +122,23 @@ const isWorkflowConfig = (value: unknown): boolean => {
   );
 };
 
+const CLI_CONFIG_FIELDS = new Set([
+  "loadGraph",
+  "transform",
+  "coverage",
+  "content",
+  "freshness",
+  "workflows",
+]);
+
 /**
- * `seo.config.ts` is the consumer's file and may be plain JS, so its types are
- * a suggestion, not a guarantee. Check every field the commands actually read —
- * an undefined `origin` would otherwise surface as "undefined/pricing" in a
- * rendered sitemap rather than as an error here.
+ * `pagegraph.config.ts` is the consumer's file and may be plain JS, so its types are
+ * a suggestion, not a guarantee. Check every field the CLI consumes at this boundary.
  */
 const isSeoCliConfig = (value: unknown): value is SeoCliConfig =>
   Predicate.isObject(value) &&
+  Object.keys(value).every((key) => CLI_CONFIG_FIELDS.has(key)) &&
   Predicate.isFunction(value["loadGraph"]) &&
-  Predicate.isString(value["origin"]) &&
-  (value["disallow"] === undefined || isStringArray(value["disallow"])) &&
-  (value["contentSignal"] === undefined || Predicate.isString(value["contentSignal"])) &&
-  (value["directives"] === undefined || isStringArray(value["directives"])) &&
   (value["transform"] === undefined || Predicate.isFunction(value["transform"])) &&
   (value["coverage"] === undefined || isCoverageRules(value["coverage"])) &&
   (value["content"] === undefined || isContentPolicy(value["content"])) &&
@@ -131,24 +157,27 @@ const loadConfigFile = (configPath: string): Effect.Effect<SeoCliConfig, SeoCliE
     });
 
     if (!isSeoCliConfig(module.default)) {
+      const duplicatedField = Predicate.isObject(module.default)
+        ? Object.keys(module.default).find((key) => !CLI_CONFIG_FIELDS.has(key))
+        : undefined;
       return yield* new SeoCliError({
-        message: `${configPath} must default-export defineSeoConfig({ origin, loadGraph }).`,
+        message: duplicatedField === undefined
+          ? `${configPath} must default-export defineSeoConfig({ loadGraph }).`
+          : `${configPath} contains unsupported field "${duplicatedField}"; pagegraph.config.ts accepts only CLI fields, while site identity and plugin options belong to the graph loader and pagegraph() in vite.config.ts.`,
       });
     }
     return module.default;
   });
 
 /**
- * Load the app's `seo.config.ts`. Cheap to run more than once per process: the
+ * Load the app's `pagegraph.config.ts`. Cheap to run more than once per process: the
  * ESM cache evaluates the config module exactly once.
  */
 export const loadSeoConfig: Effect.Effect<SeoCliConfig, SeoCliError> = Effect.gen(function* () {
   const cwd = process.cwd();
   const configPath = findConfigFile(cwd);
   if (configPath === undefined) {
-    return yield* new SeoCliError({
-      message: `No ${CONFIG_FILENAMES[0]} in ${cwd} or any parent directory. Create one that exports \`defineSeoConfig({ origin, loadGraph })\` from "pagegraph/config".`,
-    });
+    return yield* new SeoCliError({ message: configNotFoundMessage(cwd) });
   }
   return yield* loadConfigFile(configPath);
 });
@@ -165,9 +194,7 @@ export const loadSeoProjectConfig: Effect.Effect<SeoProjectConfig, SeoCliError> 
     const cwd = process.cwd();
     const configPath = findConfigFile(cwd);
     if (configPath === undefined) {
-      return yield* new SeoCliError({
-        message: `No ${CONFIG_FILENAMES[0]} in ${cwd} or any parent directory.`,
-      });
+      return yield* new SeoCliError({ message: configNotFoundMessage(cwd) });
     }
     return { config: yield* loadConfigFile(configPath), configPath, root: dirname(configPath) };
   },
@@ -182,7 +209,12 @@ export const loadSeoProjectConfig: Effect.Effect<SeoProjectConfig, SeoCliError> 
 export const loadSeoConfigOptional: Effect.Effect<SeoCliConfig | undefined, SeoCliError> =
   Effect.gen(function* () {
     const configPath = findConfigFile(process.cwd());
-    if (configPath === undefined) return undefined;
+    if (configPath === undefined) {
+      if (findLegacyConfigFile(process.cwd()) !== undefined) {
+        return yield* new SeoCliError({ message: configNotFoundMessage(process.cwd()) });
+      }
+      return undefined;
+    }
     return yield* loadConfigFile(configPath);
   });
 
@@ -193,13 +225,35 @@ export const loadSeoConfigOptional: Effect.Effect<SeoCliConfig | undefined, SeoC
  */
 export const acquireLoadedGraph = (
   config: SeoCliConfig,
+  environment?: GraphLoaderEnvironment,
 ): Effect.Effect<LoadedSeoGraph, SeoCliError, Scope.Scope> =>
   Effect.gen(function* () {
     yield* Effect.logDebug("Loading the SEO graph…");
 
+    const load = async (): Promise<LoadedSeoGraph> => {
+      const loaded: unknown = await config.loadGraph(undefined, environment);
+      if (!isLoadedSeoGraph(loaded)) {
+        let disposeFailure: unknown;
+        if (Predicate.isObject(loaded) && Predicate.isFunction(loaded["dispose"])) {
+          try {
+            await loaded["dispose"]();
+          } catch (cause) {
+            disposeFailure = cause;
+          }
+        }
+        const contractError = "The graph loader must return { graph, site: { origin, indexable, robots }, dispose }.";
+        throw new Error(
+          disposeFailure === undefined
+            ? contractError
+            : `${contractError} Releasing the invalid result also failed: ${messageOf(disposeFailure)}`,
+        );
+      }
+      return loaded;
+    };
+
     const loaded = yield* Effect.acquireRelease(
       Effect.tryPromise({
-        try: () => config.loadGraph(),
+        try: load,
         catch: (cause) => new SeoCliError({ message: messageOf(cause) }),
       }),
       // The graph is already in hand by release time, so a failed dispose must
@@ -218,6 +272,38 @@ export const acquireLoadedGraph = (
     );
     return loaded;
   });
+
+const isLoadedSeoGraph = (value: unknown): value is LoadedSeoGraph => {
+  if (
+    !Predicate.isObject(value) ||
+    !Predicate.isObject(value["graph"]) ||
+    !(value["graph"]["nodes"] instanceof Map) ||
+    !Array.isArray(value["graph"]["edges"]) ||
+    !Predicate.isFunction(value["dispose"]) ||
+    !Predicate.isObject(value["site"])
+  ) return false;
+  const site = value["site"];
+  const robots = site["robots"];
+  let canonicalOrigin = false;
+  if (Predicate.isString(site["origin"])) {
+    try {
+      const url = new URL(site["origin"]);
+      canonicalOrigin =
+        (url.protocol === "http:" || url.protocol === "https:") &&
+        url.origin === site["origin"];
+    } catch {
+      canonicalOrigin = false;
+    }
+  }
+  return (
+    canonicalOrigin &&
+    Predicate.isBoolean(site["indexable"]) &&
+    Predicate.isObject(robots) &&
+    isStringArray(robots["disallow"]) &&
+    (robots["contentSignal"] === undefined || Predicate.isString(robots["contentSignal"])) &&
+    (robots["directives"] === undefined || isStringArray(robots["directives"]))
+  );
+};
 
 /** {@link acquireLoadedGraph}, for commands that need only the graph. */
 export const acquireGraph = (

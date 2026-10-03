@@ -41,6 +41,14 @@ const dirtyGitRepository = (): string => {
 };
 
 describe("pagegraph init", () => {
+  it("points to pagegraph.config.ts for graph acquisition settings", () => {
+    const root = mkdtempSync(join(tmpdir(), "pagegraph-init-help-"));
+    directories.push(root);
+    const help = run(root, ["--help"]);
+    expect(help.status).toBe(0);
+    expect(help.stdout).toContain("pagegraph.config.ts");
+  });
+
   it("previews and then creates a preset without overwriting it", () => {
     const root = mkdtempSync(join(tmpdir(), "pagegraph-init-"));
     directories.push(root);

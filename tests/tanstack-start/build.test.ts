@@ -3,9 +3,15 @@ import { cp, mkdir, mkdtemp, readFile, realpath, rm, symlink } from "node:fs/pro
 import { basename, join, resolve } from "node:path";
 import { promisify } from "node:util";
 
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import * as Effect from "effect/Effect";
+import * as Layer from "effect/Layer";
+import { Decision, DecisionModel } from "effect/ai";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
+import { claimsInput, replayClaims } from "../../src/claims";
 import type { PageDocument } from "../../src/markdown/document";
+import { readMarkdownCapture } from "../../src/markdown/documents";
+import { fact } from "../../src/markdown/facts";
 
 const exec = promisify(execFile);
 const packageRoot = resolve(import.meta.dirname, "../..");
@@ -14,6 +20,40 @@ let root: string;
 let production: ChildProcess | undefined;
 let origin: string;
 let node: string;
+
+const claims = {
+  model: "fixture-claims",
+  rules: Decision.make({
+    input: claimsInput,
+    decisions: {
+      unsupportedPromise: Decision.probability({ instructions: "Does the section promise an unsupported capability?" }),
+    },
+  }),
+};
+
+async function checkFixtureClaims(directory: string, probability?: number) {
+  const args = probability === undefined ? [] : ["--preload", join(directory, "stub-claims-fetch.ts")];
+  return exec("bun", [...args, join(packageRoot, "src/cli/bin.ts"), "claims", "check", "--json",
+    ...(probability === undefined ? [] : ["--refresh"])], {
+    cwd: directory,
+    env: { ...process.env, NODE_ENV: "production", PAGEGRAPH_FIXTURE_CLAIMS: "1",
+      PAGEGRAPH_FIXTURE_PROBABILITY: String(probability), TYPESAFE_API_KEY: probability === undefined ? undefined : "fixture-key" },
+    timeout: 30_000,
+  });
+}
+
+async function buildFixture(directory: string, claimsEnabled = false): Promise<void> {
+  await exec(node, [join(packageRoot, "node_modules/vite/bin/vite.js"), "build"], {
+    cwd: directory,
+    env: { ...process.env, NODE_ENV: "production", CI: "1", PAGEGRAPH_FIXTURE_CLAIMS: claimsEnabled ? "1" : undefined },
+    maxBuffer: 5_000_000,
+    timeout: 90_000,
+  }).catch((cause: unknown) => {
+    if (cause instanceof Error && "stdout" in cause && "stderr" in cause)
+      throw new Error(`${cause.message}\n${String(cause.stdout)}\n${String(cause.stderr)}`, { cause });
+    throw cause;
+  });
+}
 
 async function nodeExecutable(): Promise<string> {
   if (!("bun" in process.versions)) return process.execPath;
@@ -78,16 +118,7 @@ beforeAll(async () => {
   await symlink(packageRoot, join(root, "node_modules/pagegraph"), "dir");
   // Cloudflare's prerender preview runs its HTTP bridge in Node; Bun's bridge stalls.
   node = await nodeExecutable();
-  await exec(node, [join(packageRoot, "node_modules/vite/bin/vite.js"), "build"], {
-    cwd: root,
-    env: { ...process.env, NODE_ENV: "production", CI: "1" },
-    maxBuffer: 5_000_000,
-    timeout: 90_000,
-  }).catch((cause: unknown) => {
-    if (cause instanceof Error && "stdout" in cause && "stderr" in cause)
-      throw new Error(`${cause.message}\n${String(cause.stdout)}\n${String(cause.stderr)}`, { cause });
-    throw cause;
-  });
+  await buildFixture(root);
   const server = await startFixture("preview");
   production = server.process;
   origin = server.origin;
@@ -99,6 +130,43 @@ afterAll(async () => {
 });
 
 describe("rendered markdown in a real Start Worker build", () => {
+  it("requires committed passing claims answers during prerender without asking a model", async () => {
+    const claimsRoot = await mkdtemp(join(packageRoot, "tests/.claims-start-"));
+    try {
+      await cp(fixture, claimsRoot, {
+        recursive: true,
+        filter: (file) => !["dist", ".wrangler", "node_modules", "routeTree.gen.ts"].includes(basename(file)),
+      });
+      await mkdir(join(claimsRoot, "node_modules"));
+      await symlink(packageRoot, join(claimsRoot, "node_modules/pagegraph"), "dir");
+
+      await expect(buildFixture(claimsRoot, true)).rejects.toThrow(/\/.*hero.*unsupportedPromise[\s\S]*pagegraph claims check/);
+
+      const { documents, heads } = await readMarkdownCapture(claimsRoot, "https://example.com");
+      const facts = { emails: fact.number(3000), runtime: fact.text("workerd") };
+      const decide = vi.fn(() => Effect.die(new Error("Prerender replay must not ask the model")));
+      const neverAsk = Layer.effect(DecisionModel.DecisionModel, DecisionModel.make({ decide }));
+      await expect(Effect.runPromise(replayClaims(claimsRoot, documents, heads, facts, claims)
+        .pipe(Effect.provide(neverAsk)))).rejects.toThrow("pagegraph claims check");
+      await expect(checkFixtureClaims(claimsRoot, 0.95)).rejects.toMatchObject({ code: 1 });
+      await expect(Effect.runPromise(replayClaims(claimsRoot, documents, heads, facts, claims)
+        .pipe(Effect.provide(neverAsk)))).rejects.toThrow("unsupportedPromise");
+      await expect(buildFixture(claimsRoot, true)).rejects.toThrow(/\/.*hero.*unsupportedPromise[\s\S]*pagegraph claims check/);
+
+      const checked = await checkFixtureClaims(claimsRoot, 0.05);
+      expect(JSON.parse(checked.stdout)).toMatchObject({ pages: documents.length + heads.length, cached: 0, findings: [] });
+      expect(JSON.parse(checked.stdout).asked).toBeGreaterThan(0);
+      const replayed = await checkFixtureClaims(claimsRoot);
+      expect(JSON.parse(replayed.stdout)).toMatchObject({ asked: 0, cached: JSON.parse(checked.stdout).asked, findings: [] });
+      await expect(Effect.runPromise(replayClaims(claimsRoot, documents, heads, facts, claims)
+        .pipe(Effect.provide(neverAsk)))).resolves.toMatchObject({ asked: 0, findings: [] });
+      expect(decide).not.toHaveBeenCalled();
+      await expect(buildFixture(claimsRoot, true)).resolves.toBeUndefined();
+    } finally {
+      await rm(claimsRoot, { recursive: true, force: true });
+    }
+  }, 270_000);
+
   it("publishes rendered twins and keeps complete documents outside client assets", async () => {
     const twin = await readFile(join(root, "dist/client/index.md"), "utf8");
     expect(twin).toContain("# Email, in one call.");

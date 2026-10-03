@@ -88,7 +88,7 @@ export const auditCommand = Command.make("audit", {
   outputDir,
 }).pipe(
   Command.withDescription(
-    "Audit any website without a TanStack app or seo.config.ts",
+    "Audit any website without a TanStack app or pagegraph.config.ts",
   ),
   Command.withExamples([
     {

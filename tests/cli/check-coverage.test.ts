@@ -22,10 +22,9 @@ const config = (edges: string, coverage: string): string => `const node = (path)
 });
 
 export default {
-  origin: "https://example.com",
-  disallow: [],
   ${coverage}
   loadGraph: async () => ({
+    site: { origin: "https://example.com", indexable: true, robots: { disallow: [] } },
     graph: {
       nodes: new Map([
         ["/pricing", node("/pricing")],
@@ -43,7 +42,7 @@ const temporaryDirectories: Array<string> = [];
 const configDirectory = (contents: string): string => {
   const directory = mkdtempSync(join(tmpdir(), "pagegraph-check-"));
   temporaryDirectories.push(directory);
-  writeFileSync(join(directory, "seo.config.mjs"), contents);
+  writeFileSync(join(directory, "pagegraph.config.mjs"), contents);
   return directory;
 };
 

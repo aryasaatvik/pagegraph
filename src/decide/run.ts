@@ -7,8 +7,8 @@
  * `review`. `runDecisions` asks the model on a miss; `replayDecisions` answers
  * from a committed cache alone and fails on a miss.
  *
- * This module reaches Effect and the provider, so it is CLI-internal: the
- * library entries stay Effect-free and only the bundled `pagegraph` bin ships it.
+ * Build and CLI entries reach Effect and the provider through this module;
+ * runtime entries remain Effect-free and Node-free.
  */
 
 import * as Data from "effect/Data";

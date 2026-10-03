@@ -96,6 +96,13 @@
       "worker": "./dist/build-only/oxlint.js",
       "browser": "./dist/build-only/oxlint.js",
       "import": "./dist/oxlint.js"
+    },
+    "./claims": {
+      "types": "./dist/claims.d.ts",
+      "workerd": "./dist/build-only/claims.js",
+      "worker": "./dist/build-only/claims.js",
+      "browser": "./dist/build-only/claims.js",
+      "import": "./dist/claims.js"
     }
   },
   "publishConfig": {

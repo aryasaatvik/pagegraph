@@ -208,9 +208,10 @@ load your app through Vite, parse routes natively, or drive Node I/O.
 | `pagegraph/tanstack-start/markdown` | runtime (Start server) | `markdownRequest`, `markdownPagePaths` | `react`, `react-dom`, `@tanstack/react-start`, `@tanstack/react-router` |
 | `pagegraph/tanstack-start/react` | runtime | capture-aware `Link` | `react`, `@tanstack/react-router` |
 | `pagegraph/tanstack-start/prerender-worker` | non-deployed prerender Worker | compiled Start server | the `pagegraph()` plugin |
-| `pagegraph/tanstack-start` | build (`vite.config.ts`, `seo.config.ts`) | `pagegraph()` Vite plugin, `tanstackStartGraph`, `evaluateAppGraph`                        | `vite`, `@tanstack/router-generator` |
+| `pagegraph/tanstack-start` | build (`vite.config.ts`, `pagegraph.config.ts`) | `pagegraph()` Vite plugin, `tanstackStartGraph`, `evaluateAppGraph`                        | `vite`, `@tanstack/router-generator`, `effect` |
 | `pagegraph/vite`   | build (`vite.config.ts`)      | `seoRouteConfig` coverage gate                                                                            | `vite`, `@tanstack/router-generator` |
-| `pagegraph/config` | build (`seo.config.ts`, CLI)  | `defineSeoConfig`, `viteGraphLoader`, `loadPageHeads`                                                     | `vite`                            |
+| `pagegraph/config` | build (`pagegraph.config.ts`, CLI)  | `defineSeoConfig`, `viteGraphLoader`, `loadPageHeads`                                                     | `vite`                            |
+| `pagegraph/claims` | build / CLI (Node or Bun) | `claimsInput`, `claimsFamily`, document resolution, committed claims checks | `effect` |
 | `pagegraph/audit`  | build / CLI (Node or Bun)     | Audit services, scanner protocol, rules, and report schemas                                               | `effect`                          |
 | `pagegraph/oxlint` | build (oxlint)               | `pagegraph` plugin: `no-bare-text`, `t-children`                                                        | —                                 |
 | `pagegraph` bin    | CLI (Bun)                     | CLI over the same graph                                                                                   | bundled                           |
@@ -368,15 +369,14 @@ import { robotsTxt } from "pagegraph/tanstack-start/server";
 export const Route = createFileRoute("/robots.txt")({ server: { handlers: { GET: robotsTxt } } });
 ```
 
-**5. Gate CI.** The CLI reads the same graph through `seo.config.ts`:
+**5. Gate CI.** The CLI reads the same graph through `pagegraph.config.ts`:
 
 ```ts
-// seo.config.ts
+// pagegraph.config.ts
 import { defineSeoConfig } from "pagegraph/config";
 import { tanstackStartGraph } from "pagegraph/tanstack-start";
 
 export default defineSeoConfig({
-  origin: "https://example.com",
   loadGraph: tanstackStartGraph({ root: import.meta.dirname }),
 });
 ```
@@ -390,7 +390,7 @@ pagegraph check
 `buildSeoGraph({ routeTree, collections })` builds the same graph from any TanStack
 Router tree; render it with `renderSitemap(graph, { origin, indexable })` and
 `renderRobots(graph, { origin, indexable, disallow, contentSignal })`, and point
-`seo.config.ts` at it with `viteGraphLoader` (see [CLI](#cli)).
+`pagegraph.config.ts` at it with `viteGraphLoader` (see [CLI](#cli)).
 
 `renderRobots` does not invent a Content-Signal. Pass `contentSignal` for
 the value (the plugin prefixes `Content-Signal: `), `directives` for extra
@@ -412,7 +412,7 @@ The generated `.pagegraph/opencode` directory contains one `seo` agent and custo
 the plugin own model and Executor authentication. PageGraph does not copy credentials or assume
 fixed provider-tool addresses.
 
-Enable workflows in `seo.config.ts`:
+Enable workflows in `pagegraph.config.ts`:
 
 ```ts
 export default defineSeoConfig({
@@ -579,27 +579,106 @@ It also derives a small config module from the route tree: `robotsExclusions`
 (the plugin adds them to robots.txt; a Router-only app feeds them to `renderRobots`) and
 `reservedSegments` (top-level segments an app must not hand out as tenant/org slugs).
 
-## CLI
+## Claims gate
 
-The graph commands acquire your graph through `seo.config.ts` at the app root. A
-TanStack Start app uses `tanstackStartGraph` (above), which also supplies the robots
-policy. Otherwise `viteGraphLoader` evaluates your graph module inside a headless Vite
-server, so path aliases, content plugins, and virtual modules all resolve:
+Declare probability rules against `claimsInput` from the build-only `pagegraph/claims` entry.
+Each rule asks whether the section violates your policy:
 
 ```ts
-// seo.config.ts
+import { Decision } from "effect/ai";
+import { claimsInput } from "pagegraph/claims";
+import { pagegraph } from "pagegraph/tanstack-start";
+
+const rules = Decision.make({
+  input: claimsInput,
+  decisions: {
+    unsupportedPromise: Decision.probability({
+      instructions: "Does this section promise a capability unsupported by its facts or evidence?",
+    }),
+  },
+});
+
+const graph = pagegraph({
+  origin: "https://example.com",
+  markdown: { origin: "https://example.com" },
+  facts: "src/facts.ts",
+  claims: { rules, model: "typesafe/jev", cutoff: 0.8 },
+});
+```
+
+Pass `graph.prerenderPages` to Start as shown in the rendered Markdown setup. The build persists
+captured documents and graph heads, then replays committed answers without a model or credentials.
+Missing answers and violations fail the build and name the page, section, and rule.
+
+Run `pagegraph claims check` after changing prose, facts, context, or rules, then review and commit
+`.pagegraph/decisions/claims/`. The cache key includes the rule definition fingerprint, model, and
+input hash. Cached answers are reused; `--refresh` asks again and replaces them. The command reports
+cached and asked counts and exits nonzero on violations. Set `TYPESAFE_API_KEY` when answers need
+asking. `pagegraph check` also replays configured claims without model calls.
+
+```sh
+pagegraph claims check
+pagegraph claims check --refresh
+pagegraph claims check --dev http://localhost:3000
+```
+
+`claims.context` supplies policy text to every input. Inputs include the section's authored
+Markdown, messages, all code-owned facts, and other sections marked as evidence. Page metadata is
+judged as a `head` section, including graph pages outside rendered capture. `excludeHeads` accepts
+path globs to omit metadata while keeping captured sections in the gate. The default cutoff is
+`0.8` only when omitted; any probability at or above the configured cutoff is a violation, and
+values below it pass. Changing the cutoff reuses answers and recalculates verdicts.
+
+## Markdown CLI
+
+Inspect captured documents, search page metadata and sections, and maintain a reviewable lock:
+
+```sh
+pagegraph markdown show /pricing
+pagegraph markdown find email
+pagegraph markdown lock
+pagegraph markdown lock --check
+```
+
+`show` prints the page's Markdown twin. `find` reports matching pages and sections.
+`lock` writes `.pagegraph/markdown.lock.json` from document and message hashes, including
+head-only pages; `--check` exits nonzero if the lock is missing or differs. These commands use
+`.pagegraph/documents/` and `.pagegraph/heads.json` from the build. Use `--dev <origin>` to inspect
+the development bundle instead. `--json` emits structured output using the CLI's usual conventions.
+Markdown and claims settings come from `pagegraph()` in Vite, including the canonical Markdown
+origin and facts module. Built-mode commands read Vite with `command: "build"` and
+`mode: "production"`; `--dev` reads `command: "serve"` and `mode: "development"`.
+Put CLI policies and the graph loader in `pagegraph.config.ts`.
+
+## CLI
+
+The graph commands acquire your graph through `pagegraph.config.ts` at the app root.
+Rename an existing `seo.config.ts`, `.js`, or `.mjs` to its `pagegraph.config.*` equivalent.
+The file holds CLI policies and `loadGraph`; site identity and robots policy come from the
+loader result, and Markdown and claims settings come from the Vite plugin. A
+TanStack Start app uses `tanstackStartGraph` (above), which also supplies the robots
+policy and site identity from `pagegraph()`, using build settings in production mode by default.
+Pass `command: "serve", mode: "development"` to inspect a development configuration instead.
+Otherwise `viteGraphLoader` evaluates your graph
+module inside a headless Vite server, so path aliases, content plugins, and virtual modules all resolve:
+
+```ts
+// pagegraph.config.ts
 import { defineSeoConfig, viteGraphLoader } from "pagegraph/config";
+import { routeConfig } from "./src/lib/route-config";
 
 export default defineSeoConfig({
-  origin: "https://example.com",
-  disallow: routeConfig.robotsExclusions,
-  contentSignal: "search=yes, ai-input=yes, ai-train=yes",
   // Fail `check` unless each named money page has enough contextual links.
   coverage: [{ path: "/pricing", minInbound: 2 }, { path: "/features/*", minInbound: 1 }],
   loadGraph: viteGraphLoader({
     root: import.meta.dirname,
     entry: "/lib/seo/graph.ts",
     exportName: "loadSeoGraph",
+    site: {
+      origin: "https://example.com",
+      indexable: true,
+      robots: { disallow: routeConfig.robotsExclusions, contentSignal: "search=yes, ai-input=yes, ai-train=yes" },
+    },
   }),
 });
 ```
@@ -634,7 +713,7 @@ pagegraph graph                 # the graph as a tree · --format mermaid | json
 pagegraph inspect /pricing      # one node: policy, sitemap status, in/out edges
 pagegraph inspect <url> --live  # fetch a deployed page, validate its rendered <head>
 pagegraph links verify <url>    # crawl served HTML: depth, orphans, declared-vs-rendered
-pagegraph links verify <url> --assert-coverage  # also assert seo.config.ts coverage on served anchors
+pagegraph links verify <url> --assert-coverage  # also assert pagegraph.config.ts coverage on served anchors
 pagegraph links verify <url> --emit-rendered <file>  # save the rendered edge set
 pagegraph links candidates      # propose contextual links from the declared graph
 pagegraph research keywords --query "email api"  # combine graph, Executor, and Jev evidence
@@ -650,7 +729,7 @@ Stdout is data, stderr is status — `pagegraph check --json | jq` just works.
 `pagegraph links verify` crawls a site's served HTML — through the same DNS-pinned,
 private-IP-blocked HTTP path as `pagegraph audit` — and reports what a crawler
 actually receives: the real homepage depth, the pages with no incoming internal
-edge (rendered orphans), and, when the app has a `seo.config.ts`, the
+edge (rendered orphans), and, when the app has a `pagegraph.config.ts`, the
 declared-vs-rendered link diff. It is bounded with `--limit` and needs no
 framework or config. Discovery reads same-origin `robots.txt` and bounded
 sitemaps before following page anchors, so a sitemap-only page can appear as an
@@ -705,7 +784,7 @@ It is also a drop-in input for `pagegraph links candidates --rendered`.
 
 ### Assert coverage on the rendered graph
 
-`pagegraph check` evaluates the `seo.config.ts` `coverage` rules against the
+`pagegraph check` evaluates the `pagegraph.config.ts` `coverage` rules against the
 **declared** graph; `pagegraph links verify --assert-coverage` evaluates the same
 rules against the anchors a crawler **actually receives**. Only same-origin
 body-region anchors count — nav, header, and footer links are chrome — which is
@@ -722,7 +801,7 @@ non-zero) rather than reporting a false pass when the crawl outran `--limit`, a
 page failed to fetch (its anchors are missing), a body hit `--max-body-bytes`, the
 robots or sitemap discovery is incomplete, the
 config declares no `coverage`, or the artifact's origin differs from
-`seo.config.ts`. Under `--assert-coverage` the report gains a `coverage` block
+`pagegraph.config.ts`. Under `--assert-coverage` the report gains a `coverage` block
 (`{ rules, ok, violations }`); the default `--json` summary is unchanged.
 
 ### Propose contextual links
@@ -788,7 +867,7 @@ both `links candidates --site` and `improve links --suggestions`.
 
 ### Contextual-link coverage
 
-Declare a contextual-link coverage policy in `seo.config.ts` (a `coverage` array
+Declare a contextual-link coverage policy in `pagegraph.config.ts` (a `coverage` array
 of `{ path, minInbound }`), or pass repeatable `--require-inbound "<path-glob>=<n>"`
 flags to override it for one run. `pagegraph check` then fails (exit 1) unless
 every sitemap-eligible page matching the glob has at least `minInbound` incoming
@@ -882,7 +961,7 @@ undated rather than stale; give content its `modifiedAt` (or a route its
 
 ### Audit any website
 
-`pagegraph audit` is framework-independent and does not need `seo.config.ts`. It
+`pagegraph audit` is framework-independent and does not need `pagegraph.config.ts`. It
 validates target URLs before making requests, follows redirects through the same
 validation boundary, inspects the rendered document and discovery files, and
 can collect Lighthouse evidence through a validating proxy.

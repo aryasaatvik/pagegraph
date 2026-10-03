@@ -3,19 +3,20 @@
  *
  * The CLI is a set of pure views over one graph, but *acquiring* that graph is
  * host knowledge: only the app knows where its graph module lives and what its
- * module needs to evaluate. So the app declares it once in a `seo.config.ts` at
+ * module needs to evaluate. So the app declares it once in a `pagegraph.config.ts` at
  * its root, which the CLI discovers from the working directory:
  *
  * ```ts
- * // seo.config.ts
+ * // pagegraph.config.ts
  * import { defineSeoConfig, viteGraphLoader } from "pagegraph/config";
  * import { routeConfig } from "./lib/route-config";
  *
  * export default defineSeoConfig({
- *   origin: "https://example.com",
- *   disallow: routeConfig.robotsExclusions,
- *   contentSignal: "search=yes, ai-input=yes, ai-train=yes",
- *   loadGraph: viteGraphLoader({ root: import.meta.dirname, entry: "/lib/seo/graph.ts" }),
+ *   loadGraph: viteGraphLoader({
+ *     root: import.meta.dirname,
+ *     entry: "/lib/seo/graph.ts",
+ *     site: { origin: "https://example.com", indexable: true, robots: { disallow: routeConfig.robotsExclusions } },
+ *   }),
  * });
  * ```
  *
@@ -24,7 +25,7 @@
  * Effect app.
  */
 
-export type { GraphLoaderInput, LoadedSeoGraph, SeoGraphLoader, ViteGraphLoaderOptions } from "./vite-graph-loader";
+export type { GraphLoaderEnvironment, GraphLoaderInput, LoadedSeoGraph, SeoGraphLoader, SiteRuntime, ViteGraphLoaderOptions } from "./vite-graph-loader";
 export { viteGraphLoader } from "./vite-graph-loader";
 
 export { loadPageHeads } from "./page-heads";
@@ -60,26 +61,6 @@ export interface SeoWorkflowConfig {
 }
 
 export interface SeoCliConfig {
-  /**
-   * Canonical origin the sitemap and robots projections render under, no
-   * trailing slash. The `--origin` flag overrides it per invocation.
-   */
-  readonly origin: string;
-  /**
-   * Path prefixes disallowed in robots.txt. Omit when the graph loader supplies
-   * the robots policy (`tanstackStartGraph`); otherwise feed it the generated
-   * `routeConfig.robotsExclusions` if you run the `pagegraph/vite` plugin.
-   */
-  readonly disallow?: ReadonlyArray<string> | undefined;
-  /**
-   * Origin-wide Content-Signal preferences, forwarded to `renderRobots`.
-   * Omit for none. Preview (`--no-indexable`) never emits the line.
-   */
-  readonly contentSignal?: string | undefined;
-  /**
-   * Extra robots.txt group lines, forwarded to `renderRobots` as `directives`.
-   */
-  readonly directives?: ReadonlyArray<string> | undefined;
   /**
    * Last-mile robots.txt override, forwarded to `renderRobots` as `transform`.
    * Runs for indexable and preview hosts.

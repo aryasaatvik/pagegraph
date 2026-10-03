@@ -177,25 +177,39 @@ describe("SEO audit network boundary", () => {
     expect(destinationRequests).toBe(0);
   });
 
-  it("closes pending proxy connections without a direct fallback", async () => {
+  it("closes proxy clients while DNS resolution is pending without a direct fallback", async () => {
+    let resolutionStarted!: () => void;
+    const resolving = new Promise<void>((resolve) => { resolutionStarted = resolve; });
+    let finishResolution!: () => void;
+    const resolution = new Promise<Awaited<ReturnType<HostResolver>>>((resolve) => {
+      finishResolution = () => resolve([{ address: "1.2.3.4", family: 4 }]);
+    });
     const proxy = await startAuditProxy({
       allowPrivate: false,
-      timeoutMs: 100,
-      resolve: async () => [{ address: "1.2.3.4", family: 4 }],
+      resolve: () => { resolutionStarted(); return resolution; },
     });
     proxies.push(proxy);
     const proxyAddress = new URL(proxy.url);
-    const clientClosed = new Promise<void>((resolveClose, reject) => {
+    const errors: Array<NodeJS.ErrnoException> = [];
+    let received = "";
+    const clientClosed = new Promise<void>((resolveClose) => {
       const socket = connect(Number(proxyAddress.port), proxyAddress.hostname);
+      socket.setEncoding("utf8");
+      socket.on("data", (chunk: string) => { received += chunk; });
       socket.once("connect", () =>
         socket.write("CONNECT public.test:65000 HTTP/1.1\r\n\r\n"),
       );
       socket.once("close", () => resolveClose());
-      socket.once("error", reject);
+      // Abrupt shutdown may reset the TCP connection before emitting close.
+      socket.once("error", (error: NodeJS.ErrnoException) => { errors.push(error); });
     });
-    await new Promise((resolveWait) => setTimeout(resolveWait, 10));
-    await proxy.close();
-    await expect(clientClosed).resolves.toBeUndefined();
+    try {
+      await resolving;
+      await proxy.close();
+      await expect(clientClosed).resolves.toBeUndefined();
+      expect(errors.map((error) => error.code).filter((code) => code !== "ECONNRESET")).toEqual([]);
+      expect(received).not.toContain("200 Connection Established");
+    } finally { finishResolution(); }
   });
 
   it("forces Chrome traffic through the validating proxy without direct fallbacks", () => {

@@ -109,6 +109,8 @@ export interface MarkdownPrerenderPage {
 export type PagegraphPlugins = Array<Plugin> & { readonly prerenderPages: Array<MarkdownPrerenderPage> };
 
 export function pagegraph(options: PagegraphOptions): PagegraphPlugins {
+  if (options.claims !== undefined && options.markdown === undefined)
+    throw new Error("Claims require pagegraph({ markdown: { origin }, claims: { rules, model } }) so the build captures documents.");
   const api: PagegraphPluginApi = { options };
   let root = process.cwd();
   let clientOutDir = resolve(root, "dist/client");
@@ -276,7 +278,11 @@ export function pagegraph(options: PagegraphOptions): PagegraphPlugins {
     prerenderPages: options.markdown === undefined ? [] : [{
       path: MARKDOWN_CAPTURE_PATH,
       sitemap: { exclude: true as const },
-      prerender: { onSuccess: ({ html }: { html: string }) => persistMarkdownCapture(html, root, clientOutDir) },
+      prerender: { onSuccess: async ({ html }: { html: string }) => {
+        if (current === undefined) throw new Error("The pagegraph graph must be evaluated before Markdown persistence.");
+        const app = await current;
+        await persistMarkdownCapture(html, root, clientOutDir, options.claims, app.facts);
+      } },
     }],
   });
 }

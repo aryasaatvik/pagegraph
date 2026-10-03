@@ -48,8 +48,8 @@ beforeAll(async () => {
   if (!address || typeof address === "string") throw new Error("No fixture port");
   origin = `http://127.0.0.1:${address.port}`;
   directory = mkdtempSync(join(tmpdir(), "pagegraph-suggestions-"));
-  writeFileSync(join(directory, "seo.config.mjs"), `const node = path => ({ path, kind: "article", source: "blog", policy: { kind: "article", sitemap: { priority: 0.5, changeFrequency: "monthly" } } });
-export default { origin: ${JSON.stringify(origin)}, disallow: [], loadGraph: async () => ({ graph: { nodes: new Map([["/blog/guide", node("/blog/guide")], ["/blog/retries", node("/blog/retries")]]), edges: [] }, dispose: async () => {} }) };`);
+  writeFileSync(join(directory, "pagegraph.config.mjs"), `const node = path => ({ path, kind: "article", source: "blog", policy: { kind: "article", sitemap: { priority: 0.5, changeFrequency: "monthly" } } });
+export default { loadGraph: async () => ({ site: { origin: ${JSON.stringify(origin)}, indexable: true, robots: { disallow: [] } }, graph: { nodes: new Map([["/blog/guide", node("/blog/guide")], ["/blog/retries", node("/blog/retries")]]), edges: [] }, dispose: async () => {} }) };`);
 });
 
 afterAll(async () => { await new Promise<void>((resolve) => server.close(() => resolve())); for (const path of [directory, ...extraDirectories]) rmSync(path, { recursive: true, force: true }); });
@@ -58,7 +58,7 @@ const configFor = (paths: readonly string[]): string => {
   const root = mkdtempSync(join(tmpdir(), "pagegraph-suggestions-extra-"));
   extraDirectories.push(root);
   const entries = paths.map((path) => [path, { path, kind: "article", source: "blog", policy: { kind: "article", sitemap: { priority: 0.5, changeFrequency: "monthly" } } }]);
-  writeFileSync(join(root, "seo.config.mjs"), `export default { origin: ${JSON.stringify(origin)}, disallow: [], loadGraph: async () => ({ graph: { nodes: new Map(${JSON.stringify(entries)}), edges: [] }, dispose: async () => {} }) };`);
+  writeFileSync(join(root, "pagegraph.config.mjs"), `export default { loadGraph: async () => ({ site: { origin: ${JSON.stringify(origin)}, indexable: true, robots: { disallow: [] } }, graph: { nodes: new Map(${JSON.stringify(entries)}), edges: [] }, dispose: async () => {} }) };`);
   return root;
 };
 
@@ -95,8 +95,8 @@ describe("links candidates --site", () => {
   it("uses --target to select the destination inside a small page budget", async () => {
     const crowded = mkdtempSync(join(tmpdir(), "pagegraph-suggestions-crowded-"));
     const filler = Array.from({ length: 30 }, (_, index) => `/blog/a${String(index).padStart(2, "0")}`);
-    writeFileSync(join(crowded, "seo.config.mjs"), `const node = path => ({ path, kind: "article", source: "blog", policy: { kind: "article", sitemap: { priority: 0.5, changeFrequency: "monthly" } } });
-export default { origin: ${JSON.stringify(origin)}, disallow: [], loadGraph: async () => ({ graph: { nodes: new Map(${JSON.stringify([...filler, "/blog/guide", "/blog/retries"].map((path) => [path, { path, kind: "article", source: "blog", policy: { kind: "article", sitemap: { priority: 0.5, changeFrequency: "monthly" } } }]))}), edges: [] }, dispose: async () => {} }) };`);
+    writeFileSync(join(crowded, "pagegraph.config.mjs"), `const node = path => ({ path, kind: "article", source: "blog", policy: { kind: "article", sitemap: { priority: 0.5, changeFrequency: "monthly" } } });
+export default { loadGraph: async () => ({ site: { origin: ${JSON.stringify(origin)}, indexable: true, robots: { disallow: [] } }, graph: { nodes: new Map(${JSON.stringify([...filler, "/blog/guide", "/blog/retries"].map((path) => [path, { path, kind: "article", source: "blog", policy: { kind: "article", sitemap: { priority: 0.5, changeFrequency: "monthly" } } }]))}), edges: [] }, dispose: async () => {} }) };`);
     const result = await run(["--site", origin, "--source", "/blog/guide", "--target", "/blog/retries", "--page-limit", "2", "--allow-private", "--json"], crowded);
     rmSync(crowded, { recursive: true, force: true });
     expect(result.status).toBe(0);

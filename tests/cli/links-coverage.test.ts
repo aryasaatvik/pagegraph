@@ -102,10 +102,9 @@ const configFor = (origin: string, coverage: string): string => `const node = (p
 });
 
 export default {
-  origin: ${JSON.stringify(origin)},
-  disallow: [],
   ${coverage}
   loadGraph: async () => ({
+    site: { origin: ${JSON.stringify(origin)}, indexable: true, robots: { disallow: [] } },
     graph: {
       nodes: new Map([["/", node("/")], ["/about", node("/about")], ["/pricing", node("/pricing")]]),
       edges: [{ from: "/about", to: "/pricing", type: "related" }],
@@ -118,7 +117,7 @@ export default {
 const configDirectory = (contents: string): string => {
   const directory = mkdtempSync(join(tmpdir(), "pagegraph-links-coverage-"));
   temporaryDirectories.push(directory);
-  writeFileSync(join(directory, "seo.config.mjs"), contents);
+  writeFileSync(join(directory, "pagegraph.config.mjs"), contents);
   return directory;
 };
 
@@ -200,7 +199,7 @@ describe("pagegraph links verify — rendered-edge artifact", () => {
     const directory = mkdtempSync(join(tmpdir(), "pagegraph-replay-"));
     temporaryDirectories.push(directory);
     writeFileSync(
-      join(directory, "seo.config.mjs"),
+      join(directory, "pagegraph.config.mjs"),
       configFor(new URL(target).origin, `coverage: [{ path: "/pricing", minInbound: 2 }],`),
     );
     const artifactPath = join(directory, "rendered.json");
@@ -302,7 +301,7 @@ describe("pagegraph links verify — rendered-edge artifact", () => {
     expect(result.stderr).toContain("truncated crawl");
   }, 20_000);
 
-  it("refuses to assert when seo.config.ts declares no coverage rules", async () => {
+  it("refuses to assert when pagegraph.config.ts declares no coverage rules", async () => {
     const directory = configDirectory(configFor(new URL(target).origin, ""));
 
     const result = await runVerify(

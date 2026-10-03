@@ -156,15 +156,14 @@ describe("pagegraph links verify", () => {
     expect(report.crawl.truncated).toBe(true);
   }, 20_000);
 
-  it("diffs the declared graph when a seo.config.ts matches the crawl origin", async () => {
+  it("diffs the declared graph when a pagegraph.config.ts matches the crawl origin", async () => {
     const directory = mkdtempSync(join(tmpdir(), "pagegraph-links-"));
     temporaryDirectories.push(directory);
     writeFileSync(
-      join(directory, "seo.config.mjs"),
+      join(directory, "pagegraph.config.mjs"),
       `export default {
-  origin: ${JSON.stringify(new URL(target).origin)},
-  disallow: [],
   loadGraph: async () => ({
+    site: { origin: ${JSON.stringify(new URL(target).origin)}, indexable: true, robots: { disallow: [] } },
     graph: {
       nodes: new Map([["/", { path: "/", kind: "page", source: "route", policy: { kind: "page" } }]]),
       edges: [{ from: "/", to: "/declared-only", type: "related" }],
@@ -197,11 +196,10 @@ describe("pagegraph links verify", () => {
     const directory = mkdtempSync(join(tmpdir(), "pagegraph-links-"));
     temporaryDirectories.push(directory);
     writeFileSync(
-      join(directory, "seo.config.mjs"),
+      join(directory, "pagegraph.config.mjs"),
       `export default {
-  origin: "https://elsewhere.example",
-  disallow: [],
   loadGraph: async () => ({
+    site: { origin: "https://elsewhere.example", indexable: true, robots: { disallow: [] } },
     graph: {
       nodes: new Map([["/", { path: "/", kind: "page", source: "route", policy: { kind: "page" } }]]),
       edges: [{ from: "/", to: "/declared-only", type: "related" }],

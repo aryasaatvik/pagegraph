@@ -7,11 +7,11 @@ import { libraryAlwaysBundle } from "./scripts/bundle-policy.mjs";
 // Runtime entries use portable graph/document code and their declared React/Start peers;
 // `tests/package/entry-graph.test.ts` pins what they import. The prerender-worker entry
 // forwards to the compiled application only in the non-deployed capture Worker.
-// Build entries (`vite`, `config`, `audit`, `tanstack-start`, `oxlint`) load the app through Vite or drive Node
+// Build entries (`vite`, `config`, `audit`, `claims`, `tanstack-start`, `oxlint`) load the app through Vite or drive Node
 // I/O. Each has a `build-only/*` twin that the `workerd`/`worker`/`browser` export
 // conditions resolve to, which throws a clear error at import.
 //
-// `cli` is the one entry that reaches Effect and the Bun platform adapter. It is
+// `cli` reaches Effect and the Bun platform adapter. It is
 // built as a separate pass that **bundles** `effect` and `@effect/*`: a published
 // binary that resolved Effect from the consumer's tree would couple to the
 // consumer's Effect version. Bundling makes the binary
@@ -45,6 +45,7 @@ export default defineConfig([
       react: "src/react/index.ts",
       vite: "src/vite/index.ts",
       config: "src/config/index.ts",
+      claims: "src/claims.ts",
       audit: "src/audit/index.ts",
       oxlint: "src/oxlint/index.js",
       "tanstack-start/index": "src/tanstack-start/index.ts",
@@ -55,6 +56,7 @@ export default defineConfig([
       "build-only/tanstack-start": "src/build-only/tanstack-start.ts",
       "build-only/vite": "src/build-only/vite.ts",
       "build-only/config": "src/build-only/config.ts",
+      "build-only/claims": "src/build-only/claims.ts",
       "build-only/audit": "src/build-only/audit.ts",
       "build-only/oxlint": "src/build-only/oxlint.ts",
     },

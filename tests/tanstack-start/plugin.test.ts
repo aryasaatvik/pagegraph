@@ -5,8 +5,9 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { createBuilder, createServer, type RunnableDevEnvironment } from "vite";
 import { afterAll, describe, expect, it } from "vitest";
 
+import { renderRobots } from "../../src/core/projections";
 import { pageHeads } from "../../src/core/page-heads";
-import { evaluateAppGraph } from "../../src/tanstack-start/load";
+import { evaluateAppGraph, tanstackStartGraph } from "../../src/tanstack-start/load";
 
 const fixture = fileURLToPath(new URL("../fixtures/tanstack-start-app", import.meta.url));
 
@@ -23,6 +24,43 @@ const withFixtureCopy = async (edit: (root: string) => void, run: (root: string)
 };
 
 describe("evaluateAppGraph", () => {
+  it("loads the plugin's preview identity and renders the same robots posture", async () => {
+    const loaded = await tanstackStartGraph({ root: fixture, command: "serve" })();
+    try {
+      expect(loaded.site).toEqual({
+        origin: "http://localhost:5173", indexable: false,
+        robots: { disallow: ["/app"], contentSignal: "search=yes", directives: undefined },
+      });
+      expect(renderRobots(loaded.graph, { ...loaded.site, ...loaded.site.robots }))
+        .toBe("User-agent: *\nDisallow: /\n");
+    } finally { await loaded.dispose(); }
+  });
+
+  it("uses built site identity and defaults indexability to true when omitted", async () => {
+    await withFixtureCopy(
+      (root) => {
+        const config = join(root, "vite.config.ts");
+        writeFileSync(
+          config,
+          readFileSync(config, "utf8")
+            .replace('      indexable: command === "build",\n', "")
+            .replace('JSON.stringify("Example")', 'JSON.stringify(command === "build" ? "Built" : "Dev")'),
+        );
+      },
+      async (root) => {
+        const loaded = await tanstackStartGraph({ root })();
+        try {
+          expect(loaded.site.origin).toBe("https://example.com");
+          expect(loaded.site.indexable).toBe(true);
+          expect(loaded.graph.nodes.get("/")?.head?.title).toBe("Built — home");
+          const robots = renderRobots(loaded.graph, { ...loaded.site, ...loaded.site.robots });
+          expect(robots).toContain("Sitemap: https://example.com/sitemap.xml");
+          expect(robots).toContain("Disallow: /app");
+        } finally { await loaded.dispose(); }
+      },
+    );
+  });
+
   it("builds the graph from route declarations and collections in the app's Vite pipeline", async () => {
     const { graph, site } = await evaluateAppGraph({ root: fixture });
 

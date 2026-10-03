@@ -2,8 +2,8 @@ import * as Effect from "effect/Effect";
 import * as Command from "effect/cli/Command";
 
 import { renderSitemap } from "../../core/projections";
-import { acquireGraph, loadSeoConfig } from "../load-config";
-import { indexableFlag, originFlag, originOf, printText } from "../output";
+import { acquireLoadedGraph, loadSeoConfig } from "../load-config";
+import { indexableFlag, indexableOf, originFlag, originOf, printText } from "../output";
 
 export const sitemapCommand = Command.make("sitemap", {
   origin: originFlag,
@@ -13,7 +13,7 @@ export const sitemapCommand = Command.make("sitemap", {
   Command.withExamples([
     {
       command: "pagegraph sitemap",
-      description: "The sitemap XML, under the origin from seo.config.ts",
+      description: "The sitemap XML, under the origin from the loaded graph",
     },
     {
       command: "pagegraph sitemap --origin https://preview.example.com --no-indexable",
@@ -23,9 +23,12 @@ export const sitemapCommand = Command.make("sitemap", {
   Command.withHandler(
     Effect.fnUntraced(function* ({ origin, indexable }) {
       const config = yield* loadSeoConfig;
-      const graph = yield* Effect.scoped(acquireGraph(config));
+      const loaded = yield* Effect.scoped(acquireLoadedGraph(config));
       yield* printText(
-        renderSitemap(graph, { origin: originOf(origin, config.origin), indexable }),
+        renderSitemap(loaded.graph, {
+          origin: originOf(origin, loaded.site.origin),
+          indexable: indexableOf(indexable, loaded.site.indexable),
+        }),
       );
     }),
   ),

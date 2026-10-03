@@ -482,6 +482,22 @@ export function finishDocument(
   }
   if (collector.sectionCount === 0)
     throw new Error(`Document page ${collector.path} recorded no <Section>`);
+  // Validate completed public rows after replay; abandoned renders and human-only rows do not count.
+  for (const section of collector.sections) {
+    if (section.kind !== "table" || section.audience === "humans") continue;
+    const rows = section.items
+      .filter((item) => item.audience !== "humans")
+      .map((item) => ({
+        source: item.source,
+        width: item.cells.filter((cell) => cell.audience !== "humans").length,
+      }));
+    const expected = rows[0]?.width;
+    const invalid = rows.find((row) => row.width === 0 || row.width !== expected);
+    if (invalid !== undefined)
+      throw new Error(
+        `Table Section "${section.id}" on ${collector.path} needs equal, nonempty visible cell counts after excluding ForHumans; row at ${invalid.source} has ${invalid.width}, expected ${expected}`,
+      );
+  }
   const document = {
     path: collector.path,
     ...metadata,

@@ -40,7 +40,9 @@ export const cliOperation = <A>(operation: () => Promise<A>) => Effect.tryPromis
 export const markdownSettings = Effect.fn("CLI.markdownSettings")(function* (dev: Option.Option<string> = Option.none()) {
   const config = yield* loadSeoConfigOptional;
   if (config !== undefined) {
-    const loaded = yield* Effect.scoped(acquireLoadedGraph(config));
+    const loaded = yield* Effect.scoped(acquireLoadedGraph(
+      config, Option.isSome(dev) ? { command: "serve", mode: "development" } : undefined,
+    ));
     const settings = loaded.pagegraph;
     const markdown = settings?.options.markdown;
     if (settings === undefined || markdown === undefined)

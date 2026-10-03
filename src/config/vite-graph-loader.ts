@@ -55,7 +55,14 @@ export interface LoadedSeoGraph {
 /** JSON input that can be supplied by config files to an app graph export. */
 export type GraphLoaderInput = null | boolean | number | string | ReadonlyArray<GraphLoaderInput> | { readonly [key: string]: GraphLoaderInput };
 
-export type SeoGraphLoader<Input extends GraphLoaderInput | void = void> = (input: Input) => Promise<LoadedSeoGraph>;
+/** Per-invocation evaluation settings, separate from the graph module's JSON input. */
+export interface GraphLoaderEnvironment {
+  readonly command?: "serve" | "build" | undefined;
+  readonly mode?: string | undefined;
+}
+
+export type SeoGraphLoader<Input extends GraphLoaderInput | void = void> =
+  (input: Input, environment?: GraphLoaderEnvironment) => Promise<LoadedSeoGraph>;
 
 export interface ViteGraphLoaderOptions {
   /** The app's Vite root — the directory its aliases and plugins resolve against. */
@@ -130,10 +137,10 @@ const seedEnv = (env: Readonly<Record<string, string>>): void => {
   }
 };
 
-const inlineConfigFor = (options: ViteGraphLoaderOptions): InlineConfig => ({
+const inlineConfigFor = (options: ViteGraphLoaderOptions, environment?: GraphLoaderEnvironment): InlineConfig => ({
   configFile: false,
   root: options.root,
-  mode: "production",
+  mode: environment?.mode ?? "production",
   logLevel: "error",
   appType: "custom",
   clearScreen: false,
@@ -151,11 +158,11 @@ const inlineConfigFor = (options: ViteGraphLoaderOptions): InlineConfig => ({
  */
 export const viteGraphLoader =
   <Input extends GraphLoaderInput | void = void>(options: ViteGraphLoaderOptions): SeoGraphLoader<Input> =>
-  async (input) => {
+  async (input, environment) => {
     const exportName = options.exportName ?? "loadSeoGraph";
     if (options.env) seedEnv(options.env);
 
-    const server = await withCleanStdout(() => createServer(inlineConfigFor(options))).catch(
+    const server = await withCleanStdout(() => createServer(inlineConfigFor(options, environment))).catch(
       (cause: unknown) => {
         throw new Error(`Could not start the Vite loader: ${messageOf(cause)}`);
       },

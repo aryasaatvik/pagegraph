@@ -18,7 +18,7 @@ import * as Effect from "effect/Effect";
 import * as Predicate from "effect/Predicate";
 import type * as Scope from "effect/Scope";
 
-import type { LoadedSeoGraph, SeoCliConfig } from "../config";
+import type { GraphLoaderEnvironment, LoadedSeoGraph, SeoCliConfig } from "../config";
 import type { CoverageRule } from "../core/checks";
 import type { SeoGraph } from "../core/graph";
 import { SeoCliError } from "./output";
@@ -225,12 +225,13 @@ export const loadSeoConfigOptional: Effect.Effect<SeoCliConfig | undefined, SeoC
  */
 export const acquireLoadedGraph = (
   config: SeoCliConfig,
+  environment?: GraphLoaderEnvironment,
 ): Effect.Effect<LoadedSeoGraph, SeoCliError, Scope.Scope> =>
   Effect.gen(function* () {
     yield* Effect.logDebug("Loading the SEO graph…");
 
     const load = async (): Promise<LoadedSeoGraph> => {
-      const loaded: unknown = await config.loadGraph();
+      const loaded: unknown = await config.loadGraph(undefined, environment);
       if (!isLoadedSeoGraph(loaded)) {
         let disposeFailure: unknown;
         if (Predicate.isObject(loaded) && Predicate.isFunction(loaded["dispose"])) {

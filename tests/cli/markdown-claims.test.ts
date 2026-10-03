@@ -150,16 +150,22 @@ describe("markdown CLI", () => {
 });
 
 describe("claims CLI", () => {
-  it("uses build settings for stored captures and development settings under --dev", async () => {
+  it.each([false, true])("uses mode-specific settings and facts under --dev with CLI config=%s", async (withConfig) => {
     const root = app(true);
+    if (withConfig) graphConfig(root);
+    const productionFacts: Facts = { plan: { kind: "text", value: "Paid", text: "Paid" } };
+    const developmentFacts: Facts = { plan: { kind: "text", value: "Preview", text: "Preview" } };
+    writeFileSync(join(root, "src/production-facts.ts"), `export const facts = ${JSON.stringify(productionFacts)};`);
+    writeFileSync(join(root, "src/development-facts.ts"), `export const facts = ${JSON.stringify(developmentFacts)};`);
     const config = readFileSync(join(root, "vite.config.ts"), "utf8")
       .replace('export default { plugins:', 'export default ({ command, mode }) => ({ plugins:')
       .replace('})] };', '})] });')
       .replaceAll('"https://example.com"', '(command === "build" && mode === "production" ? "https://build.example.com" : "https://dev.example.com")')
+      .replace('pagegraph({ origin:', 'pagegraph({ facts: command === "build" && mode === "production" ? "src/production-facts.ts" : "src/development-facts.ts", origin:')
       .replace('model: "typesafe/jev"', 'model: command === "build" && mode === "production" ? "typesafe/jev" : "typesafe/jev-preview"');
     writeFileSync(join(root, "vite.config.ts"), config);
-    await cache(root, 0.1);
-    await cache(root, 0.9, "typesafe/jev-preview");
+    await cache(root, 0.1, claims.model, productionFacts);
+    await cache(root, 0.9, "typesafe/jev-preview", developmentFacts);
     const built = run(root, ["claims", "check", "--json"]);
     expect(built.status, built.stderr).toBe(0);
     expect(JSON.parse(built.stdout)).toMatchObject({ asked: 0, cached: 3 });

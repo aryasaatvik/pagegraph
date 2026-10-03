@@ -121,12 +121,12 @@ export async function evaluateAppGraph(options: EvaluateAppGraphOptions): Promis
  */
 export const tanstackStartGraph =
   (options: EvaluateAppGraphOptions): SeoGraphLoader =>
-  async (): Promise<LoadedSeoGraph> => {
+  async (_input, environment): Promise<LoadedSeoGraph> => {
     const { graph, site, pagegraph } = await withCleanStdout(() =>
       evaluateAppGraph({
         ...options,
-        command: options.command ?? "build",
-        mode: options.mode ?? "production",
+        command: environment?.command ?? options.command ?? "build",
+        mode: environment?.mode ?? options.mode ?? "production",
       }),
     );
     return { graph, site, pagegraph, dispose: async () => {} };

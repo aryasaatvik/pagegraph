@@ -7,9 +7,9 @@ import * as FetchHttpClient from "effect/http/FetchHttpClient";
 
 import { replayClaims, runClaims, type ClaimsReport } from "../../claims";
 import { readMarkdownCapture } from "../../markdown/documents";
-import { loadPagegraphFacts, loadPagegraphOptions } from "../../tanstack-start/load";
+import type { LoadedSeoGraph } from "../../config";
 import { jsonFlag, printJson, printText, SeoCliError } from "../output";
-import { cliOperation, devFlag, findViteRoot, markdownCapture, markdownSettings } from "./markdown";
+import { cliOperation, devFlag, markdownCapture, markdownSettings } from "./markdown";
 
 export function renderClaimsReport(report: ClaimsReport): string {
   return [
@@ -19,18 +19,17 @@ export function renderClaimsReport(report: ClaimsReport): string {
   ].join("\n");
 }
 
-/** An app without a Vite config retains the standalone graph-only check contract. */
-export const replayConfiguredClaims = Effect.fn("CLI.replayConfiguredClaims")(function* () {
-  const root = findViteRoot();
-  if (root === undefined) return undefined;
-  const options = yield* cliOperation(() => loadPagegraphOptions({ root }, false));
-  if (options?.claims === undefined) return undefined;
-  if (options.markdown === undefined)
-    return yield* new SeoCliError({ message: "Claims require markdown capture in pagegraph() in the Vite config." });
+/** Replay only the settings supplied by the graph's loader; standalone graphs have no claims. */
+export const replayConfiguredClaims = Effect.fn("CLI.replayConfiguredClaims")(function* (loaded: LoadedSeoGraph) {
+  const settings = loaded.pagegraph;
+  const claims = settings?.options.claims;
+  if (settings === undefined || claims === undefined) return undefined;
+  const { root, options, facts } = settings;
   const markdown = options.markdown;
+  if (markdown === undefined)
+    return yield* new SeoCliError({ message: "Claims require markdown capture in pagegraph() in the Vite config." });
   const capture = yield* cliOperation(() => readMarkdownCapture(root, markdown.origin));
-  const facts = yield* cliOperation(() => loadPagegraphFacts({ root }));
-  return yield* replayClaims(root, capture.documents, capture.heads, facts, options.claims).pipe(
+  return yield* replayClaims(root, capture.documents, capture.heads, facts, claims).pipe(
     Effect.catchTag("ClaimsFailed", (error) => Effect.succeed(error.report)),
     Effect.mapError((error) => new SeoCliError({ message: error.message })),
   );
@@ -42,12 +41,11 @@ const checkCommand = Command.make("check", {
 }).pipe(
   Command.withDescription("Check authored claims; ask the configured model only for cache misses"),
   Command.withHandler(Effect.fnUntraced(function* ({ refresh, dev, json }) {
-    const { root, options, markdown, settingsOptions } = yield* markdownSettings(dev);
+    const { root, options, markdown, facts } = yield* markdownSettings(dev);
     const claims = options.claims;
     if (claims === undefined)
       return yield* new SeoCliError({ message: "Claims are not configured in pagegraph() in the Vite config." });
     const capture = yield* markdownCapture(root, markdown.origin, dev);
-    const facts = yield* cliOperation(() => loadPagegraphFacts(settingsOptions));
     const ask = Effect.suspend(() => {
       const id = claims.model.startsWith("typesafe/") ? claims.model.slice("typesafe/".length) : claims.model;
       const layer = TypeSafeDecisionModel.model(id === "jev" ? "jev-latest" : id).pipe(

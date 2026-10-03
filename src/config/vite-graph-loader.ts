@@ -23,6 +23,9 @@
 
 import { createServer, type InlineConfig, type PluginOption } from "vite";
 
+import type { PagegraphOptions } from "../tanstack-start/graph";
+import type { Facts } from "../markdown/facts";
+
 import type { SeoGraph } from "../core/graph";
 import type { RobotsConfig } from "../core/projections";
 
@@ -38,6 +41,8 @@ export interface LoadedSeoGraph {
   readonly graph: SeoGraph;
   /** The site's identity and policy belong to the graph-producing host. */
   readonly site: SiteRuntime;
+  /** Settings and artifacts from the same resolved app that produced the graph. */
+  readonly pagegraph?: { readonly root: string; readonly options: PagegraphOptions; readonly facts: Facts } | undefined;
   /** Called once the command is done with the graph, on success or failure. */
   readonly dispose: () => Promise<void>;
 }

@@ -86,7 +86,7 @@ export async function loadPagegraphFacts(options: EvaluateAppGraphOptions): Prom
  * environment, and release it. The command defaults to `serve`; callers can
  * request `build` to match the deployed site configuration.
  */
-export async function evaluateAppGraph(options: EvaluateAppGraphOptions): Promise<AppGraph> {
+export async function evaluateAppGraph(options: EvaluateAppGraphOptions): Promise<AppGraph & { readonly pagegraph: NonNullable<LoadedSeoGraph["pagegraph"]> }> {
   const command = options.command ?? "serve";
   const config = await resolveConfig(
     {
@@ -104,7 +104,8 @@ export async function evaluateAppGraph(options: EvaluateAppGraphOptions): Promis
   try {
     // Content plugins (Fumadocs, MDX) generate their virtual sources at buildStart.
     await environment.pluginContainer.buildStart({});
-    return await evaluateGraph(environment.runner, await planGraph(config.root, api.options));
+    const app = await evaluateGraph(environment.runner, await planGraph(config.root, api.options));
+    return { ...app, pagegraph: { root: config.root, options: api.options, facts: app.facts ?? {} } };
   } finally {
     await environment.close();
   }
@@ -123,12 +124,12 @@ export async function evaluateAppGraph(options: EvaluateAppGraphOptions): Promis
 export const tanstackStartGraph =
   (options: EvaluateAppGraphOptions): SeoGraphLoader =>
   async (): Promise<LoadedSeoGraph> => {
-    const { graph, site } = await withCleanStdout(() =>
+    const { graph, site, pagegraph } = await withCleanStdout(() =>
       evaluateAppGraph({
         ...options,
         command: options.command ?? "build",
         mode: options.mode ?? "production",
       }),
     );
-    return { graph, site, dispose: async () => {} };
+    return { graph, site, pagegraph, dispose: async () => {} };
   };

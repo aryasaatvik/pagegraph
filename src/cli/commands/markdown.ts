@@ -12,7 +12,8 @@ import { resolveClaimsDocuments } from "../../decide/families/claims";
 import { readDevMarkdownCapture, readMarkdownCapture } from "../../markdown/documents";
 import { createMarkdownLock } from "../../markdown/lock";
 import { documentMarkdown, sectionMarkdown } from "../../markdown/markdown";
-import { loadPagegraphOptions, type EvaluateAppGraphOptions } from "../../tanstack-start/load";
+import { loadPagegraphFacts, loadPagegraphOptions, type EvaluateAppGraphOptions } from "../../tanstack-start/load";
+import { acquireLoadedGraph, loadSeoConfigOptional } from "../load-config";
 import { jsonFlag, printJson, printText, SeoCliError } from "../output";
 
 export const devFlag = Flag.String("dev").pipe(
@@ -37,13 +38,24 @@ export const cliOperation = <A>(operation: () => Promise<A>) => Effect.tryPromis
 });
 
 export const markdownSettings = Effect.fn("CLI.markdownSettings")(function* (dev: Option.Option<string> = Option.none()) {
+  const config = yield* loadSeoConfigOptional;
+  if (config !== undefined) {
+    const loaded = yield* Effect.scoped(acquireLoadedGraph(config));
+    const settings = loaded.pagegraph;
+    const markdown = settings?.options.markdown;
+    if (settings === undefined || markdown === undefined)
+      return yield* new SeoCliError({ message: "Markdown capture is not configured in the graph loader's app." });
+    const { root, options, facts } = settings;
+    return { root, options, markdown, facts };
+  }
   const root = findViteRoot();
   if (root === undefined) return yield* new SeoCliError({ message: "No Vite config found; configure pagegraph() in the app's Vite config." });
   const settingsOptions: EvaluateAppGraphOptions = Option.isSome(dev) ? { root, command: "serve", mode: "development" } : { root };
   const options = yield* cliOperation(() => loadPagegraphOptions(settingsOptions));
   if (options.markdown === undefined)
     return yield* new SeoCliError({ message: "Markdown capture is not configured in pagegraph() in the Vite config." });
-  return { root, options, markdown: options.markdown, settingsOptions };
+  const facts = options.claims === undefined ? {} : yield* cliOperation(() => loadPagegraphFacts(settingsOptions));
+  return { root, options, markdown: options.markdown, facts };
 });
 
 export const markdownCapture = (root: string, origin: string, dev: Option.Option<string>) =>

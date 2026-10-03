@@ -13,7 +13,7 @@ import {
 } from "../../core/content";
 import type { SeoGraph } from "../../core/graph";
 import { normalizePath } from "../../core/links";
-import { acquireGraph, loadSeoConfig } from "../load-config";
+import { acquireLoadedGraph, loadSeoConfig } from "../load-config";
 import { jsonFlag, printJson, printText, SeoCliError } from "../output";
 import { replayConfiguredClaims, renderClaimsReport } from "./claims";
 import { renderViolations } from "../render";
@@ -189,7 +189,8 @@ export const checkCommand = Command.make("check", {
         timeoutMs: yield* positive("request-timeout-ms", flags.requestTimeoutMs),
         maxBodyBytes: yield* positive("max-body-bytes", flags.maxBodyBytes),
       };
-      const graph = yield* Effect.scoped(acquireGraph(config));
+      const loaded = yield* Effect.scoped(acquireLoadedGraph(config));
+      const graph = loaded.graph;
       const violations = checkGraph(
         graph,
         config.freshness === undefined
@@ -202,7 +203,7 @@ export const checkCommand = Command.make("check", {
         violations.push(...checkRenderedContent(graph, documents, config.content));
         rendered = { site: flags.site.value, pages: documents.length };
       }
-      const claims = yield* replayConfiguredClaims();
+      const claims = yield* replayConfiguredClaims(loaded);
       const structural = violations.filter((violation) => violation.severity === "structural");
 
       if (flags.json) {

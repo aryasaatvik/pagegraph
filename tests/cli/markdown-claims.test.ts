@@ -31,6 +31,7 @@ function app(withClaims = false): string {
   const root = mkdtempSync(join(tmpdir(), "pagegraph-markdown-cli-"));
   directories.push(root);
   mkdirSync(join(root, "src/routes"), { recursive: true });
+  writeFileSync(join(root, "src/routes/__root.ts"), "export const Route = { options: {} };\n");
   mkdirSync(join(root, ".pagegraph/documents"), { recursive: true });
   writeFileSync(join(root, ".pagegraph/documents/index.json"), JSON.stringify(document));
   writeFileSync(join(root, ".pagegraph/heads.json"), JSON.stringify(heads));
@@ -41,6 +42,12 @@ import { claimsInput } from ${JSON.stringify(resolve(repository, "src/claims.ts"
 export default { plugins: [pagegraph({ origin: "https://example.com", markdown: { origin: "https://example.com" }${withClaims ? ', claims: { model: "typesafe/jev", rules: Decision.make({ input: claimsInput, decisions: { unsupported: Decision.probability({ instructions: "Is this claim unsupported?" }) } }) }' : ""} })] };
 `);
   return root;
+}
+function graphConfig(root: string, appRoot = root) {
+  writeFileSync(join(root, "pagegraph.config.mjs"), `
+import { tanstackStartGraph } from ${JSON.stringify(resolve(repository, "src/tanstack-start/load.ts"))};
+export default { loadGraph: tanstackStartGraph({ root: ${JSON.stringify(appRoot)} }) };
+`);
 }
 function run(root: string, args: ReadonlyArray<string>) {
   return spawnSync("bun", [cli, ...args], { cwd: root, encoding: "utf8", timeout: 30_000, env: Object.fromEntries(Object.entries(process.env).filter(([key]) => key !== "TYPESAFE_API_KEY")) });
@@ -187,16 +194,16 @@ describe("claims CLI", () => {
     expect(JSON.parse(result.stdout).claims).toBeUndefined();
     const markdown = run(root, ["markdown", "show", "/"]);
     expect(markdown.status).toBe(1);
-    expect(markdown.stderr).toContain("does not register pagegraph()");
+    expect(markdown.stderr).toContain("Markdown capture is not configured in the graph loader");
   }, 60_000);
 
-  it("keeps Vite config evaluation failures visible in graph-only checks", () => {
+  it("does not resolve unrelated Vite settings for standalone graphs", () => {
     const root = app();
     writeFileSync(join(root, "vite.config.ts"), 'throw new Error("Broken Vite settings"); export default { plugins: [] };\n');
     writeFileSync(join(root, "pagegraph.config.mjs"), `export default { loadGraph: async () => ({ graph: { nodes: new Map(), edges: [] }, site: { origin: "https://example.com", indexable: true, robots: { disallow: [] } }, dispose: async () => {} }) };`);
     const result = run(root, ["check", "--json"]);
-    expect(result.status).toBe(1);
-    expect(result.stderr).toContain("Broken Vite settings");
+    expect(result.status, result.stderr).toBe(0);
+    expect(result.stderr).not.toContain("Broken Vite settings");
   }, 60_000);
 
   it("reads live captures for markdown and claims without requiring a build", async () => {
@@ -224,7 +231,7 @@ describe("claims CLI", () => {
 
   it("pagegraph check replays claims offline and names missing answers", async () => {
     const root = app(true);
-    writeFileSync(join(root, "pagegraph.config.mjs"), `export default { loadGraph: async () => ({ graph: { nodes: new Map(), edges: [] }, site: { origin: "https://example.com", indexable: true, robots: { disallow: [] } }, dispose: async () => {} }) };`);
+    graphConfig(root);
     const missing = run(root, ["check", "--json"]);
     expect(missing.status).toBe(1);
     expect(missing.stderr).toContain("pagegraph claims check");
@@ -238,6 +245,28 @@ describe("claims CLI", () => {
     expect(JSON.parse(failed.stdout).ok).toBe(false);
     expect(JSON.parse(failed.stdout).claims.findings).toHaveLength(3);
   }, 90_000);
+
+  it.each([false, true])("uses the loader's app when the nearest Vite config has pagegraph=%s", async (nearestPlugin) => {
+    const root = app(nearestPlugin);
+    const target = app(true);
+    if (!nearestPlugin) writeFileSync(join(root, "vite.config.ts"), "export default { plugins: [] };\n");
+    graphConfig(root, target);
+    const missing = run(root, ["check", "--json"]);
+    expect(missing.status).toBe(1);
+    expect(missing.stderr).toContain("pagegraph claims check");
+    await cache(target, 0.9);
+    if (nearestPlugin) await cache(root, 0.1);
+    const failed = run(root, ["check", "--json"]);
+    expect(failed.status, failed.stderr).toBe(1);
+    expect(JSON.parse(failed.stdout).claims).toMatchObject({ asked: 0, cached: 3 });
+    expect(JSON.parse(failed.stdout).claims.findings).toHaveLength(3);
+    const claimsCheck = run(root, ["claims", "check", "--json"]);
+    expect(claimsCheck.status, claimsCheck.stderr).toBe(1);
+    expect(JSON.parse(claimsCheck.stdout).findings).toHaveLength(3);
+    const twin = run(root, ["markdown", "show", "/about"]);
+    expect(twin.status, twin.stderr).toBe(0);
+    expect(twin.stdout).toContain("About the team");
+  }, 120_000);
 
   it("refresh bypasses valid committed answers and requires model credentials", async () => {
     const root = app(true);

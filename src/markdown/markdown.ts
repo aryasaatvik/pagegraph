@@ -27,6 +27,7 @@ const builtInKinds = new Set([
   "table",
   "code",
   "cta",
+  "for-all",
   "for-agents",
   "for-humans",
 ]);
@@ -174,6 +175,7 @@ export function sectionMarkdown(
     }
     case "prose":
     case "cta":
+    case "for-all":
     case "for-agents":
     case "for-humans":
       return heading + body;

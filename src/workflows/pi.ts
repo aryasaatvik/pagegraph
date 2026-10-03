@@ -55,9 +55,14 @@ export const createPiRunner = (options: PiRunnerOptions): WorkflowRunner => {
   return {
     model: { provider: options.model.provider, id: options.model.id },
     async research(spec, prompt, { signal }) {
-      signal.throwIfAborted();
+      const assertDeadline = (messages: ReadonlyArray<AgentMessage> = []): void => {
+        if (signal.aborted) throw new WorkflowRunnerError(`Workflow deadline exceeded or run aborted: ${String(signal.reason)}`, {
+          messages, usage: totalUsage(messages), executor: executorEvidence(options.executor.trace),
+        }, { cause: signal.reason });
+      };
+      assertDeadline();
       const systemPrompt = await composeSystemPrompt(options.presetDirectory, spec);
-      signal.throwIfAborted();
+      assertDeadline();
       let state: unknown;
       let submitted = false;
       let rejected = 0;
@@ -112,7 +117,7 @@ export const createPiRunner = (options: PiRunnerOptions): WorkflowRunner => {
       const abort = () => current.abort();
       signal.addEventListener("abort", abort, { once: true });
       try {
-        signal.throwIfAborted();
+        assertDeadline(current.state.messages);
         await current.prompt(prompt);
         const result = { messages: current.state.messages, usage: totalUsage(current.state.messages), executor: executorEvidence(options.executor.trace) };
         if (signal.aborted) throw new WorkflowRunnerError(`Workflow deadline exceeded or run aborted: ${String(signal.reason)}`, result, { cause: signal.reason });

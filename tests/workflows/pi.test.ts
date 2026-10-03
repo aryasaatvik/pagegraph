@@ -150,9 +150,27 @@ describe("Pi workflow runner", () => {
 
   it("aborts an active run when its deadline expires", async () => {
     const { runner, provider } = fixture(true, 100);
-    provider.setResponses([fauxAssistantMessage("Researching " + "evidence ".repeat(100))]);
-    await expect(research(runner, AbortSignal.timeout(40))).rejects.toThrow("deadline exceeded or run aborted");
+    let started!: () => void;
+    const ready = new Promise<void>((resolve) => { started = resolve; });
+    provider.setResponses([() => { started(); return fauxAssistantMessage("Researching " + "evidence ".repeat(100)); }]);
+    const controller = new AbortController();
+    const pending = research(runner, controller.signal);
+    await ready;
+    const deadline = AbortSignal.timeout(40);
+    deadline.addEventListener("abort", () => controller.abort(deadline.reason), { once: true });
+    await expect(pending).rejects.toThrow("deadline exceeded or run aborted");
     expect(provider.state.callCount).toBe(1);
+  });
+
+  it("retains structured failure details when the deadline expires before agent construction", async () => {
+    const { runner, provider } = fixture();
+    const error = await research(runner, AbortSignal.abort(new DOMException("Timed out", "TimeoutError"))).catch((cause: unknown) => cause);
+    expect(error).toBeInstanceOf(WorkflowRunnerError);
+    if (!(error instanceof WorkflowRunnerError)) throw new Error("Expected runner failure");
+    expect(error.message).toContain("deadline exceeded or run aborted");
+    expect(error.result.messages).toEqual([]);
+    expect(error.result.usage.totalTokens).toBe(0);
+    expect(provider.state.callCount).toBe(0);
   });
 
   it("composes project-owned preset instructions and reports the missing skill path", async () => {

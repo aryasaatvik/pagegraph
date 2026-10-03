@@ -23,8 +23,8 @@ export function renderClaimsReport(report: ClaimsReport): string {
 export const replayConfiguredClaims = Effect.fn("CLI.replayConfiguredClaims")(function* () {
   const root = findViteRoot();
   if (root === undefined) return undefined;
-  const options = yield* cliOperation(() => loadPagegraphOptions({ root }));
-  if (options.claims === undefined) return undefined;
+  const options = yield* cliOperation(() => loadPagegraphOptions({ root }, false));
+  if (options?.claims === undefined) return undefined;
   if (options.markdown === undefined)
     return yield* new SeoCliError({ message: "Claims require markdown capture in pagegraph() in the Vite config." });
   const markdown = options.markdown;

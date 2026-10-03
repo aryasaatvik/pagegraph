@@ -117,6 +117,28 @@ describe("markdown CLI", () => {
 });
 
 describe("claims CLI", () => {
+  it("keeps graph-only checks working with a Vite config that has no pagegraph plugin", () => {
+    const root = app();
+    writeFileSync(join(root, "vite.config.ts"), "export default { plugins: [] };\n");
+    writeFileSync(join(root, "pagegraph.config.mjs"), `export default { loadGraph: async () => ({ graph: { nodes: new Map(), edges: [] }, site: { origin: "https://example.com", indexable: true, robots: { disallow: [] } }, dispose: async () => {} }) };`);
+    const result = run(root, ["check", "--json"]);
+    expect(result.status, result.stderr).toBe(0);
+    expect(JSON.parse(result.stdout)).toMatchObject({ ok: true, violations: [] });
+    expect(JSON.parse(result.stdout).claims).toBeUndefined();
+    const markdown = run(root, ["markdown", "show", "/"]);
+    expect(markdown.status).toBe(1);
+    expect(markdown.stderr).toContain("does not register pagegraph()");
+  }, 60_000);
+
+  it("keeps Vite config evaluation failures visible in graph-only checks", () => {
+    const root = app();
+    writeFileSync(join(root, "vite.config.ts"), 'throw new Error("Broken Vite settings"); export default { plugins: [] };\n');
+    writeFileSync(join(root, "pagegraph.config.mjs"), `export default { loadGraph: async () => ({ graph: { nodes: new Map(), edges: [] }, site: { origin: "https://example.com", indexable: true, robots: { disallow: [] } }, dispose: async () => {} }) };`);
+    const result = run(root, ["check", "--json"]);
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("Broken Vite settings");
+  }, 60_000);
+
   it("reads live captures for markdown and claims without requiring a build", async () => {
     const root = app(true);
     await cache(root, 0.1);

@@ -4,6 +4,7 @@ import type * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 
 import type { DecisionBatchReport } from "../../decide/record";
+import type { DecisionCacheInvalid } from "../../decide/cache";
 import { runDecisions, type DecisionFamily } from "../../decide/run";
 import type { WorkflowId } from "../model";
 
@@ -61,7 +62,7 @@ export interface AnyWorkflowSpec {
     readonly inputs: ReadonlyArray<unknown>;
     readonly model: string;
     readonly threshold: number;
-  }) => Effect.Effect<DecisionBatchReport, AiError.AiError, DecisionModel.DecisionModel>;
+  }) => Effect.Effect<DecisionBatchReport, AiError.AiError | DecisionCacheInvalid, DecisionModel.DecisionModel>;
 }
 
 export const defineWorkflow = <State, Input>(

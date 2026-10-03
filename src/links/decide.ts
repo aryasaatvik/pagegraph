@@ -17,8 +17,8 @@ import * as Schema from "effect/Schema";
 import { Decision, DecisionModel } from "effect/ai";
 import type * as AiError from "effect/ai/AiError";
 
-import { cacheGet, cachePut } from "../decide/cache";
-import { cacheKey, inputHash, validCachedAnswers } from "../decide/run";
+import { cacheKey, inputHash } from "../decide/answers";
+import { readAnswers, writeAnswers, type DecisionCache, type DecisionCacheInvalid } from "../decide/cache";
 
 /** Default probability boundary between a confident and an uncertain answer. */
 export const DEFAULT_LINK_THRESHOLD = 0.7;
@@ -287,26 +287,31 @@ export const decideLinks = (
     readonly model: string;
     readonly threshold: number;
     readonly concurrency?: number;
-    /** Cache directory; absent means no cache. */
-    readonly cacheDir?: string;
+    /** Answer cache; absent means every candidate is asked. */
+    readonly cache?: DecisionCache;
     /** Keep the top-K candidates per source by relevance; absent means no budget. */
     readonly budget?: number;
   },
-): Effect.Effect<LinksDecideReport, AiError.AiError, DecisionModel.DecisionModel> =>
+): Effect.Effect<LinksDecideReport, AiError.AiError | DecisionCacheInvalid, DecisionModel.DecisionModel> =>
   Effect.gen(function* () {
     const records = yield* Effect.forEach(
       candidates,
       (candidate) =>
         Effect.gen(function* () {
           const hash = inputHash(candidate);
-          const key = cacheKey("links", options.model, hash);
+          const key = cacheKey({
+            family: "links",
+            model: options.model,
+            decisions: LinkDecision.decisions,
+            inputHash: hash,
+          });
           const cached =
-            options.cacheDir === undefined ? undefined : cacheGet(options.cacheDir, key);
-          if (cached !== undefined && validCachedAnswers(LinkDecision.decisions, cached)) {
-            return toRecord(candidate, cached as LinkAnswers, options.threshold);
-          }
+            options.cache === undefined
+              ? undefined
+              : yield* readAnswers(options.cache, key, LinkDecision.decisions);
+          if (cached !== undefined) return toRecord(candidate, cached as LinkAnswers, options.threshold);
           const { answers } = yield* DecisionModel.decide(LinkDecision, { input: candidate });
-          if (options.cacheDir !== undefined) cachePut(options.cacheDir, key, answers);
+          if (options.cache !== undefined) yield* writeAnswers(options.cache, key, answers);
           return toRecord(candidate, answers, options.threshold);
         }),
       { concurrency: options.concurrency ?? 4 },

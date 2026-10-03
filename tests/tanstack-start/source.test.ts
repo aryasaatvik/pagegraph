@@ -1,4 +1,8 @@
 import { describe, expect, it } from "@effect/vitest";
+import * as React from "react";
+import { transformWithOxc } from "vite";
+
+import { T } from "../../src/react/document";
 
 import { transformDocumentSource } from "../../src/tanstack-start/source";
 
@@ -29,6 +33,25 @@ describe("document source transform", () => {
   it("preserves an existing source attribute", () => {
     const code = `import { T } from "pagegraph/react";\nconst page = <T source="authored">Hi</T>;`;
     expect(transformDocumentSource(code, "/repo/page.tsx", root)).toBeUndefined();
+  });
+
+  it("lets spread and explicit source props override the generated default in executed JSX", async () => {
+    const code = `import { T } from "pagegraph/react";
+const supplied = { source: "spread-authored" };
+const page = [<T {...supplied}>Spread</T>, <T {...supplied} source="explicit-authored">Explicit</T>, <T {...{ className: "label" }}>Default</T>];`;
+    const transformed = transformDocumentSource(code, "/repo/src/page.tsx", root);
+    if (transformed === undefined) throw new Error("Expected JSX source injection");
+    const compiled = await transformWithOxc(
+      transformed.code.replace('import { T } from "pagegraph/react";', ""),
+      "page.tsx", { jsx: { runtime: "classic" } },
+    );
+    const elements: unknown = new Function("React", "T", `${compiled.code}; return page;`)(React, T);
+    if (!Array.isArray(elements)) throw new Error("Expected compiled JSX elements");
+    const sources = elements.map((element) => {
+      if (!React.isValidElement<{ source?: string }>(element)) throw new Error("Expected a React element");
+      return element.props.source;
+    });
+    expect(sources).toEqual(["spread-authored", "explicit-authored", "src/page.tsx:3"]);
   });
 
   it("preserves router imports, including Link and namespaces", () => {

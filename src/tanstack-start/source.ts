@@ -114,6 +114,7 @@ export function transformDocumentSource(
     )
       return;
     const line = code.slice(0, node.start).split("\n").length;
+    // Generated defaults precede attributes so authored and spread props retain precedence.
     edits.push({
       start: node.name.end,
       end: node.name.end,

@@ -6,10 +6,10 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import type { SeoWorkflowAgentConfig } from "../config";
 import { createExecutorToolset, executorEvidence, type ExecutorToolset } from "./executor";
-import { createRepositoryTools, guardRepositoryToolCall } from "./repository-tools";
+import { createRepositoryTools, createRepositoryWriteTools, guardRepositoryToolCall } from "./repository-tools";
 import type { RunnerResult, WorkflowRunner } from "./runner";
 import type { AnyWorkflowSpec } from "./specs/types";
-import { decodeResearchState, normalizeResearchState } from "./state";
+import { actionStateJsonSchema, decodeActionState, decodeResearchState, normalizeResearchState } from "./state";
 
 const MAX_REJECTED_SUBMISSIONS = 3;
 
@@ -48,83 +48,99 @@ export interface PiRunnerOptions {
   readonly limit: number;
   readonly executor: ExecutorToolset;
   readonly streamFn?: AgentOptions["streamFn"];
+  readonly runsDirectory?: string;
+  readonly additionalTools?: ReadonlyArray<AgentTool>;
 }
 
 export const createPiRunner = (options: PiRunnerOptions): WorkflowRunner => {
   let agent: Agent | undefined;
-  return {
-    model: { provider: options.model.provider, id: options.model.id },
-    async research(spec, prompt, { signal }) {
-      const assertDeadline = (messages: ReadonlyArray<AgentMessage> = []): void => {
-        if (signal.aborted) throw new WorkflowRunnerError(`Workflow deadline exceeded or run aborted: ${String(signal.reason)}`, {
-          messages, usage: totalUsage(messages), executor: executorEvidence(options.executor.trace),
-        }, { cause: signal.reason });
-      };
-      assertDeadline();
-      const systemPrompt = await composeSystemPrompt(options.presetDirectory, spec);
-      assertDeadline();
-      let state: unknown;
-      let submitted = false;
-      let rejected = 0;
-      let lastIssues = "No structured result was submitted.";
-      const rawSubmissions = new Map<string, unknown>();
-      const submit: AgentTool = {
-        name: "submit_result", label: "Submit workflow result", description: "Validate and submit the final workflow state after collecting Executor evidence.",
-        parameters: Type.Unsafe(spec.stateJsonSchema),
-        prepareArguments: (args) => normalizeResearchState(args, options.limit),
-        execute: async (_id, params) => {
-          try {
-            const decoded = decodeResearchState(spec, rawSubmissions.get(_id) ?? params, options.limit);
-            const evidence = executorEvidence(options.executor.trace);
-            if (evidence.searches.length === 0 || evidence.calls.length === 0) {
-              throw new Error([
-                `Your research returned without completed Executor provider evidence (searches: ${evidence.searches.length}, calls: ${evidence.calls.length}).`,
-                "Catalog searches and schema discovery alone do not satisfy this workflow.",
-                "Use the catalog results already collected, inspect the exact discovered tool schema, and complete at least one relevant read-only provider call before submitting the original workflow state.",
-                "Preserve provider errors and empty datasets honestly; do not invent evidence or mutate provider state.",
-              ].join(" "));
-            }
-            state = decoded;
-            submitted = true;
-            return { content: [{ type: "text", text: "Workflow result accepted." }], details: undefined, terminate: true };
-          } catch (cause) {
-            lastIssues = cause instanceof Error ? cause.message : String(cause);
-            return { content: [{ type: "text", text: lastIssues }], details: undefined, isError: true,
-              terminate: rejected + 1 >= MAX_REJECTED_SUBMISSIONS };
+  let researched = false;
+  const phase = async (spec: AnyWorkflowSpec, prompt: string, signal: AbortSignal, mode?: "write" | "dry-run"): Promise<RunnerResult> => {
+    const assertDeadline = (messages: ReadonlyArray<AgentMessage> = []): void => {
+      if (signal.aborted) throw new WorkflowRunnerError(`Workflow deadline exceeded or run aborted: ${String(signal.reason)}`, {
+        messages, usage: totalUsage(messages), executor: executorEvidence(options.executor.trace),
+      }, { cause: signal.reason });
+    };
+    assertDeadline(agent?.state.messages);
+    if (mode !== undefined && !researched) throw new Error("Workflow action requires a completed research conversation");
+    const systemPrompt = mode === undefined ? await composeSystemPrompt(options.presetDirectory, spec) : undefined;
+    assertDeadline();
+    let state: unknown;
+    let submitted = false;
+    let rejected = 0;
+    let lastIssues = "No structured result was submitted.";
+    const rawSubmissions = new Map<string, unknown>();
+    const submit: AgentTool = {
+      name: "submit_result", label: "Submit workflow result", description: "Validate and submit the final workflow state after collecting Executor evidence.",
+      parameters: Type.Unsafe(mode === undefined ? spec.stateJsonSchema : actionStateJsonSchema),
+      prepareArguments: (args) => mode === undefined ? normalizeResearchState(args, options.limit) : args,
+      execute: async (_id, params) => {
+        try {
+          const decoded = mode === undefined ? decodeResearchState(spec, rawSubmissions.get(_id) ?? params, options.limit)
+            : decodeActionState(rawSubmissions.get(_id) ?? params);
+          const evidence = executorEvidence(options.executor.trace);
+          if (mode === undefined && (evidence.searches.length === 0 || evidence.calls.length === 0)) {
+            throw new Error([
+              `Your research returned without completed Executor provider evidence (searches: ${evidence.searches.length}, calls: ${evidence.calls.length}).`,
+              "Catalog searches and schema discovery alone do not satisfy this workflow.",
+              "Use the catalog results already collected, inspect the exact discovered tool schema, and complete at least one relevant read-only provider call before submitting the original workflow state.",
+              "Preserve provider errors and empty datasets honestly; do not invent evidence or mutate provider state.",
+            ].join(" "));
           }
-        },
-      };
+          state = decoded;
+          submitted = true;
+          return { content: [{ type: "text", text: "Workflow result accepted." }], details: undefined, terminate: true };
+        } catch (cause) {
+          lastIssues = cause instanceof Error ? cause.message : String(cause);
+          return { content: [{ type: "text", text: lastIssues }], details: undefined, isError: true,
+            terminate: rejected + 1 >= MAX_REJECTED_SUBMISSIONS };
+        }
+      },
+    };
+    const writeOptions = { presetDirectory: options.presetDirectory, runsDirectory: options.runsDirectory ?? resolve(options.root, ".pagegraph/runs") };
+    const tools = [...options.executor.tools, ...createRepositoryTools(options.root), ...(options.additionalTools ?? []),
+      ...(mode === "write" ? createRepositoryWriteTools(options.root, writeOptions) : []), submit];
+    if (systemPrompt !== undefined) {
+      researched = false;
       agent = new Agent({
-        initialState: { systemPrompt, model: options.model, tools: [...options.executor.tools, ...createRepositoryTools(options.root), submit] },
+        initialState: { systemPrompt, model: options.model, tools },
         streamFn: options.streamFn ?? streamSimple,
         getApiKey: getEnvApiKey,
         toolExecution: "sequential",
-        beforeToolCall: async (context, signal) => {
-          if (submitted || rejected >= MAX_REJECTED_SUBMISSIONS) return { block: true, reason: "Workflow submission is closed.", terminate: true };
-          if (context.toolCall.name === "submit_result") rawSubmissions.set(context.toolCall.id, context.toolCall.arguments);
-          return guardRepositoryToolCall(options.root)?.(context, signal);
-        },
-        finishTurn: () => submitted || rejected >= MAX_REJECTED_SUBMISSIONS ? { action: "end" } : undefined,
       });
-      const current = agent;
-      // Parameter validation can reject before execute; sequential result events count every submission.
-      current.subscribe((event) => {
-        if (event.type !== "message_end" || event.message.role !== "toolResult" || event.message.toolName !== "submit_result" || !event.message.isError) return;
-        rejected++;
-        lastIssues = event.message.content.filter((part) => part.type === "text").map((part) => part.text).join("\n");
-        if (rejected >= MAX_REJECTED_SUBMISSIONS) current.abort();
-      });
-      const abort = () => current.abort();
-      signal.addEventListener("abort", abort, { once: true });
-      try {
-        assertDeadline(current.state.messages);
-        await current.prompt(prompt);
-        const result = { messages: current.state.messages, usage: totalUsage(current.state.messages), executor: executorEvidence(options.executor.trace) };
-        if (signal.aborted) throw new WorkflowRunnerError(`Workflow deadline exceeded or run aborted: ${String(signal.reason)}`, result, { cause: signal.reason });
-        if (!submitted) throw new WorkflowRunnerError(`Workflow result rejected: ${lastIssues}${current.state.errorMessage ? `\n${current.state.errorMessage}` : ""}`, result);
-        return { ...result, state };
-      } finally { signal.removeEventListener("abort", abort); }
-    },
+    }
+    if (!agent) throw new Error("Workflow action requires a research conversation");
+    agent.state.tools = tools;
+    agent.beforeToolCall = async (context, signal) => {
+      if (submitted || rejected >= MAX_REJECTED_SUBMISSIONS) return { block: true, reason: "Workflow submission is closed.", terminate: true };
+      if (context.toolCall.name === "submit_result") rawSubmissions.set(context.toolCall.id, context.toolCall.arguments);
+      return guardRepositoryToolCall(options.root, mode === "write" ? writeOptions : undefined)?.(context, signal);
+    };
+    agent.finishTurn = () => submitted || rejected >= MAX_REJECTED_SUBMISSIONS ? { action: "end" } : undefined;
+    const current = agent;
+    // Parameter validation can reject before execute; sequential result events count every submission.
+    const unsubscribe = current.subscribe((event) => {
+      if (event.type !== "message_end" || event.message.role !== "toolResult" || event.message.toolName !== "submit_result" || !event.message.isError) return;
+      rejected++;
+      lastIssues = event.message.content.filter((part) => part.type === "text").map((part) => part.text).join("\n");
+      if (rejected >= MAX_REJECTED_SUBMISSIONS) current.abort();
+    });
+    const abort = () => current.abort();
+    signal.addEventListener("abort", abort, { once: true });
+    try {
+      assertDeadline(current.state.messages);
+      await current.prompt(prompt);
+      const result = { messages: current.state.messages, usage: totalUsage(current.state.messages), executor: executorEvidence(options.executor.trace) };
+      if (signal.aborted) throw new WorkflowRunnerError(`Workflow deadline exceeded or run aborted: ${String(signal.reason)}`, result, { cause: signal.reason });
+      if (!submitted) throw new WorkflowRunnerError(`Workflow result rejected: ${lastIssues}${current.state.errorMessage ? `\n${current.state.errorMessage}` : ""}`, result);
+      if (mode === undefined) researched = true;
+      return { ...result, state };
+    } finally { signal.removeEventListener("abort", abort); unsubscribe(); }
+  };
+  return {
+    model: { provider: options.model.provider, id: options.model.id },
+    research: (spec, prompt, { signal }) => phase(spec, prompt, signal),
+    act: (spec, prompt, { signal, mode }) => phase(spec, prompt, signal, mode),
     async close() { agent?.abort(); await agent?.waitForIdle(); },
   };
 };
@@ -135,6 +151,8 @@ export const acquireWorkflowRunner = async (options: {
   readonly model?: string | undefined;
   readonly limit: number;
   readonly executor?: ExecutorToolset;
+  readonly runsDirectory?: string;
+  readonly additionalTools?: ReadonlyArray<AgentTool>;
 }): Promise<WorkflowRunner> => {
   const id = options.model ?? options.config.defaultModel;
   const slash = id.indexOf("/");
@@ -147,5 +165,6 @@ export const acquireWorkflowRunner = async (options: {
     throw new Error(`Missing Pi credentials for ${provider}; set ${names?.join(" or ") ?? `${provider} provider credentials`}.`);
   }
   return createPiRunner({ root: options.root, presetDirectory: resolve(options.root, options.config.presetDirectory),
-    model, limit: options.limit, executor: options.executor ?? createExecutorToolset({ policy: "decline" }) });
+    model, limit: options.limit, ...(options.runsDirectory === undefined ? {} : { runsDirectory: options.runsDirectory }),
+    ...(options.additionalTools === undefined ? {} : { additionalTools: options.additionalTools }), executor: options.executor ?? createExecutorToolset({ policy: "decline" }) });
 };

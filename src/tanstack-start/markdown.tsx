@@ -13,8 +13,7 @@ import { documentMarkdown, sectionMarkdown } from "../markdown/markdown";
 import { CaptureRequest, createCollector, finishDocument } from "../react/document";
 import { seoGraph } from "./server";
 
-/** Private bundle consumed by the pagegraph prerender hook. */
-export const MARKDOWN_CAPTURE_PATH = "/__pagegraph/markdown.json";
+import { MARKDOWN_CAPTURE_PATH } from "./markdown-path";
 
 /** Concrete graph pages declaring `staticData.markdown: "rendered"`. */
 export function markdownPagePaths(): ReadonlyArray<string> {

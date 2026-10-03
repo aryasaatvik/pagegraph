@@ -36,7 +36,8 @@ import {
 import { graphToJson } from "../core/wire";
 import { seoRouteConfig } from "../vite/route-config";
 import { evaluateGraph, planGraph, type AppGraph, type GraphModuleRunner, type GraphPlan, type PagegraphOptions } from "./graph";
-import { MARKDOWN_CAPTURE_PATH, persistMarkdownCapture } from "./persist-markdown";
+import { MARKDOWN_CAPTURE_PATH } from "./markdown-path";
+import { persistMarkdownCapture } from "./persist-markdown";
 import { transformDocumentSource } from "./source";
 
 export const GRAPH_ENVIRONMENT = "pagegraph";

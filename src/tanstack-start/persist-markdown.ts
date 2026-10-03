@@ -7,7 +7,7 @@ import type { InlineNode as InlineNodeType, PageDocument } from "../markdown/doc
 import { hashDocument } from "../markdown/document";
 import { documentMarkdown } from "../markdown/markdown";
 
-export const MARKDOWN_CAPTURE_PATH = "/__pagegraph/markdown.json";
+import { MARKDOWN_CAPTURE_PATH } from "./markdown-path";
 const InlineNode: Schema.Codec<InlineNodeType> = Schema.suspend(() => Schema.Union([
   Schema.String,
   Schema.Struct({ fact: Schema.String, text: Schema.String }),

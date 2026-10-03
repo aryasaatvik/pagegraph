@@ -6,7 +6,8 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { hashDocument } from "../../src/markdown/document";
 import type { PageDocument } from "../../src/markdown/document";
-import { MARKDOWN_CAPTURE_PATH, persistMarkdownCapture } from "../../src/tanstack-start/persist-markdown";
+import { MARKDOWN_CAPTURE_PATH } from "../../src/tanstack-start/markdown-path";
+import { persistMarkdownCapture } from "../../src/tanstack-start/persist-markdown";
 import { pagegraph } from "../../src/tanstack-start/plugin";
 
 const roots: Array<string> = [];

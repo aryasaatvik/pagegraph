@@ -208,9 +208,10 @@ load your app through Vite, parse routes natively, or drive Node I/O.
 | `pagegraph/tanstack-start/markdown` | runtime (Start server) | `markdownRequest`, `markdownPagePaths` | `react`, `react-dom`, `@tanstack/react-start`, `@tanstack/react-router` |
 | `pagegraph/tanstack-start/react` | runtime | capture-aware `Link` | `react`, `@tanstack/react-router` |
 | `pagegraph/tanstack-start/prerender-worker` | non-deployed prerender Worker | compiled Start server | the `pagegraph()` plugin |
-| `pagegraph/tanstack-start` | build (`vite.config.ts`, `pagegraph.config.ts`) | `pagegraph()` Vite plugin, `tanstackStartGraph`, `evaluateAppGraph`                        | `vite`, `@tanstack/router-generator` |
+| `pagegraph/tanstack-start` | build (`vite.config.ts`, `pagegraph.config.ts`) | `pagegraph()` Vite plugin, `tanstackStartGraph`, `evaluateAppGraph`                        | `vite`, `@tanstack/router-generator`, `effect` |
 | `pagegraph/vite`   | build (`vite.config.ts`)      | `seoRouteConfig` coverage gate                                                                            | `vite`, `@tanstack/router-generator` |
 | `pagegraph/config` | build (`pagegraph.config.ts`, CLI)  | `defineSeoConfig`, `viteGraphLoader`, `loadPageHeads`                                                     | `vite`                            |
+| `pagegraph/claims` | build / CLI (Node or Bun) | `claimsInput`, `claimsFamily`, document resolution, committed claims checks | `effect` |
 | `pagegraph/audit`  | build / CLI (Node or Bun)     | Audit services, scanner protocol, rules, and report schemas                                               | `effect`                          |
 | `pagegraph/oxlint` | build (oxlint)               | `pagegraph` plugin: `no-bare-text`, `t-children`                                                        | —                                 |
 | `pagegraph` bin    | CLI (Bun)                     | CLI over the same graph                                                                                   | bundled                           |
@@ -376,7 +377,6 @@ import { defineSeoConfig } from "pagegraph/config";
 import { tanstackStartGraph } from "pagegraph/tanstack-start";
 
 export default defineSeoConfig({
-  origin: "https://example.com",
   loadGraph: tanstackStartGraph({ root: import.meta.dirname }),
 });
 ```
@@ -579,27 +579,101 @@ It also derives a small config module from the route tree: `robotsExclusions`
 (the plugin adds them to robots.txt; a Router-only app feeds them to `renderRobots`) and
 `reservedSegments` (top-level segments an app must not hand out as tenant/org slugs).
 
+## Claims gate
+
+Declare probability rules against `claimsInput` from the build-only `pagegraph/claims` entry.
+Each rule asks whether the section violates your policy:
+
+```ts
+import { Decision } from "effect/ai";
+import { claimsInput } from "pagegraph/claims";
+import { pagegraph } from "pagegraph/tanstack-start";
+
+const rules = Decision.make({
+  input: claimsInput,
+  decisions: {
+    unsupportedPromise: Decision.probability({
+      instructions: "Does this section promise a capability unsupported by its facts or evidence?",
+    }),
+  },
+});
+
+const graph = pagegraph({
+  origin: "https://example.com",
+  markdown: { origin: "https://example.com" },
+  facts: "src/facts.ts",
+  claims: { rules, model: "typesafe/jev", cutoff: 0.8 },
+});
+```
+
+Pass `graph.prerenderPages` to Start as shown in the rendered Markdown setup. The build persists
+captured documents and graph heads, then replays committed answers without a model or credentials.
+Missing answers and violations fail the build and name the page, section, and rule.
+
+Run `pagegraph claims check` after changing prose, facts, context, or rules, then review and commit
+`.pagegraph/decisions/claims/`. The cache key includes the rule definition fingerprint, model, and
+input hash. Cached answers are reused; `--refresh` asks again and replaces them. The command reports
+cached and asked counts and exits nonzero on violations. Set `TYPESAFE_API_KEY` when answers need
+asking. `pagegraph check` also replays configured claims without model calls.
+
+```sh
+pagegraph claims check
+pagegraph claims check --refresh
+pagegraph claims check --dev http://localhost:3000
+```
+
+`claims.context` supplies policy text to every input. Inputs include the section's authored
+Markdown, messages, all code-owned facts, and other sections marked as evidence. Page metadata is
+judged as a `head` section, including graph pages outside rendered capture. `excludeHeads` accepts
+path globs to omit metadata while keeping captured sections in the gate. The default cutoff is
+`0.8` only when omitted; any probability at or above the configured cutoff is a violation, and
+values below it pass. Changing the cutoff reuses answers and recalculates verdicts.
+
+## Markdown CLI
+
+Inspect captured documents, search page metadata and sections, and maintain a reviewable lock:
+
+```sh
+pagegraph markdown show /pricing
+pagegraph markdown find email
+pagegraph markdown lock
+pagegraph markdown lock --check
+```
+
+`show` prints the page's Markdown twin. `find` reports matching pages and sections.
+`lock` writes `.pagegraph/markdown.lock.json` from document and message hashes, including
+head-only pages; `--check` exits nonzero if the lock is missing or differs. These commands use
+`.pagegraph/documents/` and `.pagegraph/heads.json` from the build. Use `--dev <origin>` to inspect
+the development bundle instead. `--json` emits structured output using the CLI's usual conventions.
+Markdown and claims settings come from `pagegraph()` in Vite, including the canonical Markdown
+origin and facts module. Put CLI policies and the graph loader in `pagegraph.config.ts`.
+
 ## CLI
 
-The graph commands acquire your graph through `pagegraph.config.ts` at the app root. A
+The graph commands acquire your graph through `pagegraph.config.ts` at the app root.
+Rename an existing `seo.config.ts`, `.js`, or `.mjs` to its `pagegraph.config.*` equivalent.
+The file holds CLI policies and `loadGraph`; site identity and robots policy come from the
+loader result, and Markdown and claims settings come from the Vite plugin. A
 TanStack Start app uses `tanstackStartGraph` (above), which also supplies the robots
-policy. Otherwise `viteGraphLoader` evaluates your graph module inside a headless Vite
-server, so path aliases, content plugins, and virtual modules all resolve:
+policy and site identity from `pagegraph()`. Otherwise `viteGraphLoader` evaluates your graph
+module inside a headless Vite server, so path aliases, content plugins, and virtual modules all resolve:
 
 ```ts
 // pagegraph.config.ts
 import { defineSeoConfig, viteGraphLoader } from "pagegraph/config";
 
 export default defineSeoConfig({
-  origin: "https://example.com",
-  disallow: routeConfig.robotsExclusions,
-  contentSignal: "search=yes, ai-input=yes, ai-train=yes",
   // Fail `check` unless each named money page has enough contextual links.
   coverage: [{ path: "/pricing", minInbound: 2 }, { path: "/features/*", minInbound: 1 }],
   loadGraph: viteGraphLoader({
     root: import.meta.dirname,
     entry: "/lib/seo/graph.ts",
     exportName: "loadSeoGraph",
+    site: {
+      origin: "https://example.com",
+      indexable: true,
+      robots: { disallow: routeConfig.robotsExclusions, contentSignal: "search=yes, ai-input=yes, ai-train=yes" },
+    },
   }),
 });
 ```

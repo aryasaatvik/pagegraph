@@ -1,5 +1,7 @@
 import * as Command from "effect/cli/Command";
 
+import { claimsCommandGroup } from "./commands/claims";
+import { markdownCommandGroup } from "./commands/markdown";
 import { checkCommand } from "./commands/check";
 import { auditCommand } from "./commands/audit";
 import { analyzeCommandGroup } from "./commands/analyze";
@@ -55,6 +57,8 @@ export const cli = Command.make("pagegraph").pipe(
     planCommandGroup,
     researchCommandGroup,
     checkCommand,
+    claimsCommandGroup,
+    markdownCommandGroup,
     sitemapCommand,
     skillsCommand,
     staleCommand,

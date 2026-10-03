@@ -15,6 +15,7 @@ import type { SeoGraph } from "../../core/graph";
 import { normalizePath } from "../../core/links";
 import { acquireGraph, loadSeoConfig } from "../load-config";
 import { jsonFlag, printJson, printText, SeoCliError } from "../output";
+import { replayConfiguredClaims, renderClaimsReport } from "./claims";
 import { renderViolations } from "../render";
 
 const requireInboundFlag = Flag.String("require-inbound").pipe(
@@ -201,11 +202,13 @@ export const checkCommand = Command.make("check", {
         violations.push(...checkRenderedContent(graph, documents, config.content));
         rendered = { site: flags.site.value, pages: documents.length };
       }
+      const claims = yield* replayConfiguredClaims();
       const structural = violations.filter((violation) => violation.severity === "structural");
 
       if (flags.json) {
         yield* printJson({
-          ok: structural.length === 0,
+          ok: structural.length === 0 && (claims?.findings.length ?? 0) === 0,
+          ...(claims === undefined ? {} : { claims }),
           structural: structural.length,
           editorial: violations.length - structural.length,
           ...(rendered === undefined ? {} : { rendered }),
@@ -213,8 +216,12 @@ export const checkCommand = Command.make("check", {
         });
       } else {
         yield* printText(renderViolations(violations));
+        if (claims !== undefined) yield* printText(renderClaimsReport(claims));
       }
 
+      if (claims !== undefined && claims.findings.length > 0) {
+        return yield* new SeoCliError({ message: `${claims.findings.length} claims violation(s); see the report above. Run pagegraph claims check after correcting the claims.` });
+      }
       if (hasStructuralViolations(violations)) {
         return yield* new SeoCliError({
           message: `${structural.length} structural violation(s) — see the report above.`,

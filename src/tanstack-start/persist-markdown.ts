@@ -12,10 +12,8 @@ import { MARKDOWN_CAPTURE_PATH } from "./markdown-path";
 
 /** File names must remain inside the package's capture and the client's output trees. */
 function documentName(path: string): string {
-  const parsed = new URL(path, "https://pagegraph.invalid");
-  if (!path.startsWith("/") || path.startsWith("//") || /[?#\\$]/.test(path) ||
-      parsed.pathname !== path || parsed.origin !== "https://pagegraph.invalid" ||
-      (path !== "/" && path.endsWith("/")) || path.split("/").some((part) => part === "." || part === ".." || part === "*")) {
+  if (!path.startsWith("/") || path.startsWith("//") || /[?#\\$\u0000-\u001f\u007f]/.test(path) ||
+      (path !== "/" && path.endsWith("/")) || path.slice(1).split("/").some((part) => part === "." || part === ".." || part === "*" || (part === "" && path !== "/"))) {
     throw new Error(`Invalid captured document path "${path}"`);
   }
   return path === "/" ? "index" : path.slice(1);

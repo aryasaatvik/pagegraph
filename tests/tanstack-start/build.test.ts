@@ -31,7 +31,7 @@ async function nodeExecutable(): Promise<string> {
   throw new Error("The Cloudflare Start build fixture needs a Node executable on PATH");
 }
 
-async function startFixture(mode: "preview" | "dev"): Promise<{ process: ChildProcess; origin: string }> {
+async function startFixture(mode: "preview" | "dev" | "static"): Promise<{ process: ChildProcess; origin: string }> {
   const child = spawn(node, [join(root, "serve.mjs"), mode], {
     cwd: root,
     env: { ...process.env, NODE_ENV: mode === "dev" ? "development" : "production", TSS_PRERENDERING: undefined },
@@ -157,6 +157,22 @@ describe("rendered markdown in a real Start Worker build", () => {
       expect(response.status).toBe(404);
       expect(await response.text()).not.toContain("src/routes/");
     }
+  });
+
+  it("serves encoded Unicode and space paths from decoded files in Vite and Cloudflare", async () => {
+    const staticServer = await startFixture("static");
+    try {
+      for (const [decoded, encoded] of [["café", "caf%C3%A9"], ["hello world", "hello%20world"]]) {
+        expect(JSON.parse(await readFile(join(root, `.pagegraph/documents/guides/${decoded}.json`), "utf8")).path)
+          .toBe(`/guides/${decoded}`);
+        const markdown = await readFile(join(root, `dist/client/guides/${decoded}.md`), "utf8");
+        for (const host of [origin, staticServer.origin]) {
+          const response = await fetch(new URL(`guides/${encoded}.md`, host), { signal: AbortSignal.timeout(15_000) });
+          expect(response.status).toBe(200);
+          expect(await response.text()).toBe(markdown);
+        }
+      }
+    } finally { await stopFixture(staticServer.process); }
   });
 
   it("serves isolated live captures in dev, strips credentials, and reports render failures", async () => {

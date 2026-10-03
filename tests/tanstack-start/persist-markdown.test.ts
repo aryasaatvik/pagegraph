@@ -53,6 +53,17 @@ describe("Markdown prerender persistence", () => {
     await expect(readFile(capture)).rejects.toMatchObject({ code: "ENOENT" });
   });
 
+  it("keeps Unicode and space characters in document and twin file names", async () => {
+    const { root, out, documents } = await fixture();
+    const paths = ["/café", "/hello world"];
+    await persistMarkdownCapture(bundle(paths.map(document)), root, out);
+    for (const path of paths) {
+      expect(JSON.parse(await readFile(join(documents, `${path}.json`), "utf8")).path).toBe(path);
+      expect(await readFile(join(out, `${path}.md`), "utf8")).toContain("# Captured title");
+      await expect(readFile(join(out, `${encodeURIComponent(path.slice(1))}.md`))).rejects.toMatchObject({ code: "ENOENT" });
+    }
+  });
+
   it("prunes only valid stale captures at their derived path and preserves unrelated files", async () => {
     const { root, out, documents } = await fixture();
     await mkdir(documents, { recursive: true });
@@ -76,7 +87,7 @@ describe("Markdown prerender persistence", () => {
 
   it("validates the entire bundle before deleting or writing files", async () => {
     const { root, out, capture } = await fixture();
-    for (const path of ["/../outside", "/$slug", "/foo?query=1", "/foo/", "//elsewhere"]) {
+    for (const path of ["/../outside", "/$slug", "/foo?query=1", "/foo/", "//elsewhere", "/foo//bar", "/foo/./bar", "/foo\\bar", "/control\u0000"]) {
       await expect(persistMarkdownCapture(bundle([document(path)]), root, out)).rejects.toThrow("Invalid captured document path");
     }
     await expect(persistMarkdownCapture(bundle([{ ...document("/"), hash: "wrong" }]), root, out)).rejects.toThrow("Invalid captured document hash");

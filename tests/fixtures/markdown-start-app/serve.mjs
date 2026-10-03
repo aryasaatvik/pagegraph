@@ -1,8 +1,10 @@
 import { createServer, preview } from "vite";
 
+const mode = process.argv[2];
 const options = {
   root: import.meta.dirname,
-  configFile: `${import.meta.dirname}/vite.config.ts`,
+  configFile: mode === "static" ? false : `${import.meta.dirname}/vite.config.ts`,
+  ...(mode === "static" ? { build: { outDir: "dist/client" } } : {}),
   logLevel: "error",
 };
 const server = process.argv[2] === "dev"

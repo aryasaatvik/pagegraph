@@ -5,7 +5,7 @@ export { defineFacts, fact, resolveFact } from "./facts";
 export type { FactDefinition, Facts } from "./facts";
 export { defineSectionKind, documentMarkdown, sectionMarkdown } from "./markdown";
 export type { MarkdownWriter, SectionKind } from "./markdown";
-export { llmsMarkdown, llmsSection, appendLlmsSection } from "./llms";
+export { llmsMarkdown, llmsSection } from "./llms";
 export type { LlmsPage } from "./llms";
 export { createMarkdownLock } from "./lock";
 export type { MarkdownLock } from "./lock";

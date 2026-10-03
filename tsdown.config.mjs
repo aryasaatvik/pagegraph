@@ -4,8 +4,9 @@ import { libraryAlwaysBundle } from "./scripts/bundle-policy.mjs";
 // One entry per public `exports` subpath, plus `cli` for the `bin`. Two passes so
 // the CLI can bundle Effect while the library entries stay dependency-free.
 //
-// Runtime entries (`index`, `react`, `tanstack-start/server`) are pure data + string rendering and may run in
-// a Worker or browser; `tests/package/entry-graph.test.ts` pins what they import.
+// Runtime entries use portable graph/document code and their declared React/Start peers;
+// `tests/package/entry-graph.test.ts` pins what they import. The prerender-worker entry
+// forwards to the compiled application only in the non-deployed capture Worker.
 // Build entries (`vite`, `config`, `audit`, `tanstack-start`, `oxlint`) load the app through Vite or drive Node
 // I/O. Each has a `build-only/*` twin that the `workerd`/`worker`/`browser` export
 // conditions resolve to, which throws a clear error at import.
@@ -48,6 +49,9 @@ export default defineConfig([
       oxlint: "src/oxlint/index.js",
       "tanstack-start/index": "src/tanstack-start/index.ts",
       "tanstack-start/server": "src/tanstack-start/server.ts",
+      "tanstack-start/markdown": "src/tanstack-start/markdown.tsx",
+      "tanstack-start/react": "src/tanstack-start/react.tsx",
+      "tanstack-start/prerender-worker": "src/tanstack-start/prerender-worker.ts",
       "build-only/tanstack-start": "src/build-only/tanstack-start.ts",
       "build-only/vite": "src/build-only/vite.ts",
       "build-only/config": "src/build-only/config.ts",

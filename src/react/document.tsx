@@ -1,3 +1,4 @@
+import { useRouter } from "@tanstack/react-router";
 import { createContext, isValidElement, useContext, useId, useMemo } from "react";
 import type { ComponentPropsWithRef, ReactElement, ReactNode } from "react";
 
@@ -112,6 +113,14 @@ export function DocumentProvider({
   children: ReactNode;
 }) {
   const request = useContext(CaptureRequest);
+  const router = useRouter({ warn: false });
+  if (import.meta.env?.DEV && router !== null && router !== undefined) {
+    const match = router.stores.matches.get().at(-1);
+    if (match !== undefined && match.staticData.markdown !== "rendered")
+      throw new Error(
+        `DocumentProvider on ${match.pathname} requires staticData.markdown: "rendered"; declare it on the page route.`,
+      );
+  }
   const collector = supplied ?? request;
   if (collector === undefined) return <>{children}</>;
   return (

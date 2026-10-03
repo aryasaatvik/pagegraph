@@ -30,6 +30,7 @@
     "vitest.config.ts"
   ],
   "exclude": [
-    "tests/fixtures/tanstack-start-app"
+    "tests/fixtures/tanstack-start-app",
+    "tests/fixtures/markdown-start-app"
   ]
 }

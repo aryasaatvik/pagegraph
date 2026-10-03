@@ -5,6 +5,7 @@ import { contentCollection } from "../../src/core/collections";
 import { applyTitleTemplate } from "../../src/core/declare";
 import { buildSeoGraph, type SeoCollection } from "../../src/core/graph";
 import { graphFromJson, graphToJson, type SeoGraphJson } from "../../src/core/wire";
+import { selectPageHeadNodes } from "../../src/core/page-heads";
 import { contentSignal, renderRobots, renderSitemap } from "../../src/core/projections";
 
 /**
@@ -574,5 +575,48 @@ describe("title templates", () => {
       ]),
     ]) as AnyRoute;
     expect(buildSeoGraph({ routeTree: tree }).nodes.get("/foo")?.head?.title).toBe("Index");
+  });
+});
+
+
+describe("route document declarations", () => {
+  const graph = buildSeoGraph({
+    routeTree: {
+      options: {},
+      children: [
+        { options: { path: "standalone", staticData: { markdown: "rendered", llms: "Pages" } } },
+        {
+          options: { path: "blog/$slug", staticData: {
+            seo: { kind: "article", sitemap: { priority: 0.7, changeFrequency: "weekly" } },
+            markdown: "rendered", llms: "Blog",
+          } },
+        },
+        {
+          options: { path: "guide", staticData: { seo: { kind: "hub" }, markdown: "source", llms: "Guides" } },
+          children: [{ options: { path: "/", staticData: { markdown: "rendered", llms: "Pages" } } }],
+        },
+      ],
+    },
+    collections: [{ route: "/blog/$slug", source: "blog", instances: [{ path: "/blog/first", title: "First" }] }],
+  });
+
+  it("records named declarations with or without SEO and lets the index override its layout", () => {
+    expect(graph.nodes.get("/standalone")).toMatchObject({ kind: "page", markdown: "rendered", llms: "Pages" });
+    expect(graph.nodes.get("/guide")).toMatchObject({ kind: "hub", markdown: "rendered", llms: "Pages" });
+  });
+
+  it("inherits the collection route's declarations on each concrete instance", () => {
+    expect(graph.nodes.get("/blog/first")).toMatchObject({ markdown: "rendered", llms: "Blog" });
+  });
+
+  it("round-trips document declarations through the JSON wire format", () => {
+    const restored = graphFromJson(JSON.parse(JSON.stringify(graphToJson(graph))));
+    expect(restored.nodes.get("/standalone")).toMatchObject({ markdown: "rendered", llms: "Pages" });
+    expect(restored.nodes.get("/blog/first")).toMatchObject({ markdown: "rendered", llms: "Blog" });
+  });
+
+  it("keeps parameter routes as inheritance sources and never selects them as pages", () => {
+    expect(graph.nodes.has("/blog/$slug")).toBe(true);
+    expect(selectPageHeadNodes(graph, { indexable: false }).map((node) => node.path)).toEqual(["/blog/first"]);
   });
 });

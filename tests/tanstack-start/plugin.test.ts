@@ -157,3 +157,38 @@ describe("pagegraph() dev refresh", () => {
     );
   }, 20_000);
 });
+
+describe("pagegraph Markdown runtime configuration", () => {
+  it("evaluates facts in the graph environment and ships canonical Markdown options in dev and build", async () => {
+    await withFixtureCopy(
+      (root) => {
+        const config = join(root, "vite.config.ts");
+        writeFileSync(config, readFileSync(config, "utf8").replace('collections: "src/collections.ts",',
+          'collections: "src/collections.ts", markdown: { origin: "https://canonical.example.com" }, facts: "src/facts.ts",'));
+        writeFileSync(join(root, "src/fact-value.ts"), 'export const brand = import.meta.env.VITE_BRAND;');
+        writeFileSync(join(root, "src/facts.ts"), 'import { brand } from "@/fact-value"; export const facts = { brand: { kind: "text", value: brand, text: brand } };');
+        const entry = join(root, "src/server-entry.ts");
+        writeFileSync(entry, `${readFileSync(entry, "utf8")}\nexport { markdown, facts } from "virtual:pagegraph/runtime";\n`);
+      },
+      async (root) => {
+        const server = await createServer({ root, configFile: join(root, "vite.config.ts"), logLevel: "error",
+          server: { middlewareMode: true, hmr: false, watch: null } });
+        try {
+          const environment = server.environments.ssr as RunnableDevEnvironment;
+          const runtime = await environment.runner.import("/src/server-entry.ts");
+          expect(runtime.markdown).toEqual({ origin: "https://canonical.example.com" });
+          expect(runtime.facts).toEqual({ brand: { kind: "text", value: "Example", text: "Example" } });
+          const graphEnvironment = server.environments.pagegraph as RunnableDevEnvironment;
+          const stub = await graphEnvironment.runner.import("virtual:pagegraph/runtime");
+          expect(stub.markdown).toBeNull();
+          expect(stub.facts).toBeUndefined();
+        } finally { await server.close(); }
+        const builder = await createBuilder({ root, configFile: join(root, "vite.config.ts"), logLevel: "error" });
+        await builder.buildApp();
+        const built = await import(pathToFileURL(join(root, "dist/server/server-entry.js")).href);
+        expect(built.markdown).toEqual({ origin: "https://canonical.example.com" });
+        expect(built.facts).toEqual({ brand: { kind: "text", value: "Example", text: "Example" } });
+      },
+    );
+  });
+});

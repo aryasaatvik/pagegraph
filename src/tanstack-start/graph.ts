@@ -10,11 +10,11 @@ import { relative, resolve } from "node:path";
 import type { RouteNode } from "@tanstack/router-generator";
 
 import { globToRegExp } from "../core/checks";
-import type { RouteSeo } from "../core/declare";
 import { buildSeoGraph, type SeoCollection, type SeoGraph, type SeoRouteNode } from "../core/graph";
 import type { RobotsConfig } from "../core/projections";
 import { deriveRouteConfig, resolveOptions, type SeoRouteConfigOptions } from "../vite/route-config";
 import { scanRoutes, type ScannedRoutes } from "./routes";
+import { decodeFacts, type Facts } from "../markdown/facts";
 
 /** The robots.txt policy a build serves; `origin` and indexability come from {@link SiteRuntime}. */
 export type RobotsPolicy = Pick<RobotsConfig, "disallow" | "contentSignal" | "directives">;
@@ -23,6 +23,8 @@ export type RobotsPolicy = Pick<RobotsConfig, "disallow" | "contentSignal" | "di
 export interface AppGraph {
   readonly graph: SeoGraph;
   readonly site: SiteRuntime;
+  readonly markdown: { readonly origin: string } | null;
+  readonly facts: Facts | undefined;
 }
 
 /** Site identity and robots policy, baked into the runtime module per build. */
@@ -56,6 +58,10 @@ export interface PagegraphOptions {
    * so content virtual modules (Fumadocs, MDX) and path aliases resolve.
    */
   readonly collections?: string | undefined;
+  /** Canonical origin for rendered documents; serverEntry is relative to the Vite root. */
+  readonly markdown?: { readonly origin: string; readonly serverEntry?: string | undefined } | undefined;
+  /** Root-relative module exporting the code-owned document facts. */
+  readonly facts?: string | undefined;
   /**
    * Route files (globs relative to the routes directory) never evaluated for the
    * graph: app surfaces that declare `staticData` but import server-runtime-only
@@ -82,9 +88,10 @@ const GRAPH_ROUTE_TYPES = new Set(["__root", "static", "layout", "pathless_layou
 const messageOf = (cause: unknown): string => (cause instanceof Error ? cause.message : String(cause));
 
 const routeStaticData = (module: Record<string, unknown>, file: string): SeoRouteNode["options"]["staticData"] => {
-  const route = module["Route"] as { options?: { staticData?: { seo?: RouteSeo } } } | undefined;
+  const route = module["Route"] as { options?: SeoRouteNode["options"] } | undefined;
   if (route?.options === undefined) throw new Error(`${file} has no \`Route\` export`);
-  return route.options.staticData;
+  const data = route.options.staticData;
+  return data === undefined ? undefined : { seo: data.seo, markdown: data.markdown, llms: data.llms };
 };
 
 const loadCollections = async (
@@ -112,6 +119,7 @@ export interface GraphPlan {
   readonly routeFiles: ReadonlyArray<string>;
   /** Absolute path of the collections module, when configured. */
   readonly collectionsFile: string | undefined;
+  readonly factsFile: string | undefined;
 }
 
 /** Scan the routes directory and pick the modules an evaluation loads. */
@@ -128,6 +136,7 @@ export async function planGraph(root: string, options: PagegraphOptions): Promis
     scan,
     routeFiles: [scan.root, ...scan.nodes].filter(participates).map((node) => node.fullPath),
     collectionsFile: options.collections === undefined ? undefined : resolve(root, options.collections),
+    factsFile: options.facts === undefined ? undefined : resolve(root, options.facts),
   };
 }
 
@@ -187,5 +196,16 @@ export async function evaluateGraph(runner: GraphModuleRunner, plan: GraphPlan):
       directives: options.robots?.directives,
     },
   };
-  return { graph, site };
+  let facts: Facts | undefined;
+  if (plan.factsFile !== undefined) {
+    const path = relative(root, plan.factsFile);
+    try {
+      const module = await runner.import(plan.factsFile);
+      if (module["facts"] === undefined) throw new Error(`${path} has no \`facts\` export`);
+      facts = decodeFacts(module["facts"]);
+    } catch (cause) {
+      throw new Error(`pagegraph could not evaluate ${path}: ${messageOf(cause)}`, { cause });
+    }
+  }
+  return { graph, site, markdown: options.markdown === undefined ? null : { origin: options.markdown.origin }, facts };
 }

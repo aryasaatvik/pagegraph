@@ -139,6 +139,18 @@ const assertPackageIdentity = (manifest: PackageManifest): void => {
       types: "./dist/tanstack-start/server.d.ts",
       import: "./dist/tanstack-start/server.js",
     },
+    "./tanstack-start/markdown": {
+      types: "./dist/tanstack-start/markdown.d.ts",
+      import: "./dist/tanstack-start/markdown.js",
+    },
+    "./tanstack-start/react": {
+      types: "./dist/tanstack-start/react.d.ts",
+      import: "./dist/tanstack-start/react.js",
+    },
+    "./tanstack-start/prerender-worker": {
+      types: "./dist/tanstack-start/prerender-worker.d.ts",
+      import: "./dist/tanstack-start/prerender-worker.js",
+    },
     "./vite": buildEntry("vite"),
     "./config": buildEntry("config"),
     "./audit": buildEntry("audit"),
@@ -223,6 +235,12 @@ try {
     "dist/tanstack-start/index.d.ts",
     "dist/tanstack-start/server.js",
     "dist/tanstack-start/server.d.ts",
+    "dist/tanstack-start/markdown.js",
+    "dist/tanstack-start/markdown.d.ts",
+    "dist/tanstack-start/react.js",
+    "dist/tanstack-start/react.d.ts",
+    "dist/tanstack-start/prerender-worker.js",
+    "dist/tanstack-start/prerender-worker.d.ts",
     "README.md",
     "LICENSE",
     "package.json",
@@ -312,6 +330,8 @@ try {
       `@effect/platform-bun@${manifest.devDependencies["@effect/platform-bun"]}`,
       `@effect/platform-node-shared@${manifest.devDependencies["@effect/platform-bun"]}`,
       `react@${manifest.devDependencies.react}`,
+      `react-dom@${manifest.devDependencies["react-dom"]}`,
+      `@tanstack/react-start@${manifest.devDependencies["@tanstack/react-start"]}`,
       `vite@${manifest.devDependencies.vite}`,
     ],
     installDirectory,
@@ -336,6 +356,28 @@ try {
         if (typeof m[name] !== "function") throw new Error("React authored export missing: " + name);
       }
       if (!m.CaptureRequest || typeof m.Section.Item.Link !== "function") throw new Error("React capture exports missing");
+    `],
+    installDirectory,
+  );
+
+  await runSuccessfully(
+    ["bun", "-e", `
+      import { mock } from "bun:test";
+      mock.module("virtual:pagegraph/runtime", () => ({ graph: null, site: null, markdown: null, facts: undefined }));
+      const { markdownRequest } = await import("pagegraph/tanstack-start/markdown");
+      const savedProcess = globalThis.process;
+      const requests = ["/pricing.md", "/__pagegraph/markdown.json", "/pricing.document.json"]
+        .map(path => new Request("https://example.com" + path));
+      let pending;
+      try {
+        globalThis.process = undefined;
+        pending = requests.map(request => markdownRequest(request));
+      } finally {
+        globalThis.process = savedProcess;
+      }
+      const responses = await Promise.all(pending);
+      if (responses[0] !== null || responses[1]?.status !== 404 || responses[2]?.status !== 404)
+        throw new Error("Capture gating failed without Node compatibility");
     `],
     installDirectory,
   );
@@ -470,6 +512,9 @@ try {
     ["dist/index.js", []],
     ["dist/react.js", ["@tanstack/react-router", "react", "react/jsx-runtime"]],
     ["dist/tanstack-start/server.js", ["virtual:pagegraph/runtime"]],
+    ["dist/tanstack-start/markdown.js", ["react", "react/jsx-runtime", "react-dom/server", "@tanstack/react-router", "@tanstack/react-start/server", "@tanstack/react-router/ssr/server", "virtual:pagegraph/runtime"]],
+    ["dist/tanstack-start/react.js", ["react", "react/jsx-runtime", "@tanstack/react-router"]],
+    ["dist/tanstack-start/prerender-worker.js", ["virtual:pagegraph/prerender-server"]],
   ] as const) {
     const unexpected = [...(await runtimeImports(entry))].filter((specifier) => !(allowed as ReadonlyArray<string>).includes(specifier));
     if (unexpected.length > 0) throw new Error(`${entry} imports build-only modules: ${unexpected.join(", ")}`);

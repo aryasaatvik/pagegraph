@@ -11,7 +11,7 @@ export interface PageHead {
 export interface PageHeadsOptions {
   /** Path globs: `*` matches a segment, `**` matches across segments. */
   readonly exclude?: ReadonlyArray<string>;
-  /** Exclude noindex pages, redirects and parameter templates. Defaults to true. */
+  /** Exclude noindex pages and redirects. Parameter templates are always excluded. Defaults to true. */
   readonly indexable?: boolean;
 }
 
@@ -20,10 +20,10 @@ export function selectPageHeadNodes(graph: SeoGraph, options: PageHeadsOptions =
   const excludes = (options.exclude ?? []).map(globToRegExp);
   return [...graph.nodes.values()].filter((node) =>
     node.kind !== "layout" &&
+    !node.path.includes("$") &&
     (node.policy.sitemap !== undefined || node.instance !== undefined) &&
     !excludes.some((pattern) => pattern.test(node.path)) &&
     (options.indexable === false || (
-      !node.path.includes("$") &&
       node.policy.redirectTo === undefined &&
       !node.policy.robots?.toLowerCase().split(/[\s,]+/).includes("noindex")
     )),

@@ -135,5 +135,9 @@ export function applyTitleTemplate(template: string | undefined, title: string):
 declare module "@tanstack/react-router" {
   interface StaticDataRouteOption {
     seo?: RouteSeo | undefined;
+    /** How this route supplies its authored document. */
+    markdown?: "rendered" | "source" | undefined;
+    /** Group label for this page in llms.txt. */
+    llms?: string | undefined;
   }
 }

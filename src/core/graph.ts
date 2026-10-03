@@ -33,6 +33,10 @@ export interface SeoNode {
   path: string;
   kind: SeoKind;
   source: SeoSource;
+  /** Route-declared authored-document mode, inherited by collection instances. */
+  markdown?: "rendered" | "source" | undefined;
+  /** Group label for llms.txt, inherited by collection instances. */
+  llms?: string | undefined;
   /** Route-declared policy, or synthesized (kind + inherited sitemap) for instances. */
   policy: RouteSeo;
   /**
@@ -107,7 +111,13 @@ export interface SeoCollection {
 export interface SeoRouteNode {
   readonly options: {
     readonly path?: string | undefined;
-    readonly staticData?: { readonly seo?: RouteSeo | undefined } | undefined;
+    readonly staticData?:
+      | {
+          readonly seo?: RouteSeo | undefined;
+          readonly markdown?: SeoNode["markdown"];
+          readonly llms?: SeoNode["llms"];
+        }
+      | undefined;
   };
   readonly children?: ReadonlyArray<SeoRouteNode> | undefined;
 }
@@ -174,21 +184,33 @@ function walkRoutes(
   crumbStack: Array<string>,
 ): void {
   const path = isRoot ? "/" : joinPath(parentPath, route.options.path);
-  const seo = route.options.staticData?.seo;
+  const data = route.options.staticData;
+  const seo = data?.seo;
 
-  if (seo) {
+  if (seo || data?.markdown !== undefined || data?.llms !== undefined) {
     const existing = nodes.get(path);
     if (existing) {
-      existing.policy = mergeSeo(existing.policy, seo);
+      if (seo) existing.policy = mergeSeo(existing.policy, seo);
       existing.kind = existing.policy.kind;
       // A head renders with its own route's template, never one merged from a layout.
-      existing.head = declaredHead(seo) ?? existing.head;
+      existing.head = (seo && declaredHead(seo)) ?? existing.head;
+      existing.markdown = data?.markdown ?? existing.markdown;
+      existing.llms = data?.llms ?? existing.llms;
     } else {
-      nodes.set(path, { path, kind: seo.kind, source: "route", policy: { ...seo }, head: declaredHead(seo) });
+      const policy = seo ?? { kind: FALLBACK_KIND };
+      nodes.set(path, {
+        path,
+        kind: policy.kind,
+        source: "route",
+        policy: { ...policy },
+        head: seo && declaredHead(seo),
+        markdown: data?.markdown,
+        llms: data?.llms,
+      });
     }
 
     const nearestCrumbAncestor = crumbStack[crumbStack.length - 1];
-    if (seo.crumb !== undefined && nearestCrumbAncestor !== undefined) {
+    if (seo?.crumb !== undefined && nearestCrumbAncestor !== undefined) {
       edges.push({ from: path, to: nearestCrumbAncestor, type: "crumb-parent" });
     }
   }
@@ -236,6 +258,8 @@ function addCollection(
       path: instance.path,
       kind,
       source: collection.source,
+      markdown: collectionNode?.markdown,
+      llms: collectionNode?.llms,
       policy: { kind, sitemap },
       head: { title: applyTitleTemplate(titleTemplate, instance.title), description: instance.description },
       instance: {

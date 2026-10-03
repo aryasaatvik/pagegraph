@@ -8,3 +8,6 @@ dist/
 !.env.example
 pkg.tgz
 tests/fixtures/.tmp-*/
+.pagegraph/documents/
+.pagegraph/heads.json
+tests/.markdown-start-*/

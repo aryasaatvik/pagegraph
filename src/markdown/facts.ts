@@ -43,6 +43,17 @@ function validateDefinition(value: unknown): FactDefinition {
   return { kind, value: value.value, text: value.text, ...(items === undefined ? {} : { items }) };
 }
 
+/** Decode facts loaded from an application module before shipping them to the runtime. */
+export function decodeFacts(input: unknown): Facts {
+  if (typeof input !== "object" || input === null || Array.isArray(input)) {
+    throw new Error("Document facts must be an object");
+  }
+  return Object.fromEntries(Object.entries(input).map(([id, definition]) => {
+    if (!id) throw new Error("A document fact needs a nonempty id");
+    return [id, validateDefinition(definition)];
+  }));
+}
+
 /** Register code-owned values for ordinary React rendering as well as capture. */
 export function defineFacts<const F extends Facts>(facts: F): F {
   for (const [id, definition] of Object.entries(facts)) {

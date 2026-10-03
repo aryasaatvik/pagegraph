@@ -156,6 +156,7 @@ const assertPackageIdentity = (manifest: PackageManifest): void => {
     "./audit": buildEntry("audit"),
     "./tanstack-start": buildEntry("tanstack-start", "tanstack-start/index"),
     "./oxlint": buildEntry("oxlint"),
+    "./claims": buildEntry("claims"),
   };
   if (JSON.stringify(manifest.exports) !== JSON.stringify(expectedExports)) {
     throw new Error("Package exports do not match the supported public entry points");
@@ -223,6 +224,9 @@ try {
     "dist/config.d.ts",
     "dist/audit.js",
     "dist/audit.d.ts",
+    "dist/claims.js",
+    "dist/claims.d.ts",
+    "dist/build-only/claims.js",
     "dist/oxlint.js",
     "dist/oxlint.d.ts",
     "dist/build-only/oxlint.js",
@@ -337,11 +341,22 @@ try {
     installDirectory,
   );
 
+  await runSuccessfully(
+    ["bun", "-e", `
+      const m = await import("pagegraph/claims");
+      for (const name of ["claimsFamily", "claimsInputs", "resolveClaimsDocuments", "claimsRunOptions", "runClaims", "replayClaims"]) {
+        if (typeof m[name] !== "function") throw new Error("Claims export missing: " + name);
+      }
+      if (!m.claimsInput) throw new Error("Claims input schema missing");
+    `],
+    installDirectory,
+  );
+
   const publicExports = await runSuccessfully(
     [
       "bun",
       "-e",
-      `await Promise.all([import(${JSON.stringify(packageName)}), import(${JSON.stringify(`${packageName}/react`)}), import(${JSON.stringify(`${packageName}/vite`)}), import(${JSON.stringify(`${packageName}/config`)}), import(${JSON.stringify(`${packageName}/audit`)}), import(${JSON.stringify(`${packageName}/tanstack-start`)})]); console.log("public exports ok")`,
+      `await Promise.all([import(${JSON.stringify(packageName)}), import(${JSON.stringify(`${packageName}/react`)}), import(${JSON.stringify(`${packageName}/vite`)}), import(${JSON.stringify(`${packageName}/config`)}), import(${JSON.stringify(`${packageName}/audit`)}), import(${JSON.stringify(`${packageName}/claims`)}), import(${JSON.stringify(`${packageName}/tanstack-start`)})]); console.log("public exports ok")`,
     ],
     installDirectory,
   );
@@ -480,7 +495,7 @@ try {
   }
 
   // A Worker or browser bundle resolves build entries to a stub that names the mistake.
-  for (const entry of ["vite", "config", "audit", "tanstack-start", "oxlint"]) {
+  for (const entry of ["vite", "config", "audit", "tanstack-start", "oxlint", "claims"]) {
     const specifier = `${packageName}/${entry}`;
     const runtime = await run(
       ["node", "--conditions=workerd", "--input-type=module", "-e", `await import(${JSON.stringify(specifier)})`],

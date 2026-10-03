@@ -1,3 +1,53 @@
+## pagegraph@0.13.0
+
+### Capture rendered Markdown through TanStack Start
+
+Declare `staticData.markdown: "rendered"` to publish Markdown twins from authored React pages,
+with optional `staticData.llms` groups. Collection instances inherit their route's declarations.
+The `pagegraph()` plugin accepts a canonical Markdown origin and a facts module, and exposes
+`prerenderPages` for Start. The non-deployed `pagegraph/tanstack-start/prerender-worker` captures
+pages through the compiled Start server and writes public twins plus private documents and heads.
+
+Use `markdownRequest` from `pagegraph/tanstack-start/markdown` before the Start handler for dev
+and prerender capture. Private paths return 404 in production. `pagegraph/tanstack-start/react`
+exports a capture-aware `Link`; `llmsTxt` and `llmsSection` on the server entry compose graph-derived
+links without rendering pages. Development rendering catches missing route opt-ins.
+
+### Author page documents alongside React markup
+
+`pagegraph/react` adds `DocumentProvider`, `T`, `Title`, `Section` (including `Section.Item`
+and `Section.Item.Link`), `Fact`, `Visual`, `ForAgents`, and `ForHumans`. Normal rendering preserves
+layout; a collector records authored messages, sections, linked items, resolved facts, and audience
+from completed HTML. `CaptureAnchor` supplies the anchor boundary for router integrations, and
+`messageText` extracts static text for head metadata without executing components.
+
+`pagegraph` adds plain document types, fact definitions, section kinds, markdown writers, pure
+llms.txt string builders, and `createMarkdownLock`. Content and document hashes preserve the
+original authored-document format. Both runtime entries remain Effect-free and Node-free.
+Augment the root `Register` interface with `facts: typeof facts` to check `Fact` ids.
+
+`pagegraph/oxlint` adds the `pagegraph` plugin's `no-bare-text` and `t-children` rules for imports
+from `pagegraph/react`. It is a build-only entry with throwing Worker and browser stubs.
+
+### Gate claims and inspect captured Markdown
+
+**Breaking:** Rename `seo.config.ts` to `pagegraph.config.ts` (also `.js` and `.mjs`).
+The CLI rejects the old filename with migration guidance. Keep CLI policies and the graph loader
+in this file; configure site identity, robots, Markdown, and claims through the Vite plugin.
+Remove top-level `origin`, `disallow`, `contentSignal`, and `directives` from the CLI config.
+`tanstackStartGraph` supplies the plugin's site; a generic `viteGraphLoader` requires a `site`
+option, and custom graph loaders return `site: { origin, indexable, robots }` with the graph.
+
+Add `claims: { rules, model, cutoff?, context?, excludeHeads? }` to `pagegraph()` with probability
+rules built against `claimsInput` from `pagegraph/claims`. Run `pagegraph claims check` to ask for
+missing answers, review them, and commit `.pagegraph/decisions/claims/`. `--refresh` replaces answers;
+`--dev <origin>` checks live captured documents. Builds and `pagegraph check` replay committed
+answers without model calls and fail on missing answers or violations.
+
+Use `pagegraph markdown show <path>` to print a twin and `pagegraph markdown find <text>` to search
+pages and sections. `pagegraph markdown lock` writes `.pagegraph/markdown.lock.json`;
+`--check` verifies it without writing.
+
 ## pagegraph@0.12.0
 
 ### Build the graph inside a TanStack Start app with `pagegraph()`

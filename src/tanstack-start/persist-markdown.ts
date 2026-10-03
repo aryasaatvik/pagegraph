@@ -50,7 +50,7 @@ async function pruneDocuments(directory: string, paths: ReadonlySet<string>): Pr
   await visit(directory);
 }
 
-/** Persist the decoded private capture before the future offline claims replay step. */
+/** Documents, twins, and graph heads are persisted before prerender onSuccess returns. */
 export async function persistMarkdownCapture(html: string, root: string, clientOutDir: string): Promise<void> {
   const bundle = Schema.decodeUnknownSync(Schema.fromJsonString(CaptureBundle))(html, { onExcessProperty: "error" });
   const origin = new URL(bundle.origin);
@@ -80,5 +80,4 @@ export async function persistMarkdownCapture(html: string, root: string, clientO
   }
   await pruneDocuments(directory, active);
   await writeFile(resolve(root, ".pagegraph/heads.json"), `${JSON.stringify(bundle.heads)}\n`);
-  // A4 claims replay hook point: captures and graph heads are now persisted for offline validation.
 }

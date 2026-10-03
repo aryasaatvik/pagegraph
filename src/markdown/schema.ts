@@ -39,4 +39,3 @@ export const CaptureBundle = Schema.Struct({
   documents: Schema.Array(PageDocument),
   heads: Schema.Array(Schema.Struct({ path: Schema.String, title: Schema.String, description: Schema.String })),
 });
-

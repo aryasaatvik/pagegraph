@@ -1,5 +1,4 @@
 /// <reference types="vite/client" />
-/** Development and prerender capture of the application's real Start routes. */
 import type { AnyRouter } from "@tanstack/react-router";
 import { defineHandlerCallback } from "@tanstack/react-router/ssr/server";
 import type { Register } from "@tanstack/react-start";
@@ -15,7 +14,6 @@ import { seoGraph } from "./server";
 
 import { MARKDOWN_CAPTURE_PATH } from "./markdown-path";
 
-/** Concrete graph pages declaring `staticData.markdown: "rendered"`. */
 export function markdownPagePaths(): ReadonlyArray<string> {
   return [...seoGraph().nodes.values()]
     .filter((node) => node.markdown === "rendered" && !node.path.includes("$"))

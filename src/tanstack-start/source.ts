@@ -91,7 +91,6 @@ function isOpeningElement(node: object): node is JSXOpeningElement {
   return "type" in node && node.type === "JSXOpeningElement";
 }
 
-/** Record authored JSX source locations without changing router imports. */
 export function transformDocumentSource(
   code: string,
   id: string,

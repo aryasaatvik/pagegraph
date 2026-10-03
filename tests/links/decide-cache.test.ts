@@ -7,8 +7,9 @@ import * as Layer from "effect/Layer";
 import { DecisionModel } from "effect/ai";
 import { afterAll, describe, expect, it } from "vitest";
 
-import { cacheKey, inputHash } from "../../src/decide/run";
+import { cacheKey, inputHash } from "../../src/decide/answers";
 import {
+  LinkDecision,
   decideLinks,
   LINK_DIRECTIONS,
   LINK_RELEVANCE,
@@ -85,7 +86,7 @@ describe("decideLinks cache", () => {
     const cacheDir = temporaryDirectory();
     const first = { calls: 0 };
     const firstReport = await Effect.runPromise(
-      decideLinks(candidates, { model: "jev-latest", threshold: 0.7, cacheDir }).pipe(
+      decideLinks(candidates, { model: "jev-latest", threshold: 0.7, cache: { directory: cacheDir, policy: "scratch" } }).pipe(
         Effect.provide(countingModel(() => ({ realReason: 0.9, anchorPresent: 0.1 }), first)),
       ),
     );
@@ -95,7 +96,7 @@ describe("decideLinks cache", () => {
     // Same model and input: a warm cache skips the provider entirely.
     const cached = { calls: 0 };
     const cachedReport = await Effect.runPromise(
-      decideLinks(candidates, { model: "jev-latest", threshold: 0.7, cacheDir }).pipe(
+      decideLinks(candidates, { model: "jev-latest", threshold: 0.7, cache: { directory: cacheDir, policy: "scratch" } }).pipe(
         Effect.provide(countingModel(() => ({ realReason: 0.1, anchorPresent: 0.1 }), cached)),
       ),
     );
@@ -105,7 +106,7 @@ describe("decideLinks cache", () => {
     // A different model must not reuse the other model's answers.
     const other = { calls: 0 };
     const otherReport = await Effect.runPromise(
-      decideLinks(candidates, { model: "jev-preview", threshold: 0.7, cacheDir }).pipe(
+      decideLinks(candidates, { model: "jev-preview", threshold: 0.7, cache: { directory: cacheDir, policy: "scratch" } }).pipe(
         Effect.provide(countingModel(() => ({ realReason: 0.1, anchorPresent: 0.1 }), other)),
       ),
     );
@@ -114,7 +115,12 @@ describe("decideLinks cache", () => {
   });
 
   it("treats a malformed cache entry as a miss", async () => {
-    const key = cacheKey("links", "jev-latest", inputHash(candidates[0]!));
+    const key = cacheKey({
+      family: "links",
+      model: "jev-latest",
+      decisions: LinkDecision.decisions,
+      inputHash: inputHash(candidates[0]!),
+    });
     const payloads = [
       "{}",
       '{"realReason":{"probability":null},"anchorPresent":{"probability":0.1}}',
@@ -128,7 +134,7 @@ describe("decideLinks cache", () => {
 
       const counter = { calls: 0 };
       const report = await Effect.runPromise(
-        decideLinks(candidates, { model: "jev-latest", threshold: 0.7, cacheDir }).pipe(
+        decideLinks(candidates, { model: "jev-latest", threshold: 0.7, cache: { directory: cacheDir, policy: "scratch" } }).pipe(
           Effect.provide(countingModel(() => ({ realReason: 0.9, anchorPresent: 0.1 }), counter)),
         ),
       );

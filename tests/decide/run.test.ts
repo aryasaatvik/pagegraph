@@ -8,13 +8,11 @@ import * as Schema from "effect/Schema";
 import { Decision, DecisionModel } from "effect/ai";
 import { afterAll, describe, expect, it } from "vitest";
 
+import { cacheKey, inputHash, validCachedAnswers } from "../../src/decide/answers";
 import {
   buildDecisionReport,
-  cacheKey,
   decodeFamilyInputs,
-  inputHash,
   runDecisions,
-  validCachedAnswers,
   type DecisionFamily,
 } from "../../src/decide/run";
 
@@ -102,12 +100,18 @@ describe("inputHash", () => {
 });
 
 describe("cacheKey", () => {
-  it("isolates family, model, and input", () => {
-    const base = cacheKey("serp", "jev-latest", "h");
-    expect(base).toBe(cacheKey("serp", "jev-latest", "h"));
-    expect(base).not.toBe(cacheKey("serp", "jev-preview", "h"));
-    expect(base).not.toBe(cacheKey("content", "jev-latest", "h"));
-    expect(base).not.toBe(cacheKey("serp", "jev-latest", "h2"));
+  it("isolates family, model, definition, and input", () => {
+    const decisions = fakeFamily.definitionFor({ id: "a", okay: true }).decisions;
+    const key = (family: string, model: string, hash: string, using = decisions) =>
+      cacheKey({ family, model, decisions: using, inputHash: hash });
+    const base = key("serp", "jev-latest", "h");
+    expect(base).toBe(key("serp", "jev-latest", "h"));
+    expect(base).not.toBe(key("serp", "jev-preview", "h"));
+    expect(base).not.toBe(key("content", "jev-latest", "h"));
+    expect(base).not.toBe(key("serp", "jev-latest", "h2"));
+    expect(base).not.toBe(
+      key("serp", "jev-latest", "h", { okay: Decision.probability({ instructions: "Different" }) }),
+    );
     expect(base).toHaveLength(64);
   });
 });
@@ -228,7 +232,7 @@ describe("runDecisions", () => {
         model: "mock",
         threshold: 0.7,
         concurrency: 1,
-        cacheDir,
+        cache: { directory: cacheDir, policy: "scratch" },
       }).pipe(Effect.provide(mockModel((state) => values[state.id]!))),
     );
 
@@ -240,7 +244,7 @@ describe("runDecisions", () => {
         model: "mock",
         threshold: 0.7,
         concurrency: 1,
-        cacheDir,
+        cache: { directory: cacheDir, policy: "scratch" },
       }).pipe(Effect.provide(mockModel(() => 0.99))),
     );
 
@@ -257,7 +261,12 @@ describe("runDecisions", () => {
 
   it("treats a malformed cache entry as a miss", async () => {
     const input = inputs[0]!;
-    const key = cacheKey("fake", "mock", inputHash(input));
+    const key = cacheKey({
+      family: "fake",
+      model: "mock",
+      decisions: fakeFamily.definitionFor(input).decisions,
+      inputHash: inputHash(input),
+    });
     const payloads = ["{}", '{"okay":{"probability":null}}', '{"okay":{"probability":5}}', '{"okay":{}}'];
 
     for (const payload of payloads) {
@@ -271,7 +280,7 @@ describe("runDecisions", () => {
           inputs: [input],
           model: "mock",
           threshold: 0.7,
-          cacheDir,
+          cache: { directory: cacheDir, policy: "scratch" },
         }).pipe(Effect.provide(mockModel((state) => values[state.id]!, () => calls++))),
       );
 

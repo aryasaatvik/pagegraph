@@ -4,14 +4,15 @@
  * `pagegraph` environment the dev server uses.
  */
 
+import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { decodeFacts, type Facts } from "../markdown/facts";
 
-import { createRunnableDevEnvironment, resolveConfig, type Plugin } from "vite";
+import { createRunnableDevEnvironment, resolveConfig, type Plugin, type InlineConfig } from "vite";
 
 import type { LoadedSeoGraph, SeoGraphLoader } from "../config/vite-graph-loader";
 import { withCleanStdout } from "../config/vite-graph-loader";
-import { evaluateGraph, planGraph, type AppGraph, type PagegraphOptions } from "./graph";
+import { evaluateGraph, planGraph, type AppGraph } from "./graph";
 import type { PagegraphPluginApi } from "./plugin";
 
 const GRAPH_ENVIRONMENT = "pagegraph";
@@ -20,7 +21,7 @@ const cliEnvironmentOverride = (command: "serve" | "build") =>
   command === "build" ? { [GRAPH_ENVIRONMENT]: { isBundled: false } } : undefined;
 
 export interface EvaluateAppGraphOptions {
-  /** The app's Vite root. */
+  /** Directory used to find the Vite config and as its default root. */
   readonly root: string;
   /** Vite command to evaluate. Graph evaluation defaults to `serve`. */
   readonly command?: "serve" | "build" | undefined;
@@ -33,6 +34,18 @@ export interface EvaluateAppGraphOptions {
   readonly mode?: string | undefined;
 }
 
+/** Locate the config without overriding its authored root with an inline root. */
+const appConfig = (options: EvaluateAppGraphOptions): InlineConfig => ({
+  configFile: options.configFile ?? ["js", "mjs", "ts", "cjs", "mts", "cts"]
+    .map((extension) => resolve(options.root, `vite.config.${extension}`)).find(existsSync) ?? false,
+  logLevel: "error",
+  plugins: [{
+    name: "pagegraph:loader-root",
+    enforce: "pre",
+    config(config) { config.root ??= options.root; },
+  }],
+});
+
 const pluginApi = (plugins: ReadonlyArray<Plugin>, configFile: string | undefined): PagegraphPluginApi => {
   const plugin = plugins.find((candidate) => candidate.name === "pagegraph") as (Plugin & { api?: PagegraphPluginApi }) | undefined;
   if (plugin?.api === undefined) {
@@ -41,43 +54,30 @@ const pluginApi = (plugins: ReadonlyArray<Plugin>, configFile: string | undefine
   return plugin.api;
 };
 
-/** Read the plugin's authored settings without evaluating routes or starting a server. */
-export function loadPagegraphOptions(options: EvaluateAppGraphOptions): Promise<PagegraphOptions>;
-export function loadPagegraphOptions(options: EvaluateAppGraphOptions, required: false): Promise<PagegraphOptions | undefined>;
-export async function loadPagegraphOptions(options: EvaluateAppGraphOptions, required = true): Promise<PagegraphOptions | undefined> {
-  return withCleanStdout(async () => {
-    const config = await resolveConfig(
-      { root: options.root, configFile: options.configFile, mode: options.mode ?? "production", logLevel: "error" },
-      options.command ?? "build",
-    );
-    if (!required && !config.plugins.some((plugin) => plugin.name === "pagegraph")) return undefined;
-    return pluginApi(config.plugins, config.configFile).options;
-  });
-}
-
-/** Facts use the app's Vite module pipeline while claims never need route discovery. */
-export async function loadPagegraphFacts(options: EvaluateAppGraphOptions): Promise<Facts> {
+/** Resolve settings, artifact root and facts together without route discovery. */
+export async function loadPagegraphSettings(options: EvaluateAppGraphOptions): Promise<NonNullable<LoadedSeoGraph["pagegraph"]>> {
   const command = options.command ?? "build";
   return withCleanStdout(async () => {
     const config = await resolveConfig(
       {
-        root: options.root,
-        configFile: options.configFile,
+        ...appConfig(options),
         mode: options.mode ?? "production",
-        logLevel: "error",
         environments: cliEnvironmentOverride(command),
       },
       command,
     );
     const settings = pluginApi(config.plugins, config.configFile).options;
-    if (settings.facts === undefined) return {};
-    const environment = createRunnableDevEnvironment(GRAPH_ENVIRONMENT, config, { hot: false });
-    await environment.init();
-    try {
-      await environment.pluginContainer.buildStart({});
-      const module = await environment.runner.import(resolve(config.root, settings.facts));
-      return decodeFacts(module["facts"]);
-    } finally { await environment.close(); }
+    let facts: Facts = {};
+    if (settings.facts !== undefined) {
+      const environment = createRunnableDevEnvironment(GRAPH_ENVIRONMENT, config, { hot: false });
+      await environment.init();
+      try {
+        await environment.pluginContainer.buildStart({});
+        const module = await environment.runner.import(resolve(config.root, settings.facts));
+        facts = decodeFacts(module["facts"]);
+      } finally { await environment.close(); }
+    }
+    return { root: config.root, options: settings, facts };
   });
 }
 
@@ -90,10 +90,8 @@ export async function evaluateAppGraph(options: EvaluateAppGraphOptions): Promis
   const command = options.command ?? "serve";
   const config = await resolveConfig(
     {
-      root: options.root,
-      configFile: options.configFile,
+      ...appConfig(options),
       mode: options.mode,
-      logLevel: "error",
       environments: cliEnvironmentOverride(command),
     },
     command,

@@ -1,5 +1,5 @@
 import { spawn, spawnSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, renameSync, existsSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -12,6 +12,7 @@ import { claimsInput, claimsRunOptions } from "../../src/claims";
 import { writeAnswers } from "../../src/decide/cache";
 import { cacheKey, inputHash } from "../../src/decide/answers";
 import { createServer } from "node:http";
+import type { Facts } from "../../src/markdown/facts";
 import { hashDocument, type PageDocument } from "../../src/markdown/document";
 import { readMarkdownCapture, readDevMarkdownCapture } from "../../src/markdown/documents";
 
@@ -64,8 +65,8 @@ function runAsync(root: string, args: ReadonlyArray<string>) {
   });
 }
 
-async function cache(root: string, probability: number, model = claims.model) {
-  const options = claimsRunOptions(root, [document], heads, {}, { ...claims, model });
+async function cache(root: string, probability: number, model = claims.model, facts: Facts = {}) {
+  const options = claimsRunOptions(root, [document], heads, facts, { ...claims, model });
   for (const input of options.inputs) {
     const key = cacheKey({ family: options.family.name, decisions: options.family.definitionFor(input).decisions, inputHash: inputHash(input), model });
     await Effect.runPromise(writeAnswers(options.cache, key, { unsupported: { probability } }));
@@ -266,6 +267,44 @@ describe("claims CLI", () => {
     const twin = run(root, ["markdown", "show", "/about"]);
     expect(twin.status, twin.stderr).toBe(0);
     expect(twin.stdout).toContain("About the team");
+  }, 120_000);
+
+  it.each([false, true])("uses Vite's subdirectory root for all artifacts with CLI config=%s", async (withConfig) => {
+    const root = app(true);
+    const appRoot = join(root, "app");
+    mkdirSync(appRoot);
+    renameSync(join(root, "src"), join(appRoot, "src"));
+    renameSync(join(root, ".pagegraph"), join(appRoot, ".pagegraph"));
+    writeFileSync(join(root, "vite.config.ts"), readFileSync(join(root, "vite.config.ts"), "utf8")
+      .replace("export default { plugins:", `export default { root: ${JSON.stringify(appRoot)}, plugins:`));
+    const facts: Facts = { plan: { kind: "text", value: "Free", text: "Free" } };
+    writeFileSync(join(appRoot, "src/facts.ts"), `export const facts = ${JSON.stringify(facts)};`);
+    writeFileSync(join(root, "vite.config.ts"), readFileSync(join(root, "vite.config.ts"), "utf8")
+      .replace('pagegraph({ origin:', 'pagegraph({ facts: "src/facts.ts", origin:'));
+    if (withConfig) graphConfig(root);
+    // Answers committed under the resolved root must be reused without credentials.
+    await cache(appRoot, 0.1, claims.model, facts);
+    const show = run(root, ["markdown", "show", "/"]);
+    expect(show.status, show.stderr).toBe(0);
+    expect(show.stdout).toContain("Reliable delivery");
+    const head = run(root, ["markdown", "show", "/about"]);
+    expect(head.status, head.stderr).toBe(0);
+    expect(head.stdout).toContain("About the team");
+    const lock = run(root, ["markdown", "lock"]);
+    expect(lock.status, lock.stderr).toBe(0);
+    expect(existsSync(join(appRoot, ".pagegraph/markdown.lock.json"))).toBe(true);
+    const checked = run(root, ["markdown", "lock", "--check"]);
+    expect(checked.status, checked.stderr).toBe(0);
+    const replay = run(root, ["claims", "check", "--json"]);
+    expect(replay.status, replay.stderr).toBe(0);
+    expect(JSON.parse(replay.stdout)).toMatchObject({ asked: 0, cached: 3 });
+    expect(readdirSync(join(appRoot, ".pagegraph/decisions/claims")).length).toBeGreaterThan(0);
+    expect(existsSync(join(root, ".pagegraph"))).toBe(false);
+    if (withConfig) {
+      const check = run(root, ["check", "--json"]);
+      expect(check.status, check.stderr).toBe(0);
+      expect(JSON.parse(check.stdout).claims).toMatchObject({ asked: 0, cached: 3 });
+    }
   }, 120_000);
 
   it("refresh bypasses valid committed answers and requires model credentials", async () => {

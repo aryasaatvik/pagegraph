@@ -41,6 +41,21 @@ const dirtyGitRepository = (): string => {
 };
 
 describe("pagegraph init", () => {
+  it("runs without loading the Pi runtime", () => {
+    const root = mkdtempSync(join(tmpdir(), "pagegraph-init-runtime-"));
+    directories.push(root);
+    const preload = join(root, "deny-pi.ts");
+    writeFileSync(preload, `import { plugin } from "bun";
+plugin({ name: "deny-pi", setup(build) {
+  build.onLoad({ filter: /pi-(ai|agent-core)/ }, () => { throw new Error("Pi runtime must not load for init"); });
+} });`);
+    const help = spawnSync("bun", ["--preload", preload, cli, "init", "--help"], {
+      cwd: root, encoding: "utf8", timeout: 20_000,
+    });
+    expect(help.status, help.stderr).toBe(0);
+    expect(help.stdout).toContain("workflows.agent");
+  });
+
   it("points to pagegraph.config.ts for graph acquisition settings", () => {
     const root = mkdtempSync(join(tmpdir(), "pagegraph-init-help-"));
     directories.push(root);

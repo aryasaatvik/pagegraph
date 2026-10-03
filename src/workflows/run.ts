@@ -25,7 +25,6 @@ import actionPromptSource from "./prompts/action.md" with { type: "text" };
 import researchPromptSource from "./prompts/research.md" with { type: "text" };
 import type { AnyWorkflowSpec } from "./specs/types";
 import { decodeResearchState } from "./state";
-import { acquireWorkflowRunner, totalUsage, WorkflowRunnerError } from "./pi";
 import type { WorkflowRunner, RunnerResult } from "./runner";
 import type { ExecutorToolset } from "./executor";
 import type { WorkflowAgentArtifact } from "./model";
@@ -46,7 +45,7 @@ export interface WorkflowInput {
 
 export interface WorkflowDependencies {
   readonly acquireHost?: typeof acquireWorkflowHost;
-  readonly acquireRunner?: typeof acquireWorkflowRunner;
+  readonly acquireRunner?: typeof import("./pi").acquireWorkflowRunner;
   readonly executor?: ExecutorToolset;
   readonly decide?: (
     inputs: ReadonlyArray<unknown>,
@@ -157,6 +156,7 @@ export const runWorkflow = async (
   const runsDirectory = input.out ?? workflows.runsDirectory ?? ".pagegraph/runs";
   let stage: "acquire" | "research" | "repair" | "decide" | "action" = "acquire";
   let agentArtifact: WorkflowAgentArtifact | undefined;
+  let pi: typeof import("./pi") | undefined;
   let selectedModel: WorkflowRunner["model"] | undefined;
   const retainResult = (result: WorkflowHostResult): void => {
     if (selectedModel) agentArtifact = { runtime: "opencode", model: selectedModel, sessionId: result.sessionId, transcript: result.transcript };
@@ -193,11 +193,12 @@ export const runWorkflow = async (
       return report;
     })();
     const suppliedEvidence = suggestionReport === undefined ? evidence : { ...evidence, suggestions: suggestionReport };
-    // File mutation is the routing boundary between the workflow runtimes.
+    // Loading Pi only at the routing boundary keeps unrelated CLI commands lightweight.
+    pi = spec.mutatesFiles ? undefined : await import("./pi");
     const host: WorkflowHost | undefined = spec.mutatesFiles ? await (dependencies.acquireHost ?? acquireWorkflowHost)({
       root: input.root, config: workflows.agent, model: input.model ?? workflows.agent.models?.[spec.id],
     }) : undefined;
-    const runner: WorkflowRunner | undefined = host === undefined ? await (dependencies.acquireRunner ?? acquireWorkflowRunner)({
+    const runner: WorkflowRunner | undefined = host === undefined ? await (dependencies.acquireRunner ?? pi!.acquireWorkflowRunner)({
       root: input.root, config: workflows.agent, model: input.model ?? workflows.agent.models?.[spec.id],
       limit: input.options.limit, executor: dependencies.executor,
     }) : undefined;
@@ -206,7 +207,7 @@ export const runWorkflow = async (
     const retainRunnerResult = (result: Omit<RunnerResult, "state">): void => {
       agentArtifact = { runtime: "pi", model, messages: result.messages, usage: result.usage };
     };
-    if (runner) retainRunnerResult({ messages: [], usage: totalUsage([]), executor: { searches: [], calls: [] } });
+    if (runner) retainRunnerResult({ messages: [], usage: pi!.totalUsage([]), executor: { searches: [], calls: [] } });
     let turnFailed = false;
     try {
       const researchPermissions = repositoryMutationPermissionRules(input.root);
@@ -384,7 +385,7 @@ export const runWorkflow = async (
     let current = cause;
     while (current instanceof Error && !seen.has(current)) {
       seen.add(current);
-      if (current instanceof WorkflowRunnerError && selectedModel) {
+      if (pi !== undefined && current instanceof pi.WorkflowRunnerError && selectedModel) {
         agentArtifact = { runtime: "pi", model: selectedModel, messages: current.result.messages, usage: current.result.usage };
         break;
       }

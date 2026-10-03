@@ -453,13 +453,13 @@ try {
     const specifiers = new Set<string>();
     const seen = new Set<string>();
     const pending = [path.join(installedRoot, entry)];
-    const pattern = /(?:^|[;\s])(?:import|export)\s[^'"]*?from\s*["']([^"']+)["']|import\(\s*["']([^"']+)["']\s*\)|^import\s*["']([^"']+)["']/gm;
+    // Parse imports so bundled dependency documentation cannot look like external modules.
+    const scanner = new Bun.Transpiler({ loader: "js" });
     while (pending.length > 0) {
       const file = pending.pop()!;
       if (seen.has(file)) continue;
       seen.add(file);
-      for (const match of (await readFile(file, "utf8")).matchAll(pattern)) {
-        const specifier = match[1] ?? match[2] ?? match[3]!;
+      for (const { path: specifier } of scanner.scan(await readFile(file, "utf8")).imports) {
         if (specifier.startsWith(".")) pending.push(path.resolve(path.dirname(file), specifier));
         else specifiers.add(specifier);
       }

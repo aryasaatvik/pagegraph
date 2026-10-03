@@ -53,7 +53,7 @@ describe("copy lock", () => {
   it("rejects duplicate page paths", () => {
     expect(() =>
       createMarkdownLock([document("/same", "a".repeat(64)), document("/same", "b".repeat(64))]),
-    ).toThrow('Duplicate copy page path "/same"');
+    ).toThrow('Duplicate document page path "/same"');
   });
 
   it("rejects malformed document and message hashes at the schema boundary", () => {

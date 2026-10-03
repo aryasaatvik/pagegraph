@@ -4,7 +4,7 @@ const unsafeMarkdownChars = /[()\\<> \u0000-\u001f\u007f]/g;
 export function documentLinkHref(value: string, base?: URL): string {
   const scheme = /^([a-z][a-z\d+.-]*):/i.exec(value.trim())?.[1]?.toLowerCase();
   if (scheme !== undefined && !["http", "https", "mailto", "tel"].includes(scheme))
-    throw new Error(`Unsafe copy link protocol "${scheme}:"`);
+    throw new Error(`Unsafe document link protocol "${scheme}:"`);
   const encoded = value.replace(
     unsafeMarkdownChars,
     (character) => `%${character.charCodeAt(0).toString(16).padStart(2, "0").toUpperCase()}`,

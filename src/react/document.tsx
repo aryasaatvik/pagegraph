@@ -278,7 +278,7 @@ export function T({ children, source }: ChildrenProps) {
 }
 /**
  * Mark an inline heading in place without adding markup. Capture assigns it to the nearest
- * Section.Item, otherwise Section, and records one title message instead of body copy.
+ * Section.Item, otherwise Section, and records one title message instead of body text.
  * Accepts the same inline children as T. A title prop or another Title on that owner is an error.
  */
 export function Title({ children, source }: ChildrenProps) {
@@ -292,7 +292,7 @@ export function Title({ children, source }: ChildrenProps) {
     const owner = context.item ?? context.section;
     if (owner.title !== undefined)
       throw new Error(
-        `Duplicate copy title for ${context.item === undefined ? `Section "${context.section.id}"` : `Section.Item at ${context.item.source}`} on ${context.collector.path}; use a title prop or one Title`,
+        `Duplicate document title for ${context.item === undefined ? `Section "${context.section.id}"` : `Section.Item at ${context.item.source}`} on ${context.collector.path}; use a title prop or one Title`,
       );
     owner.title = title;
     context.collector.messages.push(title);
@@ -397,7 +397,7 @@ function SectionRoot({
   };
   const marker = record(context, key, () => {
     if (context.collector.sections.some((entry) => entry.id === id))
-      throw new Error(`Duplicate copy Section id "${id}" on ${context.collector.path}`);
+      throw new Error(`Duplicate document Section id "${id}" on ${context.collector.path}`);
     context.collector.sectionCount++;
     context.collector.sections.push(section);
     if (heading !== undefined) context.collector.messages.push(heading);
@@ -468,7 +468,7 @@ export function finishDocument(
   metadata: { title: string; description: string },
   html: string,
 ): PageDocument {
-  if (collector.completed) throw new Error(`Copy capture already completed for ${collector.path}`);
+  if (collector.completed) throw new Error(`Document capture already completed for ${collector.path}`);
   collector.completed = true;
   // Only completed SSR output decides which attempted renders belong to the document and their order.
   collector.sections.length = 0;
@@ -477,11 +477,11 @@ export function finishDocument(
   collector.links.clear();
   for (const marker of html.matchAll(/<template data-copy-record="([^"]+)"><\/template>/g)) {
     const apply = collector.records.get(marker[1] ?? "");
-    if (apply === undefined) throw new Error(`Unknown copy record on ${collector.path}`);
+    if (apply === undefined) throw new Error(`Unknown document record on ${collector.path}`);
     apply();
   }
   if (collector.sectionCount === 0)
-    throw new Error(`Copy page ${collector.path} recorded no <Section>`);
+    throw new Error(`Document page ${collector.path} recorded no <Section>`);
   const document = {
     path: collector.path,
     ...metadata,
@@ -506,7 +506,7 @@ function CapturedAnchor({
   if (itemLink && context.item === undefined)
     throw new Error(`Section.Item.Link outside Section.Item on ${context.collector.path}`);
   if (typeof props.href !== "string")
-    throw new Error(`Copy page ${context.collector.path}: Link requires a resolved href`);
+    throw new Error(`Document page ${context.collector.path}: Link requires a resolved href`);
   const href = documentLinkHref(props.href, new URL(context.collector.path, context.collector.site));
   const item = context.item;
   const marker =

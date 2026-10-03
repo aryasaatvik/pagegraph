@@ -138,7 +138,7 @@ describe("copy primitives", () => {
         <DocumentProvider collector={collector}>{children}</DocumentProvider>,
       );
       finishDocument(collector, { title: "Duplicate", description: "Title ownership" }, html);
-    }).toThrow(`Duplicate copy title for ${owner} on /duplicate`);
+    }).toThrow(`Duplicate document title for ${owner} on /duplicate`);
   });
   it("requires an enclosing section only during capture and rejects layout inside titles", () => {
     expect(
@@ -276,14 +276,14 @@ describe("copy primitives", () => {
           <a href="javascript:alert(1)">bad</a>
         </T>,
       ),
-    ).toThrow('Unsafe copy link protocol "javascript:"');
+    ).toThrow('Unsafe document link protocol "javascript:"');
     expect(() =>
       renderToStaticMarkup(
         <DocumentProvider collector={createCollector({ path: "/", site: "https://example.com" })}>
           <CaptureAnchor href="data:text/html,bad">bad</CaptureAnchor>
         </DocumentProvider>,
       ),
-    ).toThrow('Unsafe copy link protocol "data:"');
+    ).toThrow('Unsafe document link protocol "data:"');
     expect(
       messageText(
         <T>
@@ -380,7 +380,7 @@ describe("copy primitives", () => {
         </T>,
         { facts: {} },
       ),
-    ).toThrow('Unknown copy fact "attempts"');
+    ).toThrow('Unknown document fact "attempts"');
     const collector = createCollector({ path: "/broken", site: "https://example.com" });
     const html = renderToStaticMarkup(
       <DocumentProvider collector={collector}>
@@ -391,7 +391,7 @@ describe("copy primitives", () => {
     );
     expect(() =>
       finishDocument(collector, { title: "Broken", description: "Missing" }, html),
-    ).toThrow("Copy page /broken recorded no <Section>");
+    ).toThrow("Document page /broken recorded no <Section>");
   });
   it("accepts a real custom Section kind with a for- prefix", () => {
     const collector = createCollector({ path: "/partners", site: "https://example.com" });

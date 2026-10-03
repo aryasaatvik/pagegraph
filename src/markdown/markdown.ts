@@ -36,7 +36,7 @@ export function defineSectionKind<const K extends string>(
   definition: SectionKind & { kind: K },
 ): SectionKind & { kind: K } {
   if (!definition.kind || builtInKinds.has(definition.kind))
-    throw new Error(`Cannot redefine copy section kind "${definition.kind}"`);
+    throw new Error(`Cannot redefine document section kind "${definition.kind}"`);
   customKinds.set(definition.kind, definition);
   return definition;
 }
@@ -79,7 +79,7 @@ export const markdown: MarkdownWriter = {
     if (rows.length === 0) return "";
     const width = rows[0]?.length;
     if (width === undefined || width === 0 || rows.some((row) => row.length !== width))
-      throw new Error("Copy table rows need equal, nonempty cells");
+      throw new Error("Document table rows need equal, nonempty cells");
     const lines = rows.map(
       (row) =>
         `| ${row.map((cell) => this.text(cell).replaceAll("|", "\\|").replaceAll("\n", "<br>")).join(" | ")} |`,
@@ -166,7 +166,7 @@ export function sectionMarkdown(
       const title =
         section.title ?? (entries[0]?.type === "message" ? entries[0].message : undefined);
       if (title === undefined)
-        throw new Error(`Hero "${section.id}" needs a copy heading`);
+        throw new Error(`Hero "${section.id}" needs a document heading`);
       return (
         markdown.heading(1, title) +
         paragraph(bodyMarkdown(section.title === undefined ? entries.slice(1) : entries))
@@ -226,7 +226,7 @@ export function sectionMarkdown(
       return heading + `${fence}${section.language ?? ""}\n${code}\n${fence}\n\n`;
     }
     default:
-      throw new Error(`Unknown copy section kind "${section.kind}"; use defineSectionKind`);
+      throw new Error(`Unknown document section kind "${section.kind}"; use defineSectionKind`);
   }
 }
 

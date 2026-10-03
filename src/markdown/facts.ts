@@ -46,13 +46,13 @@ function validateDefinition(value: unknown): FactDefinition {
 /** Register code-owned values for ordinary React rendering as well as capture. */
 export function defineFacts<const F extends Facts>(facts: F): F {
   for (const [id, definition] of Object.entries(facts)) {
-    if (!id) throw new Error("A copy fact needs a nonempty id");
+    if (!id) throw new Error("A document fact needs a nonempty id");
     registeredFacts.set(id, validateDefinition(definition));
   }
   return facts;
 }
 function finite(value: number): number {
-  if (!Number.isFinite(value)) throw new Error(`Copy fact must be finite: ${value}`);
+  if (!Number.isFinite(value)) throw new Error(`Document fact must be finite: ${value}`);
   return value;
 }
 export const fact = {
@@ -75,6 +75,6 @@ export const fact = {
 };
 export function resolveFact(id: string, facts?: Facts): FactDefinition {
   const value = facts === undefined ? registeredFacts.get(id) : facts[id];
-  if (value === undefined) throw new Error(`Unknown copy fact "${id}"; register it with defineFacts`);
+  if (value === undefined) throw new Error(`Unknown document fact "${id}"; register it with defineFacts`);
   return value;
 }

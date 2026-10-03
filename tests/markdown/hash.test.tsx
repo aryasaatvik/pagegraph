@@ -49,7 +49,7 @@ describe("original content hashes", () => {
     expect(contentHash({ z: 2, a: 1 })).toBe(contentHash({ a: 1, z: 2 }));
     expect(contentHash([1, 2])).not.toBe(contentHash([2, 1]));
     for (const value of [undefined, NaN, Infinity, 1n, () => undefined]) {
-      expect(() => contentHash(value)).toThrow(`Copy content is not JSON: ${String(value)}`);
+      expect(() => contentHash(value)).toThrow(`Document content is not JSON: ${String(value)}`);
     }
   });
 });

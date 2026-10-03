@@ -11,11 +11,11 @@ describe("fact boundary validation", () => {
     expect(resolveFact("revenue").text).toBe("$1,234.00 per month");
     expect(resolveFact("channels", facts).text).toBe("email and SMS");
     expect(resolveFact("greeting", facts)).toEqual({ kind: "text", value: "Hello", text: "Hello" });
-    expect(() => resolveFact("revenue", {})).toThrow('Unknown copy fact "revenue"; register it with defineFacts');
-    expect(() => defineFacts({ "": fact.text("invalid") })).toThrow("A copy fact needs a nonempty id");
+    expect(() => resolveFact("revenue", {})).toThrow('Unknown document fact "revenue"; register it with defineFacts');
+    expect(() => defineFacts({ "": fact.text("invalid") })).toThrow("A document fact needs a nonempty id");
     for (const value of [NaN, Infinity, -Infinity]) {
-      expect(() => fact.number(value)).toThrow(`Copy fact must be finite: ${value}`);
-      expect(() => fact.money(value)).toThrow(`Copy fact must be finite: ${value}`);
+      expect(() => fact.number(value)).toThrow(`Document fact must be finite: ${value}`);
+      expect(() => fact.money(value)).toThrow(`Document fact must be finite: ${value}`);
     }
   });
   it("rejects non-JSON values even when supplied through untyped input", () => {

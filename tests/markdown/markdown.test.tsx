@@ -165,7 +165,7 @@ describe("markdown twins", () => {
   });
   it("rejects unsafe linked card destinations from serialized documents", () => {
     expect(() => sectionMarkdown(linkedDocument("javascript:alert(1)"))).toThrow(
-      'Unsafe copy link protocol "javascript:"',
+      'Unsafe document link protocol "javascript:"',
     );
   });
   it("renders linked cards with one outer link while retaining code and body emphasis", () => {

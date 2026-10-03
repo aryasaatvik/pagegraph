@@ -55,6 +55,8 @@ export default defineConfig([
     },
     // `schema-dts` is types-only: it is bundled into the `.d.ts` and erases from
     // the JS, which is what keeps `.`/`./react` free of runtime dependencies.
+    // Authored document hashes are synchronous and portable; consumers need no noble dependency.
+    deps: { ...base.deps, alwaysBundle: [/^@noble\/hashes(\/|$)/] },
     clean: true,
   },
   {

@@ -107,6 +107,7 @@
     "@effect/platform-bun": "4.0.0",
     "@effect/platform-node-shared": "4.0.0",
     "@effect/vitest": "4.0.0",
+    "@noble/hashes": "^2.4.0",
     "@opencode/sdk": "2.0.22",
     "@tanstack/react-router": "^1.170.18",
     "@tanstack/router-generator": "^1.167.21",

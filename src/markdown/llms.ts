@@ -38,7 +38,7 @@ export function appendLlmsSection(
   const start = existing.indexOf(begin);
   const finish = existing.indexOf(end);
   if ((start === -1) !== (finish === -1) || (finish !== -1 && finish < start))
-    throw new Error("Malformed @samva/copy llms.txt section markers");
+    throw new Error("Malformed document llms.txt section markers");
   const generated = `${begin}\n${llmsMarkdown(pages, site)}${end}`;
   if (start !== -1)
     return `${existing.slice(0, start)}${generated}${existing.slice(finish + end.length)}`;

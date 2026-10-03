@@ -222,7 +222,7 @@ describe("linked items", () => {
           </Section.Item.Link>
         </Section.Item>,
       ),
-    ).toThrow("Unsafe copy link protocol");
+    ).toThrow("Unsafe document link protocol");
   });
   it("rejects a whole-card link outside an item", () => {
     expect(() =>

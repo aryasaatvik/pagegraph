@@ -18,16 +18,16 @@ export function createMarkdownLock(documents: ReadonlyArray<PageDocument>): Mark
 
   for (const document of [...documents].sort((left, right) => compare(left.path, right.path))) {
     if (Object.hasOwn(pages, document.path))
-      throw new Error(`Duplicate copy page path "${document.path}"`);
+      throw new Error(`Duplicate document page path "${document.path}"`);
     if (!/^[0-9a-f]{64}$/.test(document.hash))
-      throw new Error(`Invalid copy document hash "${document.hash}" on "${document.path}"`);
+      throw new Error(`Invalid document document hash "${document.hash}" on "${document.path}"`);
 
     const messages: Record<string, string> = Object.create(null);
     for (const message of [...document.messages].sort(
       (left, right) => compare(left.hash, right.hash) || compare(left.source, right.source),
     )) {
       if (!/^[0-9a-f]{16}$/.test(message.hash))
-        throw new Error(`Invalid copy message hash "${message.hash}" on "${document.path}"`);
+        throw new Error(`Invalid document message hash "${message.hash}" on "${document.path}"`);
       if (!Object.hasOwn(messages, message.hash)) messages[message.hash] = message.source;
     }
     pages[document.path] = { document: document.hash, messages };

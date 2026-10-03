@@ -21,7 +21,7 @@ describe("document capture replay", () => {
       </CaptureRequest.Provider>,
     );
     expect(finishDocument(collector, metadata, html).messages.map(({ text }) => text)).toEqual(["/page"]);
-    expect(() => finishDocument(collector, metadata, html)).toThrow("Copy capture already completed for /page");
+    expect(() => finishDocument(collector, metadata, html)).toThrow("Document capture already completed for /page");
   });
 
   it("replays only completed HTML markers, in completed output order", () => {
@@ -46,6 +46,6 @@ describe("document capture replay", () => {
   it("rejects a marker that has no recorded render", () => {
     const collector = createCollector({ path: "/page", site: "https://example.com" });
     expect(() => finishDocument(collector, metadata, '<template data-copy-record="missing"></template>'))
-      .toThrow("Unknown copy record on /page");
+      .toThrow("Unknown document record on /page");
   });
 });

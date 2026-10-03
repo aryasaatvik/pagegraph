@@ -330,6 +330,8 @@ try {
       `@effect/platform-bun@${manifest.devDependencies["@effect/platform-bun"]}`,
       `@effect/platform-node-shared@${manifest.devDependencies["@effect/platform-bun"]}`,
       `react@${manifest.devDependencies.react}`,
+      `react-dom@${manifest.devDependencies["react-dom"]}`,
+      `@tanstack/react-start@${manifest.devDependencies["@tanstack/react-start"]}`,
       `vite@${manifest.devDependencies.vite}`,
     ],
     installDirectory,
@@ -354,6 +356,28 @@ try {
         if (typeof m[name] !== "function") throw new Error("React authored export missing: " + name);
       }
       if (!m.CaptureRequest || typeof m.Section.Item.Link !== "function") throw new Error("React capture exports missing");
+    `],
+    installDirectory,
+  );
+
+  await runSuccessfully(
+    ["bun", "-e", `
+      import { mock } from "bun:test";
+      mock.module("virtual:pagegraph/runtime", () => ({ graph: null, site: null, markdown: null, facts: undefined }));
+      const { markdownRequest } = await import("pagegraph/tanstack-start/markdown");
+      const savedProcess = globalThis.process;
+      const requests = ["/pricing.md", "/__pagegraph/markdown.json", "/pricing.document.json"]
+        .map(path => new Request("https://example.com" + path));
+      let pending;
+      try {
+        globalThis.process = undefined;
+        pending = requests.map(request => markdownRequest(request));
+      } finally {
+        globalThis.process = savedProcess;
+      }
+      const responses = await Promise.all(pending);
+      if (responses[0] !== null || responses[1]?.status !== 404 || responses[2]?.status !== 404)
+        throw new Error("Capture gating failed without Node compatibility");
     `],
     installDirectory,
   );

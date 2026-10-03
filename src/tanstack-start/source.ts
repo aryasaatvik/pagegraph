@@ -3,8 +3,11 @@ import { relative, resolve, sep } from "node:path";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 
-import { parseSync, Visitor } from "oxc-parser";
-import type { JSXOpeningElement, Program } from "oxc-parser";
+import { parseAst } from "vite";
+
+type Program = ReturnType<typeof parseAst>;
+type Expression = Extract<Program["body"][number], { type: "ExpressionStatement" }>["expression"];
+type JSXOpeningElement = Extract<Expression, { type: "JSXElement" }>["openingElement"];
 
 class DocumentSourceError extends Schema.TaggedError<DocumentSourceError>()("DocumentSourceError", {
   message: Schema.String,
@@ -13,12 +16,12 @@ class DocumentSourceError extends Schema.TaggedError<DocumentSourceError>()("Doc
 const SOURCE_COMPONENTS = new Set(["T", "Title", "Section", "Visual", "ForAgents", "ForHumans"]);
 
 const parse = Effect.fn("DocumentSource.parse")(function* (code: string, id: string) {
-  const parsed = parseSync(id, code);
-  if (parsed.errors.length)
-    return yield* new DocumentSourceError({
-      message: `Cannot parse document source ${id}: ${parsed.errors.map((error) => error.message).join("; ")}`,
-    });
-  return parsed.program;
+  return yield* Effect.try({
+    try: () => parseAst(code, { lang: id.endsWith(".tsx") ? "tsx" : id.endsWith(".ts") ? "ts" : id.endsWith(".jsx") ? "jsx" : "js" }, id),
+    catch: (cause) => new DocumentSourceError({
+      message: `Cannot parse document source ${id}: ${cause instanceof Error ? cause.message : String(cause)}`,
+    }),
+  });
 });
 
 function componentNames(program: Program): {
@@ -75,6 +78,19 @@ function isSourceComponent(
   return names.sections.has(base) && members.length === 1 && members[0] === "Item";
 }
 
+function walk(value: unknown, visit: (node: JSXOpeningElement) => void): void {
+  if (Array.isArray(value)) {
+    for (const child of value) walk(child, visit);
+  } else if (typeof value === "object" && value !== null) {
+    if (isOpeningElement(value)) visit(value);
+    for (const child of Object.values(value)) walk(child, visit);
+  }
+}
+
+function isOpeningElement(node: object): node is JSXOpeningElement {
+  return "type" in node && node.type === "JSXOpeningElement";
+}
+
 /** Record authored JSX source locations without changing router imports. */
 export function transformDocumentSource(
   code: string,
@@ -87,26 +103,24 @@ export function transformDocumentSource(
   const edits: Array<{ start: number; end: number; value: string }> = [];
   const file = relative(resolve(root), resolve(id)).split(sep).join("/");
 
-  new Visitor({
-    JSXOpeningElement(node) {
-      if (!isSourceComponent(node.name, names)) return;
-      if (
-        node.attributes.some(
-          (attribute) =>
-            attribute.type === "JSXAttribute" &&
-            attribute.name.type === "JSXIdentifier" &&
-            attribute.name.name === "source",
-        )
+  walk(program, (node) => {
+    if (!isSourceComponent(node.name, names)) return;
+    if (
+      node.attributes.some(
+        (attribute) =>
+          attribute.type === "JSXAttribute" &&
+          attribute.name.type === "JSXIdentifier" &&
+          attribute.name.name === "source",
       )
-        return;
-      const line = code.slice(0, node.start).split("\n").length;
-      edits.push({
-        start: node.name.end,
-        end: node.name.end,
-        value: ` source=${JSON.stringify(`${file}:${line}`)}`,
-      });
-    },
-  }).visit(program);
+    )
+      return;
+    const line = code.slice(0, node.start).split("\n").length;
+    edits.push({
+      start: node.name.end,
+      end: node.name.end,
+      value: ` source=${JSON.stringify(`${file}:${line}`)}`,
+    });
+  });
 
   if (edits.length === 0) return undefined;
   edits.sort((a, b) => b.start - a.start);

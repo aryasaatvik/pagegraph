@@ -187,8 +187,5 @@
       "@effect/platform-node-shared": "4.0.0-rc.112",
       "effect": "4.0.0-rc.112"
     }
-  },
-  "dependencies": {
-    "oxc-parser": "0.150.0"
   }
 }

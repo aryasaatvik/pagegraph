@@ -78,7 +78,7 @@ const comparison = defineSectionKind({
 public anchor boundary for router `createLink` integrations. `ForAgents` and `ForHumans` mark
 audience-specific text; markdown excludes human-only content. `messageText` extracts text or
 inline markdown for head metadata. The root entry also provides `hashDocument`,
-`createMarkdownLock`, and pure `llmsMarkdown`/`llmsSection`/`appendLlmsSection` string builders.
+`createMarkdownLock`, and pure `llmsMarkdown`/`llmsSection` string builders.
 
 ## Rendered markdown with TanStack Start
 

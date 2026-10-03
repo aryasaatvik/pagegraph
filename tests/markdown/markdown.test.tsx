@@ -5,7 +5,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 
 import type { BodyEntry, SectionDocument } from "../../src/markdown/document";
 import { DocumentProvider, ForAgents, ForHumans, Section, T, Title, Visual, createCollector, finishDocument } from "../../src/react/document";
-import { appendLlmsSection, defineSectionKind, documentMarkdown, llmsMarkdown, sectionMarkdown } from "../../src/markdown/index";
+import { defineSectionKind, documentMarkdown, llmsMarkdown, sectionMarkdown } from "../../src/markdown/index";
 
 const custom = defineSectionKind({
   kind: "cost-table",
@@ -366,30 +366,13 @@ describe("markdown twins", () => {
       "Human body|Human visual|Public cell|Human cell",
     );
   });
-  it("retains existing llms content and replaces generated sections idempotently", () => {
+  it("formats graph links as Markdown groups", () => {
     const document = page();
     const text = llmsMarkdown([{ document }], "https://example.com");
     expect(text).toBe(
       "## Solutions\n\n- [Email for SaaS](https://example.com/solutions/saas.md): Send product email.\n",
     );
-    const first = appendLlmsSection(
-      "# Site\n\nExisting docs.\n",
-      [{ document }],
-      "https://example.com",
-    );
-    expect(first).toContain("<!-- pagegraph:llms:start -->");
-    expect(first).toContain("<!-- pagegraph:llms:end -->");
-    expect(appendLlmsSection(first, [{ document }], "https://example.com")).toBe(first);
-    expect(() => appendLlmsSection("<!-- pagegraph:llms:start -->", [{ document }], "https://example.com"))
-      .toThrow("Malformed document llms.txt section markers");
-    const override = appendLlmsSection(
-      first,
-      [{ document, llms: "Guides" }],
-      "https://example.com",
-    );
-    expect(override).toContain("# Site\n\nExisting docs.");
-    expect(override).toContain("## Guides");
-    expect(override).not.toContain("## Solutions");
+
   });
 });
 

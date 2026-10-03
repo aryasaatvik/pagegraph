@@ -14,7 +14,7 @@ import type { SeoGraph } from "../core/graph";
 import { renderRobots, renderSitemap } from "../core/projections";
 import { graphFromJson } from "../core/wire";
 import type { SiteRuntime } from "./graph";
-import { appendLlmsSection } from "../markdown/llms";
+import { llmsMarkdown } from "../markdown/llms";
 
 let decoded: SeoGraph | undefined;
 
@@ -73,7 +73,7 @@ export function llmsSection(): string {
         ...(node.llms === undefined ? {} : { llms: node.llms }),
       };
     });
-  return appendLlmsSection("", pages, markdown.origin);
+  return llmsMarkdown(pages, markdown.origin);
 }
 
 /** `GET /llms.txt`: graph-derived links to rendered and explicitly grouped Markdown pages. */

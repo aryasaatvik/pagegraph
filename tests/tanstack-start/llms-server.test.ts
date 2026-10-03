@@ -26,6 +26,7 @@ describe("graph llms.txt serving", () => {
     expect(section).toContain("## Reference\n\n- [API](https://documents.example/reference.md): Reference docs");
     expect(section).not.toContain("Template");
     expect(section).not.toContain("About");
+    expect(section).not.toContain("<!--");
   });
 
   it("composes additional sections into a native Start GET handler", async () => {

@@ -26,21 +26,3 @@ export function llmsMarkdown(pages: ReadonlyArray<LlmsPage>, site: string): stri
     )
     .join("\n");
 }
-
-const begin = "<!-- pagegraph:llms:start -->";
-const end = "<!-- pagegraph:llms:end -->";
-/** Replace only our generated section, retaining an adopter's existing llms.txt. */
-export function appendLlmsSection(
-  existing: string,
-  pages: ReadonlyArray<LlmsPage>,
-  site: string,
-): string {
-  const start = existing.indexOf(begin);
-  const finish = existing.indexOf(end);
-  if ((start === -1) !== (finish === -1) || (finish !== -1 && finish < start))
-    throw new Error("Malformed document llms.txt section markers");
-  const generated = `${begin}\n${llmsMarkdown(pages, site)}${end}`;
-  if (start !== -1)
-    return `${existing.slice(0, start)}${generated}${existing.slice(finish + end.length)}`;
-  return `${existing.trimEnd()}${existing.trim() ? "\n\n" : ""}${generated}\n`;
-}

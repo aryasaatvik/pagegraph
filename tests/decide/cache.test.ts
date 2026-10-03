@@ -102,6 +102,30 @@ describe("committed cache", () => {
     expect(JSON.stringify(exit)).toContain("DecisionCacheInvalid");
   });
 
+  it("fails on unreadable committed JSON but treats it as a miss in a scratch cache", async () => {
+    const family = gateFamily();
+    const key = cacheKey({
+      family: family.name,
+      model: "jev-latest",
+      decisions: family.definitionFor(inputs[0]!).decisions,
+      inputHash: inputHash(inputs[0]),
+    });
+    const strict = committed();
+    writeFileSync(join(strict.directory, `${key}.json`), "{ not json");
+    const exit = await Effect.runPromiseExit(
+      runDecisions(options(strict)).pipe(Effect.provide(model(0.1, { count: 0 }))),
+    );
+    expect(Exit.isFailure(exit)).toBe(true);
+    expect(JSON.stringify(exit)).toContain("are not readable JSON");
+
+    const scratch: DecisionCache = { directory: committed().directory, policy: "scratch" };
+    writeFileSync(join(scratch.directory, `${key}.json`), "{ not json");
+    const asked = { count: 0 };
+    const report = await Effect.runPromise(runDecisions(options(scratch)).pipe(Effect.provide(model(0.1, asked))));
+    expect(asked.count).toBe(2);
+    expect(report.verdicts).toEqual({ pass: 2 });
+  });
+
   it("writes atomically and leaves no staging files", async () => {
     const cache = committed();
     await Effect.runPromise(runDecisions(options(cache)).pipe(Effect.provide(model(0.9, { count: 0 }))));

@@ -2,10 +2,10 @@
  * The declaration surface: what a route says about itself in
  * `staticData.seo`. Everything else in this package derives from it.
  *
- * The two vocabularies a consumer owns — the set of valid paths and the set of
- * valid page kinds — are supplied by augmenting {@link Register}, the same
- * pattern TanStack Router uses for its own typed registry. Unaugmented, both
- * fall back to `string`, so the package compiles and behaves on its own.
+ * Consumers supply valid route paths, page kinds, and authored fact ids by
+ * augmenting {@link Register}, the same pattern TanStack Router uses for its own
+ * typed registry. Unaugmented, these fall back to `string`, so the package
+ * compiles and behaves on its own.
  */
 
 import type { AnyRouteMatch } from "@tanstack/react-router";
@@ -19,6 +19,7 @@ import type { Graph, Thing, WithContext } from "schema-dts";
  *   interface Register {
  *     paths: FileRouteTypes["fullPaths"];
  *     kinds: "page" | "article" | "hub";
+ *     facts: typeof facts;
  *   }
  * }
  * ```

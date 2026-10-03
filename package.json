@@ -77,6 +77,13 @@
       "worker": "./dist/build-only/tanstack-start.js",
       "browser": "./dist/build-only/tanstack-start.js",
       "import": "./dist/tanstack-start/index.js"
+    },
+    "./oxlint": {
+      "types": "./dist/oxlint.d.ts",
+      "workerd": "./dist/build-only/oxlint.js",
+      "worker": "./dist/build-only/oxlint.js",
+      "browser": "./dist/build-only/oxlint.js",
+      "import": "./dist/oxlint.js"
     }
   },
   "publishConfig": {
@@ -100,14 +107,18 @@
     "@effect/platform-bun": "4.0.0",
     "@effect/platform-node-shared": "4.0.0",
     "@effect/vitest": "4.0.0",
+    "@noble/hashes": "^2.4.0",
     "@opencode/sdk": "2.0.22",
     "@tanstack/react-router": "^1.170.18",
     "@tanstack/router-generator": "^1.167.21",
     "@types/node": "^24.0.0",
     "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.3",
     "effect": "4.0.0",
     "lighthouse": "13.4.1",
+    "oxlint": "^1.83.0",
     "react": "19.2.8",
+    "react-dom": "19.2.8",
     "schema-dts": "^2.0.0",
     "tegami": "1.4.0",
     "tsdown": "^0.22.13",

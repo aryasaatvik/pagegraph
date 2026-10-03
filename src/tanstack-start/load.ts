@@ -1,6 +1,6 @@
 /**
  * Evaluate an app's graph outside a running dev server — for a build, the
- * CLI (`seo.config.ts`), and build-time head loading — through the same
+ * CLI (`pagegraph.config.ts`), and build-time head loading — through the same
  * `pagegraph` environment the dev server uses.
  */
 
@@ -57,7 +57,7 @@ export async function evaluateAppGraph(options: EvaluateAppGraphOptions): Promis
 }
 
 /**
- * A `seo.config.ts` graph loader for a TanStack Start app: the same graph the
+ * A `pagegraph.config.ts` graph loader for a TanStack Start app: the same graph the
  * `pagegraph()` plugin ships to the runtime, with its robots policy.
  *
  * ```ts

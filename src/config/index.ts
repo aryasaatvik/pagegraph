@@ -3,11 +3,11 @@
  *
  * The CLI is a set of pure views over one graph, but *acquiring* that graph is
  * host knowledge: only the app knows where its graph module lives and what its
- * module needs to evaluate. So the app declares it once in a `seo.config.ts` at
+ * module needs to evaluate. So the app declares it once in a `pagegraph.config.ts` at
  * its root, which the CLI discovers from the working directory:
  *
  * ```ts
- * // seo.config.ts
+ * // pagegraph.config.ts
  * import { defineSeoConfig, viteGraphLoader } from "pagegraph/config";
  * import { routeConfig } from "./lib/route-config";
  *

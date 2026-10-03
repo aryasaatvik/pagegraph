@@ -219,7 +219,7 @@ throws at import.
 ## 7. Point the CLI at the same graph
 
 ```ts
-// seo.config.ts
+// pagegraph.config.ts
 import { defineSeoConfig } from "pagegraph/config";
 import { tanstackStartGraph } from "pagegraph/tanstack-start";
 
@@ -285,13 +285,13 @@ or derived from a collection instance through its route's `titleTemplate`.
 **A hand-written graph loader becomes `pagegraph()`, a collections module, and `tanstackStartGraph`.**
 
 ```ts
-// before: src/lib/seo/graph.ts + seo.config.ts
+// before: src/lib/seo/graph.ts + pagegraph.config.ts
 export const loadSeoGraph = async () => buildSeoGraph({ routeTree, collections });
-// seo.config.ts: loadGraph: viteGraphLoader({ root, entry: "/src/lib/seo/graph.ts", exportName: "loadSeoGraph" })
+// pagegraph.config.ts: loadGraph: viteGraphLoader({ root, entry: "/src/lib/seo/graph.ts", exportName: "loadSeoGraph" })
 
-// after: vite.config.ts and seo.config.ts
+// after: vite.config.ts and pagegraph.config.ts
 pagegraph({ origin, collections: "src/lib/seo/collections.ts" });
-// seo.config.ts: loadGraph: tanstackStartGraph({ root: import.meta.dirname })
+// pagegraph.config.ts: loadGraph: tanstackStartGraph({ root: import.meta.dirname })
 ```
 
 Delete the stubs and env seeding that `viteGraphLoader` needed; the plugin evaluates routes inside
@@ -318,7 +318,7 @@ import { robotsTxt } from "pagegraph/tanstack-start/server";
 export const Route = createFileRoute("/robots.txt")({ server: { handlers: { GET: robotsTxt } } });
 ```
 
-**`seo.config.ts` drops `disallow` and `contentSignal`.** They move to `pagegraph({ robots })`; do
+**`pagegraph.config.ts` drops `disallow` and `contentSignal`.** They move to `pagegraph({ robots })`; do
 not repeat them when `tanstackStartGraph` supplies them.
 
 **`@tanstack/router-generator` is an optional peer.** Install it alongside `pagegraph/tanstack-start`

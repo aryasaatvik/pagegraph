@@ -18,7 +18,7 @@ const load = (timeoutMs?: string) => {
   const root = mkdtempSync(join(tmpdir(), "pagegraph-workflow-config-"));
   directories.push(root);
   writeFileSync(
-    join(root, "seo.config.mjs"),
+    join(root, "pagegraph.config.mjs"),
     `export default {
       origin: "https://example.com",
       disallow: [],
@@ -54,5 +54,18 @@ describe("OpenCode timeout configuration", () => {
     const project = await load();
 
     expect(project.config.workflows?.opencode.timeoutMs).toBeUndefined();
+  });
+});
+
+describe("config filename migration", () => {
+  it("explains the breaking rename when only seo.config.* exists", async () => {
+    const root = mkdtempSync(join(tmpdir(), "pagegraph-legacy-config-"));
+    directories.push(root);
+    writeFileSync(join(root, "seo.config.ts"), "export default {};\n");
+    process.chdir(root);
+
+    await expect(Effect.runPromise(loadSeoProjectConfig)).rejects.toThrow(
+      "seo.config.ts was renamed to pagegraph.config.ts; rename the file",
+    );
   });
 });

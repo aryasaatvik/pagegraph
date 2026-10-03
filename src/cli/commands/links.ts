@@ -71,7 +71,7 @@ interface CoverageOutcome {
   readonly violations: ReadonlyArray<Violation>;
 }
 
-/** What `verify` derives from the app's `seo.config.ts`, if one exists. */
+/** What `verify` derives from the app's `pagegraph.config.ts`, if one exists. */
 interface DeclaredAnalysis {
   /** Declared `related` edges, for the declared-vs-rendered diff. */
   readonly declaredEdges: ReadonlyArray<SimpleEdge> | undefined;
@@ -81,7 +81,7 @@ interface DeclaredAnalysis {
 }
 
 /**
- * Load the app's declared graph when a `seo.config.ts` exists and derive the two
+ * Load the app's declared graph when a `pagegraph.config.ts` exists and derive the two
  * things `verify` needs from it: the declared `related` edges for the diff, and —
  * under `--assert-coverage` — the rendered coverage assertion. Both are computed
  * inside one scoped graph acquisition so the Vite loader is acquired once.
@@ -147,7 +147,7 @@ const analyzeDeclared = (
     if (config === undefined) {
       if (assertCoverage) {
         return yield* new SeoCliError({
-          message: "Coverage assertion needs a seo.config.ts declaring `coverage` rules.",
+          message: "Coverage assertion needs a pagegraph.config.ts declaring `coverage` rules.",
         });
       }
       return { declaredEdges: undefined, coverage: undefined, warnings };
@@ -157,7 +157,7 @@ const analyzeDeclared = (
     try {
       configOrigin = new URL(config.origin).origin;
     } catch {
-      const message = `Ignoring declared graph: seo.config.ts origin "${config.origin}" is not a valid URL.`;
+      const message = `Ignoring declared graph: pagegraph.config.ts origin "${config.origin}" is not a valid URL.`;
       if (assertCoverage) return yield* new SeoCliError({ message });
       warnings.push(message);
       return { declaredEdges: undefined, coverage: undefined, warnings };
@@ -166,7 +166,7 @@ const analyzeDeclared = (
     const rules: ReadonlyArray<CoverageRule> = config.coverage ?? [];
     if (assertCoverage && rules.length === 0) {
       return yield* new SeoCliError({
-        message: "seo.config.ts declares no `coverage` rules; nothing to assert.",
+        message: "pagegraph.config.ts declares no `coverage` rules; nothing to assert.",
       });
     }
 
@@ -244,7 +244,7 @@ const renderedArtifactFlag = Flag.String("rendered").pipe(
 );
 const assertCoverageFlag = Flag.Boolean("assert-coverage").pipe(
   Flag.withDescription(
-    "Assert seo.config.ts coverage rules against the rendered anchors; exit 1 on unmet (refuses truncated crawls)",
+    "Assert pagegraph.config.ts coverage rules against the rendered anchors; exit 1 on unmet (refuses truncated crawls)",
   ),
   Flag.withDefault(false),
 );
@@ -278,7 +278,7 @@ const linksVerifyCommand = Command.make("verify", {
     },
     {
       command: "pagegraph links verify --rendered rendered.json --assert-coverage",
-      description: "Assert seo.config.ts coverage offline against a saved crawl (exit 1 on unmet)",
+      description: "Assert pagegraph.config.ts coverage offline against a saved crawl (exit 1 on unmet)",
     },
     {
       command: "pagegraph links verify https://example.com --assert-coverage",
@@ -481,7 +481,7 @@ const linksVerifyCommand = Command.make("verify", {
 
       if (coverage !== undefined && !coverage.ok) {
         return yield* new SeoCliError({
-          message: `${coverage.violations.length} rendered coverage violation(s) — the served anchors do not satisfy seo.config.ts.`,
+          message: `${coverage.violations.length} rendered coverage violation(s) — the served anchors do not satisfy pagegraph.config.ts.`,
         });
       }
     }),
@@ -591,7 +591,7 @@ const linksCandidatesCommand = Command.make("candidates", {
             const target = new URL(site);
             const configured = new URL(config.origin);
             if (!["http:", "https:"].includes(target.protocol) || target.origin !== configured.origin) {
-              throw new Error(`--site origin must match seo.config.ts (${configured.origin})`);
+              throw new Error(`--site origin must match pagegraph.config.ts (${configured.origin})`);
             }
             const requestedTargets = new Set(options.target);
             const requestedSources = new Set(options.source);

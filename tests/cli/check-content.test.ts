@@ -98,7 +98,7 @@ export default {
 const configDirectory = (extra = ""): string => {
   const directory = mkdtempSync(join(tmpdir(), "pagegraph-content-"));
   temporaryDirectories.push(directory);
-  writeFileSync(join(directory, "seo.config.mjs"), CONFIG(extra));
+  writeFileSync(join(directory, "pagegraph.config.mjs"), CONFIG(extra));
   return directory;
 };
 
@@ -162,7 +162,7 @@ describe("pagegraph check --site", () => {
     ]);
   }, 30_000);
 
-  it("rejects a malformed content policy in seo.config", async () => {
+  it("rejects a malformed content policy in pagegraph.config", async () => {
     const result = await run(["check"], configDirectory('content: { minWords: [{ path: "/**" }] },'));
     expect(result.status).toBe(1);
     expect(result.stderr).toContain("must default-export defineSeoConfig");
@@ -178,7 +178,7 @@ describe("pagegraph stale", () => {
     expect(result.stdout).toContain("1 sitemap page(s) declare no date");
   }, 30_000);
 
-  it("reads the limit from seo.config and emits JSON", async () => {
+  it("reads the limit from pagegraph.config and emits JSON", async () => {
     const result = await run(["stale", "--json"], configDirectory("freshness: { maxAgeDays: 365 },"));
     expect(result.status).toBe(0);
     const report = JSON.parse(result.stdout) as { stale: Array<{ path: string }>; undated: Array<string>; maxAgeDays: number };

@@ -2,7 +2,7 @@
  * Config discovery and graph acquisition for the `pagegraph` CLI.
  *
  * The CLI knows how to *view* a graph; the host knows how to *produce* one. That
- * seam is a `seo.config.ts` at the app root, found by walking up from the working
+ * seam is a `pagegraph.config.ts` at the app root, found by walking up from the working
  * directory — so `bun run pagegraph check` works from anywhere inside the app.
  *
  * The config is a TypeScript module the CLI imports directly, which is one of the
@@ -23,12 +23,13 @@ import type { CoverageRule } from "../core/checks";
 import type { SeoGraph } from "../core/graph";
 import { SeoCliError } from "./output";
 
-const CONFIG_FILENAMES = ["seo.config.ts", "seo.config.js", "seo.config.mjs"] as const;
+const CONFIG_FILENAMES = ["pagegraph.config.ts", "pagegraph.config.js", "pagegraph.config.mjs"] as const;
+const LEGACY_CONFIG_FILENAMES = ["seo.config.ts", "seo.config.js", "seo.config.mjs"] as const;
 
 const messageOf = (cause: unknown): string =>
   cause instanceof Error ? cause.message : String(cause);
 
-/** First `seo.config.*` at or above `from`, or undefined at the filesystem root. */
+/** First `pagegraph.config.*` at or above `from`, or undefined at the filesystem root. */
 const findConfigFile = (from: string): string | undefined => {
   let directory = resolve(from);
   for (;;) {
@@ -40,6 +41,27 @@ const findConfigFile = (from: string): string | undefined => {
     if (parent === directory) return undefined;
     directory = parent;
   }
+};
+
+/** Find an old config only to provide the explicit breaking-rename error. */
+const findLegacyConfigFile = (from: string): string | undefined => {
+  let directory = resolve(from);
+  for (;;) {
+    for (const filename of LEGACY_CONFIG_FILENAMES) {
+      const candidate = join(directory, filename);
+      if (existsSync(candidate)) return candidate;
+    }
+    const parent = dirname(directory);
+    if (parent === directory) return undefined;
+    directory = parent;
+  }
+};
+
+const configNotFoundMessage = (cwd: string): string => {
+  if (findLegacyConfigFile(cwd) !== undefined) {
+    return "seo.config.ts was renamed to pagegraph.config.ts; rename the file";
+  }
+  return `No ${CONFIG_FILENAMES[0]} in ${cwd} or any parent directory. Create one that exports \`defineSeoConfig({ origin, loadGraph })\` from "pagegraph/config".`;
 };
 
 const isStringArray = (value: unknown): value is ReadonlyArray<string> =>
@@ -101,7 +123,7 @@ const isWorkflowConfig = (value: unknown): boolean => {
 };
 
 /**
- * `seo.config.ts` is the consumer's file and may be plain JS, so its types are
+ * `pagegraph.config.ts` is the consumer's file and may be plain JS, so its types are
  * a suggestion, not a guarantee. Check every field the commands actually read —
  * an undefined `origin` would otherwise surface as "undefined/pricing" in a
  * rendered sitemap rather than as an error here.
@@ -139,16 +161,14 @@ const loadConfigFile = (configPath: string): Effect.Effect<SeoCliConfig, SeoCliE
   });
 
 /**
- * Load the app's `seo.config.ts`. Cheap to run more than once per process: the
+ * Load the app's `pagegraph.config.ts`. Cheap to run more than once per process: the
  * ESM cache evaluates the config module exactly once.
  */
 export const loadSeoConfig: Effect.Effect<SeoCliConfig, SeoCliError> = Effect.gen(function* () {
   const cwd = process.cwd();
   const configPath = findConfigFile(cwd);
   if (configPath === undefined) {
-    return yield* new SeoCliError({
-      message: `No ${CONFIG_FILENAMES[0]} in ${cwd} or any parent directory. Create one that exports \`defineSeoConfig({ origin, loadGraph })\` from "pagegraph/config".`,
-    });
+    return yield* new SeoCliError({ message: configNotFoundMessage(cwd) });
   }
   return yield* loadConfigFile(configPath);
 });
@@ -165,9 +185,7 @@ export const loadSeoProjectConfig: Effect.Effect<SeoProjectConfig, SeoCliError> 
     const cwd = process.cwd();
     const configPath = findConfigFile(cwd);
     if (configPath === undefined) {
-      return yield* new SeoCliError({
-        message: `No ${CONFIG_FILENAMES[0]} in ${cwd} or any parent directory.`,
-      });
+      return yield* new SeoCliError({ message: configNotFoundMessage(cwd) });
     }
     return { config: yield* loadConfigFile(configPath), configPath, root: dirname(configPath) };
   },
@@ -182,7 +200,12 @@ export const loadSeoProjectConfig: Effect.Effect<SeoProjectConfig, SeoCliError> 
 export const loadSeoConfigOptional: Effect.Effect<SeoCliConfig | undefined, SeoCliError> =
   Effect.gen(function* () {
     const configPath = findConfigFile(process.cwd());
-    if (configPath === undefined) return undefined;
+    if (configPath === undefined) {
+      if (findLegacyConfigFile(process.cwd()) !== undefined) {
+        return yield* new SeoCliError({ message: configNotFoundMessage(process.cwd()) });
+      }
+      return undefined;
+    }
     return yield* loadConfigFile(configPath);
   });
 

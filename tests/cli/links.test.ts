@@ -156,11 +156,11 @@ describe("pagegraph links verify", () => {
     expect(report.crawl.truncated).toBe(true);
   }, 20_000);
 
-  it("diffs the declared graph when a seo.config.ts matches the crawl origin", async () => {
+  it("diffs the declared graph when a pagegraph.config.ts matches the crawl origin", async () => {
     const directory = mkdtempSync(join(tmpdir(), "pagegraph-links-"));
     temporaryDirectories.push(directory);
     writeFileSync(
-      join(directory, "seo.config.mjs"),
+      join(directory, "pagegraph.config.mjs"),
       `export default {
   origin: ${JSON.stringify(new URL(target).origin)},
   disallow: [],
@@ -197,7 +197,7 @@ describe("pagegraph links verify", () => {
     const directory = mkdtempSync(join(tmpdir(), "pagegraph-links-"));
     temporaryDirectories.push(directory);
     writeFileSync(
-      join(directory, "seo.config.mjs"),
+      join(directory, "pagegraph.config.mjs"),
       `export default {
   origin: "https://elsewhere.example",
   disallow: [],

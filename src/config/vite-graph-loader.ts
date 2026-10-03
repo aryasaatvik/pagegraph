@@ -32,7 +32,7 @@ export interface LoadedSeoGraph {
   /**
    * The robots policy the app serves, when the loader knows it (the TanStack
    * Start loader reads it from the `pagegraph()` plugin). `pagegraph robots`
-   * uses it instead of `seo.config.ts` fields.
+   * uses it instead of `pagegraph.config.ts` fields.
    */
   readonly robots?: Pick<RobotsConfig, "disallow" | "contentSignal" | "directives"> | undefined;
   /** Called once the command is done with the graph, on success or failure. */

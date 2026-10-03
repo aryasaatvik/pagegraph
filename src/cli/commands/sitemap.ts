@@ -13,7 +13,7 @@ export const sitemapCommand = Command.make("sitemap", {
   Command.withExamples([
     {
       command: "pagegraph sitemap",
-      description: "The sitemap XML, under the origin from seo.config.ts",
+      description: "The sitemap XML, under the origin from pagegraph.config.ts",
     },
     {
       command: "pagegraph sitemap --origin https://preview.example.com --no-indexable",

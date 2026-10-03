@@ -156,7 +156,7 @@ export const runWorkflow = async (
 ): Promise<{ readonly run: WorkflowRunV1; readonly directory: string }> => {
   const workflows = input.config.workflows;
   if (workflows === undefined) {
-    throw new Error("seo.config.ts has no workflows configuration; run `pagegraph init` and configure workflows.");
+    throw new Error("pagegraph.config.ts has no workflows configuration; run `pagegraph init` and configure workflows.");
   }
   const spec = getWorkflowSpec(input.workflow);
   const now = dependencies.now ?? (() => new Date());
@@ -193,7 +193,7 @@ export const runWorkflow = async (
       const selectedSources = selectGraph(input.graph, input.options).nodes;
       for (const candidate of report.candidates) {
         if (!input.graph.nodes.has(candidate.source) || !input.graph.nodes.has(candidate.destination)) {
-          throw new Error(`Suggestion references a path absent from seo.config.ts: ${candidate.source} → ${candidate.destination}`);
+          throw new Error(`Suggestion references a path absent from pagegraph.config.ts: ${candidate.source} → ${candidate.destination}`);
         }
         if (!selectedSources.has(candidate.source)) {
           throw new Error(`Suggestion source is outside workflow page/kind/limit targets: ${candidate.source}`);

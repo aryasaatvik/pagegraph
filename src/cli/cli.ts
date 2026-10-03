@@ -19,7 +19,7 @@ import { skillsCommand } from "./commands/skills";
 /**
  * Root `pagegraph` command. Every subcommand reads the same SEO graph that render
  * time, the sitemap/robots server routes, and the test suite read — the one the
- * app's `seo.config.ts` loader produces. Route declarations are the single
+ * app's `pagegraph.config.ts` loader produces. Route declarations are the single
  * source of truth, and these are pure views over them.
  */
 export const cli = Command.make("pagegraph").pipe(

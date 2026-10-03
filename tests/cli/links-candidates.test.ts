@@ -41,7 +41,7 @@ const temporaryDirectories: Array<string> = [];
 const configDirectory = (config: string): string => {
   const directory = mkdtempSync(join(tmpdir(), "pagegraph-candidates-"));
   temporaryDirectories.push(directory);
-  writeFileSync(join(directory, "seo.config.mjs"), config);
+  writeFileSync(join(directory, "pagegraph.config.mjs"), config);
   return directory;
 };
 

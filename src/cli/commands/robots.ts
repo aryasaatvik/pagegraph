@@ -11,7 +11,7 @@ export const robotsCommand = Command.make("robots", {
 }).pipe(
   Command.withDescription("Render robots.txt from the graph (the exact server-route output)"),
   Command.withExamples([
-    { command: "pagegraph robots", description: "The robots.txt, under the origin from seo.config.ts" },
+    { command: "pagegraph robots", description: "The robots.txt, under the origin from pagegraph.config.ts" },
     {
       command: "pagegraph robots --origin https://preview.example.com --no-indexable",
       description: "Disallow-all with no Sitemap line — the preview posture",
@@ -24,7 +24,7 @@ export const robotsCommand = Command.make("robots", {
       const declared = config.disallow !== undefined || config.contentSignal !== undefined || config.directives !== undefined;
       if (declared && loaded.robots !== undefined) {
         return yield* new SeoCliError({
-          message: "The graph loader supplies the robots policy; remove disallow, contentSignal, and directives from seo.config.ts.",
+          message: "The graph loader supplies the robots policy; remove disallow, contentSignal, and directives from pagegraph.config.ts.",
         });
       }
       const policy = loaded.robots ?? config;

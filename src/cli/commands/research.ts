@@ -172,7 +172,7 @@ export const runWorkflowCommand = async (
 ): Promise<WorkflowCommandResult> => {
   const project = await Effect.runPromise(loadSeoProjectConfig);
   if (project.config.workflows === undefined) {
-    throw new Error("seo.config.ts has no workflows configuration; run `pagegraph init` and add it.");
+    throw new Error("pagegraph.config.ts has no workflows configuration; run `pagegraph init` and add it.");
   }
 
   const configured = optionalString(flags.opencodeConfig);

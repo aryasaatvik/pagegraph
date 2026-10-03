@@ -7,6 +7,6 @@
 export const buildOnlyError = (entry: string): Error =>
   new Error(
     `"${entry}" is build-time only and cannot be imported from a Worker or browser bundle. ` +
-      `Keep it in vite.config.ts, seo.config.ts, or other build/CLI modules, and import runtime ` +
+      `Keep it in vite.config.ts, pagegraph.config.ts, or other build/CLI modules, and import runtime ` +
       `helpers (renderSitemap, renderRobots, pageHeads, the graph types) from "pagegraph".`,
   );

@@ -27,11 +27,11 @@ export const jsonFlag = Flag.Boolean("json").pipe(
 
 /**
  * Absolute origin the sitemap/robots projection is rendered under. It carries no
- * static default: the fallback is the host's own `origin` from `seo.config.ts`,
+ * static default: the fallback is the host's own `origin` from `pagegraph.config.ts`,
  * which is not known until the config is loaded. Resolve it with {@link originOf}.
  */
 export const originFlag = Flag.String("origin").pipe(
-  Flag.withDescription("Absolute origin for URLs (default: `origin` from seo.config.ts)"),
+  Flag.withDescription("Absolute origin for URLs (default: `origin` from pagegraph.config.ts)"),
   Flag.optional,
 );
 

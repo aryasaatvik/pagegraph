@@ -21,7 +21,7 @@ export const staleCommand = Command.make("stale", {
     "List sitemap pages whose last declared change is older than the freshness policy, oldest first",
   ),
   Command.withExamples([
-    { command: "pagegraph stale", description: "The refresh queue under seo.config.ts freshness" },
+    { command: "pagegraph stale", description: "The refresh queue under pagegraph.config.ts freshness" },
     {
       command: "pagegraph stale --max-age-days 90 --json",
       description: "Pages unchanged for 90 days, as JSON",
@@ -33,7 +33,7 @@ export const staleCommand = Command.make("stale", {
       const limit = Option.getOrUndefined(maxAgeDays) ?? config.freshness?.maxAgeDays;
       if (limit === undefined) {
         return yield* new SeoCliError({
-          message: "Pass --max-age-days or declare `freshness: { maxAgeDays }` in seo.config.ts.",
+          message: "Pass --max-age-days or declare `freshness: { maxAgeDays }` in pagegraph.config.ts.",
         });
       }
       if (!Number.isSafeInteger(limit) || limit <= 0) {

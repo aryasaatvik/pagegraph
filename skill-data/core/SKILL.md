@@ -1,13 +1,13 @@
 ---
 name: core
-description: Use when adding Pagegraph to a TanStack Start app or changing its SEO wiring — the pagegraph() Vite plugin, staticData.seo declarations and seo.head, title templates, typed related links, content collections, the coverage gate, seo.config.ts, sitemap and robots routes — or when a `pagegraph check`, coverage, or rendered-head failure needs diagnosing.
+description: Use when adding Pagegraph to a TanStack Start app or changing its SEO wiring — the pagegraph() Vite plugin, staticData.seo declarations and seo.head, title templates, typed related links, content collections, the coverage gate, pagegraph.config.ts, sitemap and robots routes — or when a `pagegraph check`, coverage, or rendered-head failure needs diagnosing.
 ---
 
 # Pagegraph and TanStack Start
 
 Each route declares its SEO policy once in `staticData.seo`; Pagegraph derives the sitemap, robots, breadcrumbs, JSON-LD, related links, and `pagegraph check` from those declarations. TanStack Start still owns routing and the document shell. This skill ships inside the Pagegraph CLI that printed it, so it matches that version. Run the app's installed binary (`bunx pagegraph` from the app root) so the guidance and the types agree.
 
-Before editing, read the app's `package.json`, `src/routes/`, `src/routeTree.gen.ts`, any existing `seo.config.ts`, and `vite.config.ts`. Adapt the paths below to the app's layout.
+Before editing, read the app's `package.json`, `src/routes/`, `src/routeTree.gen.ts`, any existing `pagegraph.config.ts`, and `vite.config.ts`. Adapt the paths below to the app's layout.
 
 ## Wire it up
 
@@ -155,10 +155,10 @@ export const Route = createFileRoute("/robots.txt")({ server: { handlers: { GET:
 
 `pagegraph/tanstack-start/server` also exports `seoGraph()` and `seoSite()` for other server code. Never import `pagegraph/tanstack-start`, `pagegraph/config`, `pagegraph/vite`, or `pagegraph/audit` from code a Worker or browser bundle reaches: under those runtimes they resolve to a stub that throws at import.
 
-**7. Point the CLI at the same graph** with `seo.config.ts` at the app root:
+**7. Point the CLI at the same graph** with `pagegraph.config.ts` at the app root:
 
 ```ts
-// seo.config.ts
+// pagegraph.config.ts
 import { defineSeoConfig } from "pagegraph/config";
 import { tanstackStartGraph } from "pagegraph/tanstack-start";
 
@@ -186,7 +186,7 @@ export default defineSeoConfig({
 
 | Changed | Run | Proves |
 | --- | --- | --- |
-| Declarations, collections, the plugin, `seo.config.ts` | `pagegraph check` | No structural violations (exit 1 otherwise); editorial findings are reported but do not fail |
+| Declarations, collections, the plugin, `pagegraph.config.ts` | `pagegraph check` | No structural violations (exit 1 otherwise); editorial findings are reported but do not fail |
 | Headings, JSON-LD, robots meta, canonicals, page copy | `pagegraph check --site <url>` against a running server | Every declared page's rendered HTML matches its declaration and its structured data |
 | `modifiedAt` dates, `freshness` policy | `pagegraph stale` | The refresh queue and which pages are undated |
 | Graph shape | `pagegraph graph`, `pagegraph inspect /path` | Nodes, edges, and a page's sitemap status |

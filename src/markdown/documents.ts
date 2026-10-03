@@ -9,13 +9,11 @@ import { CaptureBundle, PageDocument as PageDocumentSchema } from "./schema";
 export type MarkdownCapture = Schema.Schema.Type<typeof CaptureBundle>;
 export type PageHead = MarkdownCapture["heads"][number];
 
-/** Captures name concrete URL paths whose derived files cannot escape the capture tree. */
+/** Captured paths are decoded; derived files must stay inside the capture tree. */
 function verifyPath(path: string): void {
-  const url = new URL(path, "https://pagegraph.invalid");
-  if (!path.startsWith("/") || path.startsWith("//") || /[?#\\$]/.test(path) ||
-      url.origin !== "https://pagegraph.invalid" || url.pathname !== path ||
+  if (!path.startsWith("/") || path.startsWith("//") || /[?#\\$\u0000-\u001f\u007f]/.test(path) ||
       (path !== "/" && path.endsWith("/")) ||
-      path.split("/").some((part) => part === "." || part === ".." || part === "*")) {
+      path.slice(1).split("/").some((part) => part === "." || part === ".." || part === "*" || (part === "" && path !== "/"))) {
     throw new Error(`Invalid captured page path "${path}"`);
   }
 }

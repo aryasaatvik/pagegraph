@@ -102,16 +102,41 @@ describe("markdown CLI", () => {
     await expect(readMarkdownCapture(root, "https://example.com")).rejects.toThrow("hash");
   });
 
+  it("reads decoded Unicode and space paths from stored captures", async () => {
+    const root = app();
+    mkdirSync(join(root, ".pagegraph/documents/guides"));
+    for (const path of ["/guides/café", "/guides/hello world"]) {
+      const page = { ...content, path };
+      writeFileSync(join(root, `.pagegraph/documents${path}.json`), JSON.stringify({ ...page, hash: hashDocument(page) }));
+    }
+    writeFileSync(join(root, ".pagegraph/heads.json"), JSON.stringify([{ ...heads[0], path: "/équipe" }]));
+    const capture = await readMarkdownCapture(root, "https://example.com");
+    expect(capture.documents.map((document) => document.path)).toEqual(["/", "/guides/café", "/guides/hello world"]);
+    const shown = run(root, ["markdown", "show", "/guides/hello world"]);
+    expect(shown.status, shown.stderr).toBe(0);
+    expect(shown.stdout).toContain("Reliable delivery");
+  }, 30_000);
+
+  it.each(["/../escape", "/guides//email", "/guides/", "/guides\\email", "/guides?email", "/guides\u0000email", "/guides/*"])(
+    "rejects unsafe captured paths: %j", async (path) => {
+      const root = app();
+      writeFileSync(join(root, ".pagegraph/heads.json"), JSON.stringify([{ ...heads[0], path }]));
+      await expect(readMarkdownCapture(root, "https://example.com")).rejects.toThrow("Invalid captured page path");
+    },
+  );
+
   it("reads and verifies the development bundle", async () => {
+    const page = { ...content, path: "/guides/café and tea" };
+    const decodedDocument = { ...page, hash: hashDocument(page) };
     const server = createServer((request, response) => {
       expect(request.url).toBe("/__pagegraph/markdown.json");
       response.setHeader("Content-Type", "application/json");
-      response.end(JSON.stringify({ origin: "https://example.com", documents: [document], heads }));
+      response.end(JSON.stringify({ origin: "https://example.com", documents: [decodedDocument], heads: [{ ...heads[0], path: "/équipe and team" }] }));
     });
     await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
     const address = server.address();
     if (address === null || typeof address === "string") throw new Error("Missing listening port");
-    try { expect((await readDevMarkdownCapture(`http://127.0.0.1:${address.port}`)).documents[0].hash).toBe(document.hash); }
+    try { expect((await readDevMarkdownCapture(`http://127.0.0.1:${address.port}`)).documents[0]).toEqual(decodedDocument); }
     finally { await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve())); }
   });
 });

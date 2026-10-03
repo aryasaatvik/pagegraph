@@ -8,9 +8,9 @@ import * as Layer from "effect/Layer";
 import { Decision, DecisionModel } from "effect/ai";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
-import { claimsInput, replayClaims, runClaims } from "../../src/claims";
-import type { PageHead } from "../../src/core/page-heads";
+import { claimsInput, replayClaims } from "../../src/claims";
 import type { PageDocument } from "../../src/markdown/document";
+import { readMarkdownCapture } from "../../src/markdown/documents";
 import { fact } from "../../src/markdown/facts";
 
 const exec = promisify(execFile);
@@ -31,13 +31,15 @@ const claims = {
   }),
 };
 
-function claimsModel(probability: number) {
-  return Layer.effect(DecisionModel.DecisionModel, DecisionModel.make({
-    decide: ({ decisions }) => Effect.succeed({
-      answers: Object.fromEntries(Object.keys(decisions).map((rule) => [rule, { _tag: "Probability" as const, probability }])),
-      usage: { inputTokens: 1, outputTokens: 1 },
-    }),
-  }));
+async function checkFixtureClaims(directory: string, probability?: number) {
+  const args = probability === undefined ? [] : ["--preload", join(directory, "stub-claims-fetch.ts")];
+  return exec("bun", [...args, join(packageRoot, "src/cli/bin.ts"), "claims", "check", "--json",
+    ...(probability === undefined ? [] : ["--refresh"])], {
+    cwd: directory,
+    env: { ...process.env, NODE_ENV: "production", PAGEGRAPH_FIXTURE_CLAIMS: "1",
+      PAGEGRAPH_FIXTURE_PROBABILITY: String(probability), TYPESAFE_API_KEY: probability === undefined ? undefined : "fixture-key" },
+    timeout: 30_000,
+  });
 }
 
 async function buildFixture(directory: string, claimsEnabled = false): Promise<void> {
@@ -140,22 +142,22 @@ describe("rendered markdown in a real Start Worker build", () => {
 
       await expect(buildFixture(claimsRoot, true)).rejects.toThrow(/\/.*hero.*unsupportedPromise[\s\S]*pagegraph claims check/);
 
-      const documents = await Promise.all(["index", "guides/email", "guides/replies"].map(async (name) =>
-        JSON.parse(await readFile(join(claimsRoot, `.pagegraph/documents/${name}.json`), "utf8")) as PageDocument));
-      const heads = JSON.parse(await readFile(join(claimsRoot, ".pagegraph/heads.json"), "utf8")) as Array<PageHead>;
+      const { documents, heads } = await readMarkdownCapture(claimsRoot, "https://example.com");
       const facts = { emails: fact.number(3000), runtime: fact.text("workerd") };
       const decide = vi.fn(() => Effect.die(new Error("Prerender replay must not ask the model")));
       const neverAsk = Layer.effect(DecisionModel.DecisionModel, DecisionModel.make({ decide }));
       await expect(Effect.runPromise(replayClaims(claimsRoot, documents, heads, facts, claims)
         .pipe(Effect.provide(neverAsk)))).rejects.toThrow("pagegraph claims check");
-      await Effect.runPromise(runClaims(claimsRoot, documents, heads, facts, claims)
-        .pipe(Effect.provide(claimsModel(0.95))));
+      await expect(checkFixtureClaims(claimsRoot, 0.95)).rejects.toMatchObject({ code: 1 });
       await expect(Effect.runPromise(replayClaims(claimsRoot, documents, heads, facts, claims)
         .pipe(Effect.provide(neverAsk)))).rejects.toThrow("unsupportedPromise");
       await expect(buildFixture(claimsRoot, true)).rejects.toThrow(/\/.*hero.*unsupportedPromise[\s\S]*pagegraph claims check/);
 
-      await Effect.runPromise(runClaims(claimsRoot, documents, heads, facts, claims, { refresh: true })
-        .pipe(Effect.provide(claimsModel(0.05))));
+      const checked = await checkFixtureClaims(claimsRoot, 0.05);
+      expect(JSON.parse(checked.stdout)).toMatchObject({ pages: documents.length + heads.length, cached: 0, findings: [] });
+      expect(JSON.parse(checked.stdout).asked).toBeGreaterThan(0);
+      const replayed = await checkFixtureClaims(claimsRoot);
+      expect(JSON.parse(replayed.stdout)).toMatchObject({ asked: 0, cached: JSON.parse(checked.stdout).asked, findings: [] });
       await expect(Effect.runPromise(replayClaims(claimsRoot, documents, heads, facts, claims)
         .pipe(Effect.provide(neverAsk)))).resolves.toMatchObject({ asked: 0, findings: [] });
       expect(decide).not.toHaveBeenCalled();

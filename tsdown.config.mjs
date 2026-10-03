@@ -5,7 +5,7 @@ import { defineConfig } from "tsdown";
 //
 // Runtime entries (`index`, `react`, `tanstack-start/server`) are pure data + string rendering and may run in
 // a Worker or browser; `tests/package/entry-graph.test.ts` pins what they import.
-// Build entries (`vite`, `config`, `audit`, `tanstack-start`) load the app through Vite or drive Node
+// Build entries (`vite`, `config`, `audit`, `tanstack-start`, `oxlint`) load the app through Vite or drive Node
 // I/O. Each has a `build-only/*` twin that the `workerd`/`worker`/`browser` export
 // conditions resolve to, which throws a clear error at import.
 //
@@ -44,12 +44,14 @@ export default defineConfig([
       vite: "src/vite/index.ts",
       config: "src/config/index.ts",
       audit: "src/audit/index.ts",
+      oxlint: "src/oxlint/index.js",
       "tanstack-start/index": "src/tanstack-start/index.ts",
       "tanstack-start/server": "src/tanstack-start/server.ts",
       "build-only/tanstack-start": "src/build-only/tanstack-start.ts",
       "build-only/vite": "src/build-only/vite.ts",
       "build-only/config": "src/build-only/config.ts",
       "build-only/audit": "src/build-only/audit.ts",
+      "build-only/oxlint": "src/build-only/oxlint.ts",
     },
     // `schema-dts` is types-only: it is bundled into the `.d.ts` and erases from
     // the JS, which is what keeps `.`/`./react` free of runtime dependencies.

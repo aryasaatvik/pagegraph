@@ -113,3 +113,5 @@ export type {
   RenderedPage,
   SimpleEdge,
 } from "./links";
+
+export * from "../markdown/index";

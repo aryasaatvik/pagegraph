@@ -59,7 +59,7 @@ describe("build entries", () => {
     readonly exports: Record<string, Record<string, string>>;
   };
 
-  it.each(["vite", "config", "audit", "tanstack-start"])("pagegraph/%s resolves to a throwing stub in runtime bundles", async (entry) => {
+  it.each(["vite", "config", "audit", "tanstack-start", "oxlint"])("pagegraph/%s resolves to a throwing stub in runtime bundles", async (entry) => {
     const conditions = manifest.exports[`./${entry}`];
     for (const condition of ["workerd", "worker", "browser"]) {
       expect(conditions?.[condition], condition).toBe(`./dist/build-only/${entry}.js`);

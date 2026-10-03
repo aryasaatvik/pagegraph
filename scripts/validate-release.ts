@@ -143,6 +143,7 @@ const assertPackageIdentity = (manifest: PackageManifest): void => {
     "./config": buildEntry("config"),
     "./audit": buildEntry("audit"),
     "./tanstack-start": buildEntry("tanstack-start", "tanstack-start/index"),
+    "./oxlint": buildEntry("oxlint"),
   };
   if (JSON.stringify(manifest.exports) !== JSON.stringify(expectedExports)) {
     throw new Error("Package exports do not match the supported public entry points");
@@ -210,6 +211,9 @@ try {
     "dist/config.d.ts",
     "dist/audit.js",
     "dist/audit.d.ts",
+    "dist/oxlint.js",
+    "dist/oxlint.d.ts",
+    "dist/build-only/oxlint.js",
     "dist/cli.js",
     "dist/build-only/vite.js",
     "dist/build-only/config.js",
@@ -261,11 +265,24 @@ try {
     [
       "bun",
       "-e",
-      `const seo = await import(${JSON.stringify(packageName)}); if (typeof seo.checkGraph !== "function" || typeof seo.renderSitemap !== "function") throw new Error("core exports missing"); console.log("core exports ok")`,
+      `const seo = await import(${JSON.stringify(packageName)}); if (typeof seo.checkGraph !== "function" || typeof seo.renderSitemap !== "function" || typeof seo.documentMarkdown !== "function" || typeof seo.createMarkdownLock !== "function" || typeof seo.contentHash !== "function") throw new Error("core exports missing"); console.log("core exports ok")`,
     ],
     installDirectory,
   );
   if (!coreSmoke.includes("core exports ok")) throw new Error("Core export smoke test failed");
+
+  await runSuccessfully(
+    ["bun", "-e", `
+      const m = await import("pagegraph");
+      const facts = m.defineFacts({ attempts: m.fact.number(8) });
+      if (m.resolveFact("attempts", facts).text !== "8") throw new Error("fact exports failed");
+      const lock = m.createMarkdownLock([]);
+      if (lock.version !== 1) throw new Error("markdown lock exports failed");
+      const plugin = (await import("pagegraph/oxlint")).default;
+      if (plugin.meta.name !== "pagegraph" || !plugin.rules["no-bare-text"] || !plugin.rules["t-children"]) throw new Error("oxlint exports failed");
+    `],
+    installDirectory,
+  );
 
   const executable = path.join(installDirectory, "node_modules", ".bin", "pagegraph");
   // The packed bin must run without PageGraph's optional Effect peers. Its own
@@ -311,6 +328,17 @@ try {
   if (!publicExports.includes("public exports ok")) {
     throw new Error("Public export import smoke test failed");
   }
+
+  await runSuccessfully(
+    ["bun", "-e", `
+      const m = await import("pagegraph/react");
+      for (const name of ["DocumentProvider", "T", "Title", "Section", "Fact", "Visual", "ForAgents", "ForHumans", "messageText", "CaptureAnchor", "createCollector", "finishDocument", "useCapturePage"]) {
+        if (typeof m[name] !== "function") throw new Error("React authored export missing: " + name);
+      }
+      if (!m.CaptureRequest || typeof m.Section.Item.Link !== "function") throw new Error("React capture exports missing");
+    `],
+    installDirectory,
+  );
 
   const help = await runSuccessfully([executable, "--help"], installDirectory);
   if (!help.includes("pagegraph <subcommand>") || !help.includes("audit") || !help.includes("diff") || !help.includes("check") || !help.includes("sitemap")) {
@@ -410,7 +438,7 @@ try {
   }
 
   // A Worker or browser bundle resolves build entries to a stub that names the mistake.
-  for (const entry of ["vite", "config", "audit", "tanstack-start"]) {
+  for (const entry of ["vite", "config", "audit", "tanstack-start", "oxlint"]) {
     const specifier = `${packageName}/${entry}`;
     const runtime = await run(
       ["node", "--conditions=workerd", "--input-type=module", "-e", `await import(${JSON.stringify(specifier)})`],

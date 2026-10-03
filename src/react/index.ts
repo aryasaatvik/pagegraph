@@ -49,3 +49,21 @@ export type {
 
 export { Breadcrumbs, resolveCrumbTrail } from "./breadcrumbs";
 export type { CrumbTrailItem } from "./breadcrumbs";
+
+export {
+  DocumentProvider,
+  T,
+  Title,
+  Section,
+  Fact,
+  Visual,
+  ForAgents,
+  ForHumans,
+  messageText,
+  CaptureAnchor,
+  CaptureRequest,
+  createCollector,
+  finishDocument,
+  useCapturePage,
+} from "./document";
+export type { Collector, FactId } from "./document";

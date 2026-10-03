@@ -26,6 +26,60 @@ bun add pagegraph
 bun add -D lighthouse   # only for `pagegraph audit` performance evidence
 ```
 
+## Authored pages
+
+Keep authored text beside its React layout. `DocumentProvider` records only its page body when
+supplied a collector; ordinary rendering preserves the layout. `Title` assigns a heading to the
+nearest section or item, `Fact` resolves shared values, and `Visual` describes content for the
+markdown document without rendering its children during capture.
+
+```tsx
+import { renderToStaticMarkup } from "react-dom/server";
+import { defineFacts, fact, documentMarkdown } from "pagegraph";
+import {
+  DocumentProvider, T, Title, Section, Fact, createCollector, finishDocument,
+} from "pagegraph/react";
+
+const facts = defineFacts({ attempts: fact.number(8) });
+declare module "pagegraph" {
+  interface Register { facts: typeof facts }
+}
+
+const collector = createCollector({ path: "/email", site: "https://example.com", facts });
+const page = (
+  <DocumentProvider collector={collector}>
+    <Section kind="prose" id="intro">
+      <h1><Title>Email delivery</Title></h1>
+      <p><T>Retry up to <Fact id="attempts" /> times.</T></p>
+    </Section>
+  </DocumentProvider>
+);
+// Your SSR renderer supplies completed HTML, whose markers determine document order.
+const html = renderToStaticMarkup(page);
+const document = finishDocument(collector, {
+  title: "Email delivery", description: "Reliable delivery with retries.",
+}, html);
+const markdown = documentMarkdown(document, "https://example.com");
+```
+
+Use `defineSectionKind` for custom formatting; its markdown writer provides `text`, `heading`,
+and `table`:
+
+```ts
+import { defineSectionKind } from "pagegraph";
+const comparison = defineSectionKind({
+  kind: "comparison",
+  markdown: (section, md) => md.heading(2, section.title)
+    + md.table(section.items.map((item) => item.cells)),
+}); // pass kind={comparison} to Section
+```
+
+`Section.Item.Link` records a card's destination, while `CaptureAnchor` is the
+public anchor boundary for router `createLink` integrations. `ForAgents` and `ForHumans` mark
+audience-specific text; markdown excludes human-only content. `messageText` extracts text or
+inline markdown for head metadata. The root entry also provides `hashDocument`,
+`createMarkdownLock`, and pure `llmsMarkdown`/`llmsSection`/`appendLlmsSection` string builders.
+
 ## What runs where
 
 Every entry belongs to one place. Runtime entries are safe in a Worker, an SSR server, or a
@@ -33,13 +87,14 @@ browser; build entries load your app through Vite, parse routes natively, or dri
 
 | Entry              | Runs in                       | Exports                                                                                                   | Peers                             |
 | ------------------ | ----------------------------- | --------------------------------------------------------------------------------------------------------- | --------------------------------- |
-| `pagegraph`        | runtime (Worker, SSR, browser) | `buildSeoGraph`, `contentCollection`, `renderSitemap`, `renderRobots`, `pageHeads`, `graphToJson`/`graphFromJson`, checks, `inspectHtml` | —                                 |
-| `pagegraph/react`  | runtime                       | `createSeo` → `seo.head`, `seoHead`, `Breadcrumbs`, JSON-LD generators                                    | `react`, `@tanstack/react-router` |
+| `pagegraph`        | runtime (Worker, SSR, browser) | `buildSeoGraph`, `contentCollection`, `renderSitemap`, `renderRobots`, `pageHeads`, `graphToJson`/`graphFromJson`, checks, `inspectHtml`, document types, facts, markdown and locks | —                                 |
+| `pagegraph/react`  | runtime                       | `createSeo` → `seo.head`, `seoHead`, `Breadcrumbs`, JSON-LD generators, authored page primitives                                    | `react`, `@tanstack/react-router` |
 | `pagegraph/tanstack-start/server` | runtime (Start server routes) | `robotsTxt`, `sitemapXml`, `seoGraph`, `seoSite`                                           | the `pagegraph()` plugin          |
 | `pagegraph/tanstack-start` | build (`vite.config.ts`, `seo.config.ts`) | `pagegraph()` Vite plugin, `tanstackStartGraph`, `evaluateAppGraph`                        | `vite`, `@tanstack/router-generator` |
 | `pagegraph/vite`   | build (`vite.config.ts`)      | `seoRouteConfig` coverage gate                                                                            | `vite`, `@tanstack/router-generator` |
 | `pagegraph/config` | build (`seo.config.ts`, CLI)  | `defineSeoConfig`, `viteGraphLoader`, `loadPageHeads`                                                     | `vite`                            |
 | `pagegraph/audit`  | build / CLI (Node or Bun)     | Audit services, scanner protocol, rules, and report schemas                                               | `effect`                          |
+| `pagegraph/oxlint` | build (oxlint)               | `pagegraph` plugin: `no-bare-text`, `t-children`                                                        | —                                 |
 | `pagegraph` bin    | CLI (Bun)                     | CLI over the same graph                                                                                   | bundled                           |
 
 Build entries resolve to a stub under the `workerd`, `worker`, and `browser` export conditions.

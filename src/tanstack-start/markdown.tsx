@@ -10,7 +10,7 @@ import { facts, markdown } from "virtual:pagegraph/runtime";
 import { hashDocument, type PageDocument } from "../markdown/document";
 import { documentMarkdown, sectionMarkdown } from "../markdown/markdown";
 import { CaptureRequest, createCollector, finishDocument } from "../react/document";
-import { seoGraph } from "./server";
+import { llmsSection, seoGraph } from "./server";
 
 import { MARKDOWN_CAPTURE_PATH } from "./markdown-path";
 
@@ -111,6 +111,8 @@ export async function markdownRequest(
     const pages = markdownPagePaths();
     let response: Response;
     if (path === MARKDOWN_CAPTURE_PATH) {
+      // Validate the graph metadata that production llms.txt serves before persisting captures.
+      llmsSection();
       const documents: Array<PageDocument> = [];
       for (const page of pages) documents.push(await capturePage(page, markdown.origin, request, options));
       const captured = new Set(pages);

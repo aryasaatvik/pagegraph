@@ -197,4 +197,22 @@ describe("rendered markdown in a real Start Worker build", () => {
       await stopFixture(dev.process);
     }
   }, 60_000);
+  it("fails the build when rendered pages declare metadata only in head()", async () => {
+    await rm(join(root, "src/routes/broken.tsx"), { force: true });
+    await cp(join(root, "negative/missing-graph-head.tsx"), join(root, "src/routes/missing-graph-head.tsx"));
+    let failure: unknown;
+    try {
+      await exec(node, [join(packageRoot, "node_modules/vite/bin/vite.js"), "build"], {
+        cwd: root, env: { ...process.env, NODE_ENV: "production", CI: "1" },
+        maxBuffer: 5_000_000, timeout: 90_000,
+      });
+    } catch (cause) { failure = cause; }
+    expect(failure).toBeInstanceOf(Error);
+    if (typeof failure !== "object" || failure === null || !("stdout" in failure) || !("stderr" in failure))
+      throw new Error("Expected a failed Vite build with capture diagnostics");
+    expect(String(failure.stdout) + String(failure.stderr)).toContain(
+      "Markdown page /missing-graph-head must declare a graph head with title and description for llms.txt",
+    );
+  }, 120_000);
+
 });

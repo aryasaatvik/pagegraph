@@ -3,7 +3,7 @@ import type * as Decision from "effect/ai/Decision";
 
 import { globToRegExp } from "../../core/checks";
 import type { PageHead } from "../../core/page-heads";
-import { hashDocument, type Message, type PageDocument, type SectionDocument } from "../../markdown/document";
+import { HEAD_SECTION_ID, hashDocument, type Message, type PageDocument, type SectionDocument } from "../../markdown/document";
 import type { Facts } from "../../markdown/facts";
 import { sectionMarkdown } from "../../markdown/markdown";
 import type { DecisionFamily } from "../run";
@@ -107,7 +107,7 @@ export function claimsInputs(
     const sections: ReadonlyArray<SectionDocument> = [
       ...document.sections,
       ...(excludes.some((pattern) => pattern.test(document.path)) ? [] : [{
-        id: "head", kind: "head", claimsMarkdown: `${document.title}\n\n${document.description}`,
+        id: HEAD_SECTION_ID, kind: "head", claimsMarkdown: `${document.title}\n\n${document.description}`,
         body: [], items: [], source: document.path, audience: "all" as const,
       }]),
     ];

@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 
-import type { BodyEntry, SectionDocument } from "../../src/markdown/document";
+import { HEAD_SECTION_ID, RESERVED_SECTION_ID_PREFIX, type BodyEntry, type SectionDocument } from "../../src/markdown/document";
 import { DocumentProvider, ForAgents, ForHumans, Section, T, Title, Visual, createCollector, finishDocument } from "../../src/react/document";
 import { defineSectionKind, documentMarkdown, llmsMarkdown, sectionMarkdown } from "../../src/markdown/index";
 
@@ -397,5 +397,16 @@ describe("card descriptions", () => {
     expect(markdown).toContain("- [Pricing](https://example.com/pricing)\n");
     expect(markdown).toContain("- [Docs](https://example.com/docs): Read the guide.");
     expect(markdown).not.toContain("[Pricing](https://example.com/pricing):");
+  });
+});
+
+
+describe("reserved section ids", () => {
+  it.each([HEAD_SECTION_ID, `${RESERVED_SECTION_ID_PREFIX}custom`])("rejects authored %s during capture", (id) => {
+    expect(() => renderedMarkdown(<Section kind="prose" id={id}><T>Authored copy</T></Section>))
+      .toThrow(`uses reserved prefix "${RESERVED_SECTION_ID_PREFIX}"`);
+  });
+  it("continues to capture an authored head section", () => {
+    expect(renderedMarkdown(<Section kind="prose" id="head"><T>Authored copy</T></Section>)).toContain("Authored copy");
   });
 });

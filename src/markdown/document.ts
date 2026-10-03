@@ -1,5 +1,9 @@
 import { contentHash } from "./hash";
 
+/** Reserved for synthetic sections; capture rejects authored ids in this namespace. */
+export const RESERVED_SECTION_ID_PREFIX = "__pagegraph:";
+export const HEAD_SECTION_ID = `${RESERVED_SECTION_ID_PREFIX}head`;
+
 export type InlineNode =
   | string
   | { readonly fact: string; readonly text: string }

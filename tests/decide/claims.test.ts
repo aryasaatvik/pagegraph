@@ -8,7 +8,7 @@ import { Decision, DecisionModel } from "effect/ai";
 import { afterAll, describe, expect, it } from "vitest";
 
 import { claimsInput, claimsInputs, claimsRunOptions, replayClaims, resolveClaimsDocuments, runClaims, type ClaimsOptions } from "../../src/claims";
-import { hashDocument, type PageDocument } from "../../src/markdown/document";
+import { HEAD_SECTION_ID, hashDocument, type PageDocument } from "../../src/markdown/document";
 
 const directories: Array<string> = [];
 const directory = () => {
@@ -82,7 +82,7 @@ describe("claims", () => {
     expect(inputs).toHaveLength(4);
     expect(inputs[0]).toMatchObject({ evidence: "Dated primary source", section: { markdown: "All plans include support." } });
     expect(inputs[1]?.evidence).toBeUndefined();
-    expect(inputs[3]).toMatchObject({ path: "/about", section: { id: "head", markdown: "About\n\nFounder support" } });
+    expect(inputs[3]).toMatchObject({ path: "/about", section: { id: HEAD_SECTION_ID, markdown: "About\n\nFounder support" } });
     expect(claimsInputs([{ ...document, sections: document.sections.map((section) => ({ ...section, source: "other.tsx" })) }], [], {}, options)).toEqual(claimsInputs([document], [], {}, options));
     const resolved = resolveClaimsDocuments([], [{ path: "/about", title: "About", description: "Founder support" }]);
     const { hash, ...content } = resolved[0]!;
@@ -90,6 +90,20 @@ describe("claims", () => {
     expect(() => resolveClaimsDocuments([document], [{ path: document.path, title: document.title, description: document.description }])).toThrow("Duplicate claims page");
     expect(() => resolveClaimsDocuments([], [content, content])).toThrow("Duplicate claims head");
     expect(claimsInputs([document], [{ path: "/docs/start", title: "Docs", description: "Read docs" }], {}, { excludeHeads: ["/docs/**", "/pricing"] })).toHaveLength(1);
+  });
+  it("keeps authored head sections distinct from metadata in answers and finding sources", async () => {
+    const root = directory();
+    const captured = { ...document, sections: [{ ...document.sections[0]!, id: "head", source: "pricing.tsx:42" }] };
+    const inputs = claimsInputs([captured], [], {}, options);
+    expect(inputs.map((input) => input.section.id)).toEqual(["head", HEAD_SECTION_ID]);
+    const report = await Effect.runPromise(runClaims(root, [captured], [], {}, options).pipe(Effect.provide(model(0.9))));
+    expect(report).toMatchObject({ asked: 2, cached: 0 });
+    expect(report.findings).toEqual([
+      { path: "/pricing", section: "head", source: "pricing.tsx:42", rule: "unavailable", probability: 0.9 },
+      { path: "/pricing", section: HEAD_SECTION_ID, source: "/pricing", rule: "unavailable", probability: 0.9 },
+    ]);
+    const replay = await Effect.runPromise(Effect.flip(replayClaims(root, [captured], [], {}, options)));
+    expect(replay).toMatchObject({ _tag: "ClaimsFailed", report: { asked: 0, cached: 2, findings: report.findings } });
   });
   it("validates explicit cutoffs and required configuration", () => {
     for (const cutoff of [-1, 2, NaN]) expect(() => claimsRunOptions(directory(), [], [], {}, { ...options, cutoff })).toThrow("cutoff");

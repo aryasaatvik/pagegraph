@@ -12,7 +12,7 @@ import { resolveClaimsDocuments } from "../../decide/families/claims";
 import { readDevMarkdownCapture, readMarkdownCapture } from "../../markdown/documents";
 import { createMarkdownLock } from "../../markdown/lock";
 import { documentMarkdown, sectionMarkdown } from "../../markdown/markdown";
-import { loadPagegraphOptions } from "../../tanstack-start/load";
+import { loadPagegraphOptions, type EvaluateAppGraphOptions } from "../../tanstack-start/load";
 import { jsonFlag, printJson, printText, SeoCliError } from "../output";
 
 export const devFlag = Flag.String("dev").pipe(
@@ -36,13 +36,14 @@ export const cliOperation = <A>(operation: () => Promise<A>) => Effect.tryPromis
   catch: (cause) => new SeoCliError({ message: cause instanceof Error ? cause.message : String(cause) }),
 });
 
-export const markdownSettings = Effect.fn("CLI.markdownSettings")(function* () {
+export const markdownSettings = Effect.fn("CLI.markdownSettings")(function* (dev: Option.Option<string> = Option.none()) {
   const root = findViteRoot();
   if (root === undefined) return yield* new SeoCliError({ message: "No Vite config found; configure pagegraph() in the app's Vite config." });
-  const options = yield* cliOperation(() => loadPagegraphOptions({ root }));
+  const settingsOptions: EvaluateAppGraphOptions = Option.isSome(dev) ? { root, command: "serve", mode: "development" } : { root };
+  const options = yield* cliOperation(() => loadPagegraphOptions(settingsOptions));
   if (options.markdown === undefined)
     return yield* new SeoCliError({ message: "Markdown capture is not configured in pagegraph() in the Vite config." });
-  return { root, options, markdown: options.markdown };
+  return { root, options, markdown: options.markdown, settingsOptions };
 });
 
 export const markdownCapture = (root: string, origin: string, dev: Option.Option<string>) =>
@@ -51,7 +52,7 @@ export const markdownCapture = (root: string, origin: string, dev: Option.Option
 const showCommand = Command.make("show", { path: Argument.String("path"), dev: devFlag, json: jsonFlag }).pipe(
   Command.withDescription("Print a captured page's markdown twin"),
   Command.withHandler(Effect.fnUntraced(function* ({ path, dev, json }) {
-    const { root, markdown: settings } = yield* markdownSettings();
+    const { root, markdown: settings } = yield* markdownSettings(dev);
     const capture = yield* markdownCapture(root, settings.origin, dev);
     const documents = yield* Effect.try({ try: () => resolveClaimsDocuments(capture.documents, capture.heads), catch: (cause) => new SeoCliError({ message: String(cause) }) });
     const document = documents.find((page) => page.path === path);
@@ -64,7 +65,7 @@ const showCommand = Command.make("show", { path: Argument.String("path"), dev: d
 const findCommand = Command.make("find", { text: Argument.String("text"), dev: devFlag, json: jsonFlag }).pipe(
   Command.withDescription("Find pages and sections containing case-insensitive text"),
   Command.withHandler(Effect.fnUntraced(function* ({ text, dev, json }) {
-    const { root, markdown: settings } = yield* markdownSettings();
+    const { root, markdown: settings } = yield* markdownSettings(dev);
     const capture = yield* markdownCapture(root, settings.origin, dev);
     const query = text.toLowerCase();
     const matches = yield* Effect.try({ try: () => resolveClaimsDocuments(capture.documents, capture.heads).flatMap((document) => [
@@ -83,7 +84,7 @@ const lockCommand = Command.make("lock", {
 }).pipe(
   Command.withDescription("Write or verify .pagegraph/markdown.lock.json"),
   Command.withHandler(Effect.fnUntraced(function* ({ check, dev, json }) {
-    const { root, markdown: settings } = yield* markdownSettings();
+    const { root, markdown: settings } = yield* markdownSettings(dev);
     const capture = yield* markdownCapture(root, settings.origin, dev);
     const documents = yield* Effect.try({ try: () => resolveClaimsDocuments(capture.documents, capture.heads), catch: (cause) => new SeoCliError({ message: String(cause) }) });
     const file = resolve(root, ".pagegraph/markdown.lock.json");

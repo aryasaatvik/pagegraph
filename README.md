@@ -646,7 +646,9 @@ head-only pages; `--check` exits nonzero if the lock is missing or differs. Thes
 `.pagegraph/documents/` and `.pagegraph/heads.json` from the build. Use `--dev <origin>` to inspect
 the development bundle instead. `--json` emits structured output using the CLI's usual conventions.
 Markdown and claims settings come from `pagegraph()` in Vite, including the canonical Markdown
-origin and facts module. Put CLI policies and the graph loader in `pagegraph.config.ts`.
+origin and facts module. Built-mode commands read Vite with `command: "build"` and
+`mode: "production"`; `--dev` reads `command: "serve"` and `mode: "development"`.
+Put CLI policies and the graph loader in `pagegraph.config.ts`.
 
 ## CLI
 
@@ -655,12 +657,15 @@ Rename an existing `seo.config.ts`, `.js`, or `.mjs` to its `pagegraph.config.*`
 The file holds CLI policies and `loadGraph`; site identity and robots policy come from the
 loader result, and Markdown and claims settings come from the Vite plugin. A
 TanStack Start app uses `tanstackStartGraph` (above), which also supplies the robots
-policy and site identity from `pagegraph()`. Otherwise `viteGraphLoader` evaluates your graph
+policy and site identity from `pagegraph()`, using build settings in production mode by default.
+Pass `command: "serve", mode: "development"` to inspect a development configuration instead.
+Otherwise `viteGraphLoader` evaluates your graph
 module inside a headless Vite server, so path aliases, content plugins, and virtual modules all resolve:
 
 ```ts
 // pagegraph.config.ts
 import { defineSeoConfig, viteGraphLoader } from "pagegraph/config";
+import { routeConfig } from "./src/lib/route-config";
 
 export default defineSeoConfig({
   // Fail `check` unless each named money page has enough contextual links.

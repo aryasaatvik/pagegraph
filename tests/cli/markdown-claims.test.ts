@@ -1,5 +1,5 @@
 import { spawn, spawnSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -57,10 +57,10 @@ function runAsync(root: string, args: ReadonlyArray<string>) {
   });
 }
 
-async function cache(root: string, probability: number) {
-  const options = claimsRunOptions(root, [document], heads, {}, claims);
+async function cache(root: string, probability: number, model = claims.model) {
+  const options = claimsRunOptions(root, [document], heads, {}, { ...claims, model });
   for (const input of options.inputs) {
-    const key = cacheKey({ family: options.family.name, decisions: options.family.definitionFor(input).decisions, inputHash: inputHash(input), model: claims.model });
+    const key = cacheKey({ family: options.family.name, decisions: options.family.definitionFor(input).decisions, inputHash: inputHash(input), model });
     await Effect.runPromise(writeAnswers(options.cache, key, { unsupported: { probability } }));
   }
 }
@@ -117,6 +117,41 @@ describe("markdown CLI", () => {
 });
 
 describe("claims CLI", () => {
+  it("uses build settings for stored captures and development settings under --dev", async () => {
+    const root = app(true);
+    const config = readFileSync(join(root, "vite.config.ts"), "utf8")
+      .replace('export default { plugins:', 'export default ({ command, mode }) => ({ plugins:')
+      .replace('})] };', '})] });')
+      .replaceAll('"https://example.com"', '(command === "build" && mode === "production" ? "https://build.example.com" : "https://dev.example.com")')
+      .replace('model: "typesafe/jev"', 'model: command === "build" && mode === "production" ? "typesafe/jev" : "typesafe/jev-preview"');
+    writeFileSync(join(root, "vite.config.ts"), config);
+    await cache(root, 0.1);
+    await cache(root, 0.9, "typesafe/jev-preview");
+    const built = run(root, ["claims", "check", "--json"]);
+    expect(built.status, built.stderr).toBe(0);
+    expect(JSON.parse(built.stdout)).toMatchObject({ asked: 0, cached: 3 });
+    const builtTwin = run(root, ["markdown", "show", "/"]);
+    expect(builtTwin.status, builtTwin.stderr).toBe(0);
+    expect(builtTwin.stdout).toContain("URL: https://build.example.com/");
+    const server = createServer((_request, response) => {
+      response.setHeader("Content-Type", "application/json");
+      response.end(JSON.stringify({ origin: "https://dev.example.com", documents: [document], heads }));
+    });
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const address = server.address();
+    if (address === null || typeof address === "string") throw new Error("Missing listening port");
+    const dev = `http://127.0.0.1:${address.port}`;
+    try {
+      const live = await runAsync(root, ["claims", "check", "--dev", dev, "--json"]);
+      expect(live.status, live.stderr).toBe(1);
+      expect(JSON.parse(live.stdout)).toMatchObject({ asked: 0, cached: 3 });
+      expect(JSON.parse(live.stdout).findings).toHaveLength(3);
+      const twin = await runAsync(root, ["markdown", "show", "/", "--dev", dev]);
+      expect(twin.status, twin.stderr).toBe(0);
+      expect(twin.stdout).toContain("URL: https://dev.example.com/");
+    } finally { await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve())); }
+  }, 60_000);
+
   it("keeps graph-only checks working with a Vite config that has no pagegraph plugin", () => {
     const root = app();
     writeFileSync(join(root, "vite.config.ts"), "export default { plugins: [] };\n");

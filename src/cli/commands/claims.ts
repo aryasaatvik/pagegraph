@@ -42,12 +42,12 @@ const checkCommand = Command.make("check", {
 }).pipe(
   Command.withDescription("Check authored claims; ask the configured model only for cache misses"),
   Command.withHandler(Effect.fnUntraced(function* ({ refresh, dev, json }) {
-    const { root, options, markdown } = yield* markdownSettings();
+    const { root, options, markdown, settingsOptions } = yield* markdownSettings(dev);
     const claims = options.claims;
     if (claims === undefined)
       return yield* new SeoCliError({ message: "Claims are not configured in pagegraph() in the Vite config." });
     const capture = yield* markdownCapture(root, markdown.origin, dev);
-    const facts = yield* cliOperation(() => loadPagegraphFacts({ root }));
+    const facts = yield* cliOperation(() => loadPagegraphFacts(settingsOptions));
     const ask = Effect.suspend(() => {
       const id = claims.model.startsWith("typesafe/") ? claims.model.slice("typesafe/".length) : claims.model;
       const layer = TypeSafeDecisionModel.model(id === "jev" ? "jev-latest" : id).pipe(

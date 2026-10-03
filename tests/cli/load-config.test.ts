@@ -22,8 +22,8 @@ const load = (timeoutMs?: string) => {
     `export default {
       loadGraph: async () => ({ graph: { nodes: new Map(), edges: [] }, site: { origin: "https://example.com", indexable: true, robots: { disallow: [] } }, dispose: async () => {} }),
       workflows: {
-        opencode: {
-          configDirectory: ".pagegraph/opencode",
+        agent: {
+          presetDirectory: ".pagegraph/opencode",
           defaultModel: "test/model",
           ${timeoutMs === undefined ? "" : `timeoutMs: ${timeoutMs},`}
         },
@@ -34,11 +34,11 @@ const load = (timeoutMs?: string) => {
   return Effect.runPromise(loadSeoProjectConfig);
 };
 
-describe("OpenCode timeout configuration", () => {
-  it("loads the maximum supported per-completion timeout", async () => {
+describe("Agent timeout configuration", () => {
+  it("loads the maximum supported per-run timeout", async () => {
     const project = await load("2147483647");
 
-    expect(project.config.workflows?.opencode.timeoutMs).toBe(2_147_483_647);
+    expect(project.config.workflows?.agent.timeoutMs).toBe(2_147_483_647);
   });
 
   it.each(["0", "-1", "1.5", "2147483648", "NaN"])(
@@ -51,7 +51,17 @@ describe("OpenCode timeout configuration", () => {
   it("keeps timeoutMs optional for existing config", async () => {
     const project = await load();
 
-    expect(project.config.workflows?.opencode.timeoutMs).toBeUndefined();
+    expect(project.config.workflows?.agent.timeoutMs).toBeUndefined();
+  });
+});
+
+describe("workflow config migration", () => {
+  it("rejects workflows.opencode with the workflows.agent migration", async () => {
+    const { project } = loadFixtureConfig(`export default {
+      loadGraph: async () => {},
+      workflows: { opencode: { configDirectory: ".pagegraph/opencode", defaultModel: "test/model" } },
+    };`);
+    await expect(project).rejects.toThrow("workflows.opencode was replaced by workflows.agent");
   });
 });
 

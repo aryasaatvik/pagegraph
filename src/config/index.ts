@@ -35,14 +35,14 @@ import type { ContentPolicy } from "../core/content";
 import type { FreshnessPolicy } from "../core/freshness";
 import type { SeoGraphLoader } from "./vite-graph-loader";
 
-export interface SeoWorkflowOpenCodeConfig {
-  /** Project-owned OpenCode configuration directory, relative to the project root. */
-  readonly configDirectory: string;
+export interface SeoWorkflowAgentConfig {
+  /** Project-owned agent preset directory, relative to the project root. */
+  readonly presetDirectory: string;
   /** Default `provider/model` used by agentic workflows. */
   readonly defaultModel: string;
   /** Per-workflow `provider/model` overrides. */
   readonly models?: Readonly<Record<string, string>> | undefined;
-  /** Per-completion deadline in milliseconds, including JSON repair; defaults to 180000. */
+  /** Per-run deadline in milliseconds; defaults to 180000. */
   readonly timeoutMs?: number | undefined;
 }
 
@@ -54,7 +54,7 @@ export interface SeoWorkflowContextConfig {
 }
 
 export interface SeoWorkflowConfig {
-  readonly opencode: SeoWorkflowOpenCodeConfig;
+  readonly agent: SeoWorkflowAgentConfig;
   readonly context?: SeoWorkflowContextConfig | undefined;
   /** Ignored run-artifact directory, relative to the project root. */
   readonly runsDirectory?: string | undefined;

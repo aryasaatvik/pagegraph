@@ -123,6 +123,8 @@
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "^1.62.5",
+    "@earendil-works/pi-agent-core": "1.0.0",
+    "@earendil-works/pi-ai": "1.0.0",
     "@effect/ai-typesafe": "4.0.0",
     "@effect/platform-bun": "4.0.0",
     "@effect/platform-node-shared": "4.0.0",

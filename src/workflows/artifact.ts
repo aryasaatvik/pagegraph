@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-import type { WorkflowResearchCheckpointV1, WorkflowRunV1 } from "./model";
+import type { WorkflowFailureV2, WorkflowResearchCheckpointV2, WorkflowRunV2 } from "./model";
 import summaryTemplate from "./prompts/summary.md" with { type: "text" };
 import { TextTemplate } from "./template";
 
@@ -21,7 +21,7 @@ const resultSummary = (result: unknown): string => {
   return "Workflow completed; inspect run.json for the structured result.";
 };
 
-const summary = (run: WorkflowRunV1): string => {
+const summary = (run: WorkflowRunV2): string => {
   const counts = run.decisions[0]?.report.counts;
   return TextTemplate.from(summaryTemplate)
     .values({
@@ -42,7 +42,7 @@ const summary = (run: WorkflowRunV1): string => {
 export const writeRunBundle = (
   root: string,
   runsDirectory: string,
-  run: WorkflowRunV1,
+  run: WorkflowRunV2,
 ): string => {
   const directory = resolve(root, runsDirectory, run.id);
   mkdirSync(directory, { recursive: true });
@@ -54,7 +54,7 @@ export const writeRunBundle = (
 export const writeResearchCheckpoint = (
   root: string,
   runsDirectory: string,
-  checkpoint: WorkflowResearchCheckpointV1,
+  checkpoint: WorkflowResearchCheckpointV2,
 ): string => {
   const directory = resolve(root, runsDirectory, checkpoint.id);
   mkdirSync(directory, { recursive: true });
@@ -67,7 +67,7 @@ export const writeWorkflowFailure = (
   root: string,
   runsDirectory: string,
   id: string,
-  details: unknown,
+  details: WorkflowFailureV2,
 ): string => {
   const directory = resolve(root, runsDirectory, id);
   mkdirSync(directory, { recursive: true });

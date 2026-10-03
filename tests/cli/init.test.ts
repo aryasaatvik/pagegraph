@@ -47,6 +47,7 @@ describe("pagegraph init", () => {
     const help = run(root, ["--help"]);
     expect(help.status).toBe(0);
     expect(help.stdout).toContain("pagegraph.config.ts");
+    expect(help.stdout).toContain("workflows.agent");
   });
 
   it("previews and then creates a preset without overwriting it", () => {

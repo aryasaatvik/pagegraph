@@ -106,14 +106,14 @@ const isStringArrayRecord = (
   Predicate.isObject(value) && Object.values(value).every(isStringArray);
 
 const isWorkflowConfig = (value: unknown): boolean => {
-  if (!Predicate.isObject(value) || !Predicate.isObject(value["opencode"])) return false;
-  const opencode = value["opencode"];
+  if (!Predicate.isObject(value) || !Predicate.isObject(value["agent"])) return false;
+  const agent = value["agent"];
   const context = value["context"];
   return (
-    Predicate.isString(opencode["configDirectory"]) &&
-    Predicate.isString(opencode["defaultModel"]) &&
-    (opencode["models"] === undefined || isStringRecord(opencode["models"])) &&
-    (opencode["timeoutMs"] === undefined || isWorkflowTimeout(opencode["timeoutMs"])) &&
+    Predicate.isString(agent["presetDirectory"]) &&
+    Predicate.isString(agent["defaultModel"]) &&
+    (agent["models"] === undefined || isStringRecord(agent["models"])) &&
+    (agent["timeoutMs"] === undefined || isWorkflowTimeout(agent["timeoutMs"])) &&
     (context === undefined ||
       (Predicate.isObject(context) &&
         (context["files"] === undefined || isStringArray(context["files"])) &&
@@ -155,6 +155,14 @@ const loadConfigFile = (configPath: string): Effect.Effect<SeoCliConfig, SeoCliE
       catch: (cause) =>
         new SeoCliError({ message: `Could not load ${configPath}: ${messageOf(cause)}` }),
     });
+
+    if (Predicate.isObject(module.default) &&
+      Predicate.isObject(module.default["workflows"]) &&
+      "opencode" in module.default["workflows"]) {
+      return yield* new SeoCliError({
+        message: `${configPath}: workflows.opencode was replaced by workflows.agent; rename configDirectory to presetDirectory.`,
+      });
+    }
 
     if (!isSeoCliConfig(module.default)) {
       const duplicatedField = Predicate.isObject(module.default)

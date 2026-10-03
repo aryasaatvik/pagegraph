@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 
-import type { SeoWorkflowOpenCodeConfig } from "../config";
+import type { SeoWorkflowAgentConfig } from "../config";
 import type { ExecutorEvidence, ExecutorEvidenceRecord } from "./model";
 import { loadWorkflowOpenCode } from "./runtime";
 
@@ -521,12 +521,12 @@ export const openCodeOperation = async <A>(operation: string, request: () => Pro
 
 export const acquireWorkflowHost = async (options: {
   readonly root: string;
-  readonly config: SeoWorkflowOpenCodeConfig;
+  readonly config: SeoWorkflowAgentConfig;
   readonly model?: string | undefined;
   readonly timeoutMs?: number | undefined;
 }): Promise<WorkflowHost> => {
   const model = parseModel(options.model ?? options.config.defaultModel);
-  const configDirectory = resolve(options.root, options.config.configDirectory);
+  const configDirectory = resolve(options.root, options.config.presetDirectory);
   const { OpenCode } = await loadWorkflowOpenCode();
   const host = await OpenCode.create({
     events: { persist: true },

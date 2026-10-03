@@ -11,7 +11,8 @@ import type { DecisionBatchReport } from "../../src/decide/record";
 import { getWorkflowSpec } from "../../src/workflows/catalog";
 import type { WorkflowId } from "../../src/workflows/model";
 import { MissingExecutorEvidenceError, WorkflowHostError } from "../../src/workflows/opencode";
-import type { WorkflowHostResult } from "../../src/workflows/opencode";
+import type { RunnerResult } from "../../src/workflows/runner";
+import { WorkflowRunnerError } from "../../src/workflows/pi";
 import { dropNulls, runKeywordWorkflow, runWorkflow } from "../../src/workflows/run";
 
 // Vite treats Markdown imports as asset URLs even when Vitest runs under Bun.
@@ -50,7 +51,7 @@ const fixture = () => {
   const config: SeoCliConfig = {
     loadGraph: async () => ({ graph, site, dispose: async () => {} }),
     workflows: {
-      opencode: { configDirectory: ".pagegraph/opencode", defaultModel: "test/model" },
+      agent: { presetDirectory: ".pagegraph/opencode", defaultModel: "test/model" },
       context: { files: ["AGENTS.md"] },
       runsDirectory: ".pagegraph/runs",
     },
@@ -91,6 +92,12 @@ const report = (family: string): DecisionBatchReport => ({
 const executorEvidence = {
   searches: [{ tool: "codemode", input: { query: "SEO" }, output: ["tools.gsc.performance"] }],
   calls: [{ tool: "codemode", input: { path: "gsc.performance" }, output: { rows: [] } }],
+};
+
+const messages: RunnerResult["messages"] = [{ role: "user", content: "Research evidence", timestamp: 1 }];
+const usage: RunnerResult["usage"] = {
+  input: 100, output: 20, cacheRead: 0, cacheWrite: 0, totalTokens: 120,
+  cost: { input: 0.1, output: 0.2, cacheRead: 0, cacheWrite: 0, total: 0.3 },
 };
 
 const mutationCases: ReadonlyArray<{
@@ -230,15 +237,15 @@ describe("workflow runner", () => {
     vi.stubGlobal("fetch", fetch);
     const close = vi.fn(async () => {});
     const result = await runKeywordWorkflow({ config, graph, site, root, options }, {
-      acquireHost: async () => ({
+      acquireHost: async () => { throw new Error("non-mutating workflow acquired OpenCode"); },
+      acquireRunner: async () => ({
         model: { provider: "test", id: "model" },
         research: async () => ({
           state: { summary: "One supported opportunity.", opportunities: [opportunity] },
-          sessionId: "session-http-decisions",
-          transcript: { messages: ["research transcript"] },
+          messages,
+          usage,
           executor: executorEvidence,
         }),
-        continue: async () => { throw new Error("read-only workflow must not start an action turn"); },
         close,
       }),
     });
@@ -270,7 +277,7 @@ describe("workflow runner", () => {
     const { root, graph, site, config } = fixture();
     writeFileSync(join(root, "AGENTS.md"), "Use primary evidence.\nExisting user change.\n");
     let closed = false;
-    const researched: WorkflowHostResult = {
+    const researched: RunnerResult = {
       state: {
         summary: "One supported opportunity.",
         opportunities: [
@@ -290,8 +297,8 @@ describe("workflow runner", () => {
           },
         ],
       },
-      sessionId: "session-1",
-      transcript: { messages: ["full transcript"] },
+      messages,
+      usage,
       executor: executorEvidence,
     };
 
@@ -302,18 +309,14 @@ describe("workflow runner", () => {
           const dates = [new Date("2026-09-21T10:00:00.000Z"), new Date("2026-09-21T10:00:01.000Z")];
           return () => dates.shift() ?? new Date("2026-09-21T10:00:01.000Z");
         })(),
-        acquireHost: async () => ({
+        acquireRunner: async () => ({
           model: { provider: "test", id: "model" },
-          research: async (prompt, workflowOptions) => {
+          research: async (spec, prompt, workflowOptions) => {
             expect(prompt).toContain("Return at most 1 items or opportunities.");
-            expect(workflowOptions.skills).toEqual(["keyword-research"]);
-            expect(workflowOptions.permissions).toEqual(
-              expect.arrayContaining([expect.objectContaining({ action: "edit", effect: "deny" })]),
-            );
+            expect(spec.skills).toEqual(["keyword-research"]);
+            expect(workflowOptions.signal).toBeInstanceOf(AbortSignal);
+            expect(prompt).toContain("Call submit_result");
             return researched;
-          },
-          continue: async () => {
-            throw new Error("read-only workflow must not continue into an action turn");
           },
           close: async () => {
             closed = true;
@@ -326,10 +329,10 @@ describe("workflow runner", () => {
     expect(closed).toBe(true);
     expect(result.run).toMatchObject({
       kind: "pagegraph-workflow-run",
-      schemaVersion: 1,
+      schemaVersion: 2,
       workflow: "research.keywords",
       model: { provider: "test", id: "model" },
-      opencode: { sessionId: "session-1" },
+      agent: { runtime: "pi", model: { provider: "test", id: "model" }, messages, usage },
       changes: { files: [] },
       result: { opportunities: [{ query: "email api" }] },
     });
@@ -352,7 +355,7 @@ describe("workflow runner", () => {
         { config, graph, site, root, options },
         {
           now: () => new Date("2026-09-21T10:00:00.000Z"),
-          acquireHost: async () => ({
+          acquireRunner: async () => ({
             model: { provider: "test", id: "model" },
             research: async () => ({
               state: { summary: "One supported opportunity.", opportunities: [{
@@ -362,13 +365,10 @@ describe("workflow runner", () => {
                 candidates: [{ path: "/pricing", title: "Pricing", excerpt: "Email API pricing" }],
                 evidence: ["executor.search -> keyword tool"],
               }] },
-              sessionId: "session-failed-decision",
-              transcript: { messages: ["research transcript"] },
+              messages,
+              usage,
               executor: executorEvidence,
             }),
-            continue: async () => {
-              throw new Error("read-only workflow must not continue into an action turn");
-            },
             close: async () => {
               closed = true;
             },
@@ -394,18 +394,13 @@ describe("workflow runner", () => {
     const checkpoint = JSON.parse(readFileSync(checkpointPath!, "utf8")) as Record<string, any>;
     expect(checkpoint).toMatchObject({
       kind: "pagegraph-workflow-research-checkpoint",
-      schemaVersion: 1,
+      schemaVersion: 2,
       workflow: "research.keywords",
       project: { root, dirtyAtStart: false, filesAtStart: [] },
       evidence: { executor: executorEvidence },
       state: { summary: "One supported opportunity." },
       decisionInputs: [{ query: "email api" }],
-      opencode: {
-        agent: "seo",
-        sessionId: "session-failed-decision",
-        model: { provider: "test", id: "model" },
-        transcript: { messages: ["research transcript"] },
-      },
+      agent: { runtime: "pi", model: { provider: "test", id: "model" }, messages, usage },
     });
     const directory = dirname(checkpointPath!);
     expect(existsSync(join(directory, "run.json"))).toBe(false);
@@ -420,7 +415,7 @@ describe("workflow runner", () => {
       await runKeywordWorkflow(
         { config, graph, site, root, options },
         {
-          acquireHost: async () => ({
+          acquireRunner: async () => ({
             model: { provider: "test", id: "model" },
             research: async () => ({
               state: { summary: "One supported opportunity.", opportunities: [{
@@ -430,13 +425,10 @@ describe("workflow runner", () => {
                 candidates: [{ path: "/pricing", title: "Pricing", excerpt: "Email API pricing" }],
                 evidence: ["executor.search -> keyword tool"],
               }] },
-              sessionId: "session-mutated-checkpoint",
-              transcript: { messages: ["research transcript"] },
+              messages,
+              usage,
               executor: executorEvidence,
             }),
-            continue: async () => {
-              throw new Error("read-only workflow must not continue into an action turn");
-            },
             close: async () => {},
           }),
           decide: async () => {
@@ -457,6 +449,25 @@ describe("workflow runner", () => {
     expect((thrown as Error).message).toContain("Research checkpoint:");
   });
 
+  it("rejects repository edits made during Pi research and closes the runner", async () => {
+    const { root, graph, site, config } = fixture();
+    const decide = vi.fn(async () => report("workflow-keywords"));
+    const close = vi.fn(async () => {});
+    await expect(runKeywordWorkflow({ config, graph, site, root, options }, {
+      acquireRunner: async () => ({
+        model: { provider: "test", id: "model" },
+        research: async () => {
+          writeFileSync(join(root, "AGENTS.md"), "Unexpected edit\n");
+          return { state: { summary: "No opportunities", opportunities: [] }, messages, usage, executor: executorEvidence };
+        },
+        close,
+      }),
+      decide,
+    })).rejects.toThrow("changed repository files during its read-only research turn");
+    expect(decide).not.toHaveBeenCalled();
+    expect(close).toHaveBeenCalledTimes(1);
+  });
+
   it.each(mutationCases)("applies $name in the same session and records its source diff", async (testCase) => {
     const { root, graph, site, config } = fixture();
     mkdirSync(dirname(join(root, testCase.file)), { recursive: true });
@@ -468,6 +479,7 @@ describe("workflow runner", () => {
     const result = await runWorkflow(
       { config, graph, site, root, workflow: testCase.workflow, options },
       {
+        acquireRunner: async () => { throw new Error("mutating workflow acquired Pi"); },
         acquireHost: async () => ({
           model: { provider: "test", id: "model" },
           research: async (_prompt, workflowOptions) => {
@@ -504,6 +516,7 @@ describe("workflow runner", () => {
       },
     );
 
+    expect(result.run.agent).toMatchObject({ runtime: "opencode", sessionId: `session-${testCase.family}`, transcript: { messages: ["research", "action"] } });
     expect(actionSession).toBe(`session-${testCase.family}`);
     expect(result.run.changes.files).toEqual([testCase.file]);
     expect(result.run.result).toEqual({
@@ -675,8 +688,8 @@ describe("workflow runner", () => {
     const runDirectory = join(root, ".pagegraph/runs", readdirSync(join(root, ".pagegraph/runs"))[0]!);
     const failure = JSON.parse(readFileSync(join(runDirectory, "failure.json"), "utf8"));
     expect(failure.stage).toBe("repair");
-    expect(failure.sessionId).toBe("links");
-    expect(failure.transcript.messages).toEqual(["invalid repair"]);
+    expect(failure.agent).toMatchObject({ runtime: "opencode", sessionId: "links" });
+    expect(failure.agent.transcript.messages).toEqual(["invalid repair"]);
     expect(failure.cause.message).toContain("schema validation");
     expect(existsSync(join(runDirectory, "research.json"))).toBe(false);
   });
@@ -687,7 +700,7 @@ describe("workflow runner", () => {
     const { root, graph, site, config } = fixture();
     const result = { state: { items: [] }, sessionId: "empty-evidence", transcript: { messages: ["discovery only"] }, executor: { searches: [], calls: [] } };
     let closed = false;
-    await expect(runKeywordWorkflow({ root, graph, site, config, options }, {
+    await expect(runWorkflow({ root, graph, site, config, workflow: "improve.links", options }, {
       acquireHost: async () => ({ model: { provider: "test", id: "model" },
         research: async () => { throw new MissingExecutorEvidenceError(result); },
         continue: async () => { throw new Error("unexpected continuation"); },
@@ -695,7 +708,7 @@ describe("workflow runner", () => {
       }),
     })).rejects.toThrow("Failure artifact:");
     const directory = join(root, ".pagegraph/runs", readdirSync(join(root, ".pagegraph/runs"))[0]!);
-    expect(JSON.parse(readFileSync(join(directory, "failure.json"), "utf8")).transcript).toEqual(result.transcript);
+    expect(JSON.parse(readFileSync(join(directory, "failure.json"), "utf8")).agent.transcript).toEqual(result.transcript);
     expect(closed).toBe(true);
   });
 
@@ -732,33 +745,30 @@ describe("workflow wire JSON normalization", () => {
     expect(input.values[0]).toBeNull();
   });
 
-  it.each([false, true])("decodes a null optional demand in %s repaired research", async (repair) => {
+  it("decodes null optional demand from a Pi runner before decisions", async () => {
     const { root, graph, site, config } = fixture();
     const state = { summary: "Supported", opportunities: [{ query: "email api", intent: "commercial", rationale: "Fits pricing", demand: null, candidates: [], evidence: [] }] };
-    const result = { state, sessionId: "null-demand", transcript: {}, executor: executorEvidence };
-    const continued = vi.fn(async () => result);
     const decide = vi.fn(async (inputs: ReadonlyArray<unknown>) => {
       expect(inputs).toEqual([{ query: "email api", intent: "commercial", rationale: "Fits pricing", candidates: [], evidence: [] }]);
       return report("workflow-keywords");
     });
     await runKeywordWorkflow({ root, graph, site, config, options }, {
-      acquireHost: async () => ({ model: { provider: "test", id: "model" }, research: async () => repair ? { ...result, state: { opportunities: [] } } : result, continue: continued, close: async () => {} }),
+      acquireRunner: async () => ({ model: { provider: "test", id: "model" }, research: async () => ({ state, messages, usage, executor: executorEvidence }), close: async () => {} }),
       decide,
     });
-    expect(continued).toHaveBeenCalledTimes(repair ? 1 : 0);
     expect(decide).toHaveBeenCalledTimes(1);
   });
 
-  it("includes every invalid state field and its path in the repair prompt", async () => {
+  it("includes every invalid state field and its path in an OpenCode repair prompt", async () => {
     const { root, graph, site, config } = fixture();
-    const valid = { summary: "Supported", opportunities: [{ query: "email api", intent: "commercial", rationale: "Fits pricing", candidates: [], evidence: [] }] };
+    const valid = { summary: "Supported", items: [{ from: "/docs", to: "/pricing", anchor: "pricing", context: "See pricing", relation: "plans" }] };
     const result = { state: valid, sessionId: "all-errors", transcript: {}, executor: executorEvidence };
-    await runKeywordWorkflow({ root, graph, site, config, options }, {
+    await runWorkflow({ root, graph, site, config, workflow: "improve.links", options: { ...options, dryRun: true } }, {
       acquireHost: async () => ({ model: { provider: "test", id: "model" },
-        research: async () => ({ ...result, state: { ...valid, opportunities: [{ ...valid.opportunities[0], query: 42, intent: false }] } }),
-        continue: async (_id, prompt) => { expect(prompt).toContain('["opportunities"][0]["query"]'); expect(prompt).toContain('["opportunities"][0]["intent"]'); return result; },
+        research: async () => ({ ...result, state: { ...valid, items: [{ ...valid.items[0], from: 42, to: false }] } }),
+        continue: async (_id, prompt) => { expect(prompt).toContain('["items"][0]["from"]'); expect(prompt).toContain('["items"][0]["to"]'); return result; },
         close: async () => {},
-      }), decide: async () => report("workflow-keywords"),
+      }), decide: async () => ({ ...report("workflow-links"), counts: { inputs: 1, resolved: 0, review: 1 } }),
     });
   });
 
@@ -803,23 +813,41 @@ describe("workflow failure artifacts", () => {
     const transcript = { messages: [{ type: "assistant", content: [{ type: "text", text: "partial research" }] }] };
     const error = new WorkflowHostError(message, "failed-session", transcript, underlying);
     const close = vi.fn(async () => {});
-    const thrown = await runKeywordWorkflow({ root, graph, site, config, options }, {
+    const thrown = await runWorkflow({ root, graph, site, config, workflow: "improve.links", options }, {
       acquireHost: async () => ({ model: { provider: "test", id: "model" }, research: async () => { throw error; }, continue: async () => { throw new Error("unexpected continuation"); }, close }),
     }).catch((cause: unknown) => cause);
     const { path, artifact } = readFailure(root);
-    expect(artifact).toMatchObject({ kind: "pagegraph-workflow-failure", schemaVersion: 1, id: expect.any(String), workflow: "research.keywords", stage: "research", sessionId: "failed-session", transcript, cause: { message, name: error.name, stack: expect.any(String), cause: { message: underlying.message, name: underlying.name } } });
+    expect(artifact).toMatchObject({ kind: "pagegraph-workflow-failure", schemaVersion: 2, id: expect.any(String), workflow: "improve.links", stage: "research", agent: { runtime: "opencode", sessionId: "failed-session", transcript }, cause: { message, name: error.name, stack: expect.any(String), cause: { message: underlying.message, name: underlying.name } } });
     if (underlying.cause instanceof Error) expect(artifact.cause.cause.cause).toMatchObject({ message: "provider unavailable", name: "Error" });
     expect((thrown as Error).message).toContain(`Failure artifact: ${path}\nNext:`);
+    expect(close).toHaveBeenCalledTimes(1);
+  });
+
+  it("persists partial Pi messages and usage when research fails", async () => {
+    const { root, graph, site, config } = fixture();
+    const underlying = new Error("model transport failed");
+    const original = new WorkflowRunnerError("Pi research aborted", { messages, usage, executor: executorEvidence }, { cause: underlying });
+    const close = vi.fn(async () => {});
+    const thrown = await runKeywordWorkflow({ root, graph, site, config, options }, {
+      acquireRunner: async () => ({ model: { provider: "test", id: "model" }, research: async () => { throw original; }, close }),
+    }).catch((cause: unknown) => cause);
+    const { artifact } = readFailure(root);
+    expect(artifact).toMatchObject({
+      schemaVersion: 2, stage: "research", workflow: "research.keywords",
+      agent: { runtime: "pi", model: { provider: "test", id: "model" }, messages, usage },
+      cause: { message: original.message, cause: { message: underlying.message } },
+    });
+    expect((thrown as Error).cause).toBe(original);
     expect(close).toHaveBeenCalledTimes(1);
   });
 
   it("writes an acquire failure even when no session exists", async () => {
     const { root, graph, site, config } = fixture();
     const original = new Error("host unavailable", { cause: new Error("connection refused") });
-    const thrown = await runKeywordWorkflow({ root, graph, site, config, options }, { acquireHost: async () => { throw original; } }).catch((cause: unknown) => cause);
+    const thrown = await runKeywordWorkflow({ root, graph, site, config, options }, { acquireRunner: async () => { throw original; } }).catch((cause: unknown) => cause);
     const { path, artifact } = readFailure(root);
     expect(artifact).toMatchObject({ stage: "acquire", cause: { message: original.message, name: "Error", cause: { message: "connection refused" } } });
-    expect(artifact.sessionId == null).toBe(true);
+    expect(artifact.agent).toBeUndefined();
     expect((thrown as Error).message).toContain(`Failure artifact: ${path}\nNext:`);
   });
 
@@ -833,7 +861,7 @@ describe("workflow failure artifacts", () => {
       decide: async () => { if (stage === "decide") throw original; return report(testCase.family); },
     }).catch((cause: unknown) => cause);
     const { path, artifact } = readFailure(root);
-    expect(artifact).toMatchObject({ stage, sessionId: "completed-research", transcript, cause: { message: expect.stringContaining(`${stage} failed`), cause: { message: original.message, cause: { message: "provider unavailable" } } } });
+    expect(artifact).toMatchObject({ stage, agent: { runtime: "opencode", sessionId: "completed-research", transcript }, cause: { message: expect.stringContaining(`${stage} failed`), cause: { message: original.message, cause: { message: "provider unavailable" } } } });
     expect((thrown as Error).message).toContain(`Failure artifact: ${path}\nNext:`);
   });
 });
@@ -853,7 +881,7 @@ describe("workflow error boundaries", () => {
     const { root, graph, site, config } = fixture();
     const original = new Error("host unavailable");
     const thrown = await runKeywordWorkflow({ root, graph, site, config, options, out: "AGENTS.md" }, {
-      acquireHost: async () => { throw original; },
+      acquireRunner: async () => { throw original; },
     }).catch((cause: unknown) => cause);
     expect(thrown).toBe(original);
     expect(original.message).toContain("host unavailable");
@@ -863,13 +891,13 @@ describe("workflow error boundaries", () => {
   it("keeps a research failure when closing the host also fails", async () => {
     const { root, graph, site, config } = fixture();
     const original = new WorkflowHostError("research failed", "cleanup-session", { messages: ["partial"] }, new Error("provider unavailable"));
-    const thrown = await runKeywordWorkflow({ root, graph, site, config, options }, {
+    const thrown = await runWorkflow({ root, graph, site, config, workflow: "improve.links", options }, {
       acquireHost: async () => ({ model: { provider: "test", id: "model" }, research: async () => { throw original; }, continue: async () => { throw new Error("unexpected continuation"); }, close: async () => { throw new Error("cleanup failed"); } }),
     }).catch((cause: unknown) => cause);
     expect((thrown as Error).cause).toBe(original);
     expect((thrown as Error).message).toContain("research failed");
     const directory = join(root, ".pagegraph/runs", readdirSync(join(root, ".pagegraph/runs"))[0]!);
     const artifact = JSON.parse(readFileSync(join(directory, "failure.json"), "utf8"));
-    expect(artifact).toMatchObject({ stage: "research", sessionId: "cleanup-session", cause: { message: "research failed", cause: { message: "provider unavailable" } } });
+    expect(artifact).toMatchObject({ stage: "research", agent: { runtime: "opencode", sessionId: "cleanup-session" }, cause: { message: "research failed", cause: { message: "provider unavailable" } } });
   });
 });

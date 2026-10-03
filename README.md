@@ -222,21 +222,19 @@ instead of crashing on a native binding when a request first runs the code. The 
 have **zero runtime dependencies** beyond their listed peers; a test pins each entry's import
 graph.
 
-The CLI **bundles PageGraph's Effect and TypeSafe provider runtime**, so it does not depend on the
-app's Effect version; it runs on [Bun](https://bun.sh) (`bunx pagegraph`). Agentic workflows load the
-OpenCode SDK only when invoked. The first workflow installs pinned OpenCode 2.0.22 into
-`~/.cache/pagegraph/opencode-2.0.22-2`, outside the app's dependency tree; subsequent workflows
-reuse the verified cache. This keeps consumer dependency overrides away from OpenCode's declared
-Effect and Drizzle versions. Executor plugins must use OpenCode's Effect version (`4.0.0-rc.112`).
-Bun and network access to npm are required for the first install. The pinned OpenCode client's
-HTTP error handling retains the method, path, status, and response body for diagnostics;
-undeclared error bodies are capped at 16 KiB.
-Discovery-only research gets one continuation to complete provider evidence. Every workflow failure
-after run creation writes `failure.json` in the run directory, with the stage, session ID when available,
-transcript, and cause chain. `vite` stays a peer — graph commands
-load your app through Vite at runtime — and `lighthouse` is only needed by `pagegraph audit`.
-Importing `pagegraph/audit` programmatically needs `effect@^4.0.0`. The Effect and TypeSafe
-peers remain optional for other library entry points and the bundled CLI.
+The CLI **bundles PageGraph's Effect, TypeSafe provider runtime, and Pi agent runtime**, so it does
+not depend on the app's Effect version; it runs on [Bun](https://bun.sh) (`bunx pagegraph`). Research,
+analysis, and architecture planning run in-process on Pi 1.0.0. File-changing `improve` workflows load
+the OpenCode SDK when invoked and install pinned OpenCode 2.0.22 into
+`~/.cache/pagegraph/opencode-2.0.22-2`, outside the app's dependency tree. They reuse the verified
+cache; their Executor plugins must use OpenCode's Effect version (`4.0.0-rc.112`). Bun and network
+access to npm are required for that first install. The pinned OpenCode client's HTTP error handling
+retains the method, path, status, and response body; undeclared error bodies are capped at 16 KiB.
+Every workflow failure after run creation writes `failure.json` with its stage, agent messages or
+transcript, and cause chain. `vite` stays a peer — graph commands load your app through Vite at
+runtime — and `lighthouse` is only needed by `pagegraph audit`. Importing `pagegraph/audit`
+programmatically needs `effect@^4.0.0`. The Effect and TypeSafe peers remain optional for other
+library entry points and the bundled CLI.
 
 ### Agent skill
 
@@ -400,17 +398,23 @@ Preview hosts (`indexable: false`) drop `contentSignal` and `directives`;
 
 ## Agentic workflows
 
-PageGraph can combine the deterministic route graph with a project-owned embedded OpenCode agent,
-live tools exposed by an Executor plugin, and Jev decisions. Scaffold the OpenCode preset once:
+PageGraph combines the deterministic route graph with project-owned agent instructions, live
+Executor tools, and Jev decisions. Research, analysis, and architecture planning use Pi in-process;
+file-changing `improve` workflows use OpenCode. Scaffold the shared preset once:
 
 ```bash
 pagegraph init
 ```
 
-The generated `.pagegraph/opencode` directory contains one `seo` agent and customizable `content`,
-`technical`, and `authority` skills. Add your Executor plugin to its `opencode.jsonc`; OpenCode and
-the plugin own model and Executor authentication. PageGraph does not copy credentials or assume
-fixed provider-tool addresses.
+The generated `.pagegraph/opencode` directory contains the `seo` agent instructions, `AGENTS.md`,
+and customizable workflow skills with Executor recipes. Pi composes these files into its system
+prompt and fails if a required file is missing. Pi uses its provider-specific environment variables
+for model authentication, such as `ANTHROPIC_API_KEY` or `OPENAI_API_KEY`.
+
+Pi's Executor tool factory is an integration seam and currently fails with "Executor tools are not
+configured" until a host supplies the toolset. Research always declines Executor approval requests.
+For file-changing workflows, add the Executor plugin to the preset's `opencode.jsonc`; OpenCode and
+the plugin own their authentication. Tool paths are discovered at runtime.
 
 Enable workflows in `pagegraph.config.ts`:
 
@@ -418,10 +422,10 @@ Enable workflows in `pagegraph.config.ts`:
 export default defineSeoConfig({
   // origin, disallow, and loadGraph as above
   workflows: {
-    opencode: {
-      configDirectory: ".pagegraph/opencode",
+    agent: {
+      presetDirectory: ".pagegraph/opencode",
       defaultModel: "openrouter/example/model",
-      // Optional per-completion budget in milliseconds; default 180000.
+      // Optional per-run budget in milliseconds; default 180000.
       timeoutMs: 360_000,
       models: {
         "research.keywords": "openrouter/example/research-model",
@@ -452,9 +456,10 @@ Executor's live catalog and inspect the discovered tools' argument schemas, then
 structured observations with Jev. Tool paths are discovered at runtime; the generated skills contain
 editable starter recipes, not a fixed integration list.
 
-`workflows.opencode.timeoutMs` sets the positive integer deadline in milliseconds for each OpenCode
-completion (maximum `2147483647`). It covers prompt admission, model execution, and any workflow JSON
-repair prompt. A later action or continuation turn gets a separate budget. The default is `180000`.
+`workflows.agent.timeoutMs` sets the positive integer deadline in milliseconds for each Pi run
+(maximum `2147483647`, default `180000`). OpenCode uses the same setting for each completion,
+including JSON repair. `workflows.opencode` is rejected: rename it to `workflows.agent` and rename
+`configDirectory` to `presetDirectory`.
 
 Selecting pages preserves their incoming and outgoing relationships to non-selected pages in
 `evidence.neighborhood`. Those neighbors supply architecture context without becoming workflow
@@ -462,12 +467,13 @@ targets or consuming `--limit`. The agent receives the limit before research, an
 the decoded result before decisions.
 
 After research is validated, the run directory contains `research.json`: an incomplete checkpoint
-with the collected evidence, decision inputs, and OpenCode transcript. A downstream failure reports
-its path so the evidence remains available for diagnosis. Only a completed workflow writes
+with the collected evidence, decision inputs, and agent messages or transcript. A downstream failure
+reports its path so the evidence remains available for diagnosis. Only a completed workflow writes
 `run.json` and `summary.md`; a research checkpoint is not a final recommendation.
-Model JSON drops null properties and array elements before validation. Schema validation collects all
-issues for one read-only repair turn. Every error after run creation writes `failure.json` in that
-run directory with the workflow, stage, available OpenCode session ID, transcript, and full cause
+Model results drop null properties and array elements before validation. Pi receives decode issues
+and missing Executor evidence through `submit_result`, so it can correct the result in the same
+agent loop; repeated rejected submissions fail the run. Every error after run creation writes
+`failure.json` with the workflow, stage, agent messages or OpenCode session transcript, and full cause
 chain. The error reports the artifact path and a next step; a failed artifact write preserves the
 original error with a note.
 
@@ -486,7 +492,7 @@ original error with a note.
 | `improve links` | Contextual internal-link edits from graph and page evidence |
 
 The common selectors are repeatable `--page`, `--query`, and `--kind`, plus `--limit`, `--market`,
-`--language`, `--refresh`, `--model`, `--opencode-config`, and `--out`. Relevant workflows also
+`--language`, `--refresh`, `--model`, `--preset-directory`, and `--out`. Relevant workflows also
 accept `--competitor`, `--domain`, or `--device desktop|mobile`. Workflows are noninteractive and
 fail immediately if the agent asks a question or requests permission.
 
@@ -496,10 +502,11 @@ want the agent to edit alongside existing changes. PageGraph leaves every diff u
 records modified, added, and deleted files after the workflow finishes.
 
 Each run writes `.pagegraph/runs/<run-id>/run.json` and `summary.md`. The JSON retains the
-deterministic graph, context, complete OpenCode session export, Executor tool evidence, Jev question
-definitions and answers, Git provenance, changed files, and model provenance. Keep this directory
-ignored: provider output can be large or account-specific. Workflows fail when the configured model,
-active Executor plugin, catalog search plus discovered tool call, or `TYPESAFE_API_KEY` for Jev is
+deterministic graph, context, Executor tool evidence, Jev question definitions and answers, Git
+provenance, changed files, and model provenance. Schema-version-2 artifacts record `agent.runtime`
+as `pi` or `opencode`; Pi carries messages and usage, and OpenCode carries its session ID and
+transcript. Keep this directory ignored: provider output can be large or account-specific. Workflows fail when the configured model,
+Executor toolset or plugin, catalog search plus completed tool call, or `TYPESAFE_API_KEY` for Jev is
 unavailable.
 
 ## Typed paths

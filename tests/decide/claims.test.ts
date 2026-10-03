@@ -93,6 +93,8 @@ describe("claims", () => {
   });
   it("validates explicit cutoffs and required configuration", () => {
     for (const cutoff of [-1, 2, NaN]) expect(() => claimsRunOptions(directory(), [], [], {}, { ...options, cutoff })).toThrow("cutoff");
+    // @ts-expect-error JavaScript config must reject an explicitly null cutoff.
+    expect(() => claimsRunOptions(directory(), [], [], {}, { ...options, cutoff: null })).toThrow("cutoff");
     expect(() => claimsRunOptions(directory(), [], [], {}, { ...options, model: "" })).toThrow("model");
     expect(() => claimsRunOptions(directory(), [], [], {}, { ...options, rules: Decision.make({ input: claimsInput, decisions: {} }) })).toThrow("decisions");
   });

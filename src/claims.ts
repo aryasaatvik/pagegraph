@@ -47,7 +47,7 @@ export function claimsRunOptions(
   facts: Facts,
   options: ClaimsOptions,
 ) {
-  const cutoff = options.cutoff ?? 0.8;
+  const cutoff = options.cutoff === undefined ? 0.8 : options.cutoff;
   if (!Number.isFinite(cutoff) || cutoff < 0 || cutoff > 1)
     throw new Error("Claims cutoff must be between 0 and 1");
   if (!options.model.trim()) throw new Error("Claims model is required");

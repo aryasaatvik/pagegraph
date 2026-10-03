@@ -43,10 +43,7 @@ async function capturePage(
   const url = new URL(request.url);
   url.pathname = path;
   url.search = "";
-  const headers = new Headers(request.headers);
-  headers.delete("authorization");
-  headers.delete("cookie");
-  headers.set("accept", "text/html");
+  const headers = new Headers({ accept: "text/html" });
   const htmlRequest = new Request(url, { method: "GET", headers, signal: request.signal });
   const render = defineHandlerCallback(async ({ router }) => {
     try {
@@ -79,6 +76,7 @@ async function capturePage(
       return captureFailure(path, cause);
     }
   });
+  // App-wired request context is retained; requester headers are not.
   const response = await createStartHandler(render)(htmlRequest, options);
   if (document === undefined)
     throw failure ?? new Error(`Markdown page ${path}: ${response.status} ${await response.text()}`);

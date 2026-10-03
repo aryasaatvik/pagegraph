@@ -15,7 +15,8 @@ export const Route = createFileRoute("/guides/$slug")({
       title: `Guide: ${params.slug}`,
       description: `Loaded ${params.slug}`,
       personalized: request !== undefined && (
-        request.headers.has("cookie") || request.headers.has("authorization") || new URL(request.url).search !== ""
+        [...request.headers.keys()].some((name) => name !== "accept") ||
+        request.headers.get("accept") !== "text/html" || new URL(request.url).search !== ""
       ),
     };
   },

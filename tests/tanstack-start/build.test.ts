@@ -165,7 +165,11 @@ describe("rendered markdown in a real Start Worker build", () => {
     try {
       const documents = await Promise.all(["email", "replies", "email"].map(async (slug) => {
         const response = await fetch(new URL(`guides/${slug}.document.json?private=1`, dev.origin), {
-          headers: { cookie: "session=private", authorization: "Bearer private" },
+          headers: {
+            cookie: "session=private", authorization: "Bearer private",
+            "accept-language": "fr", "user-agent": "Personalized crawler",
+            "x-requester-identity": "private", "x-forwarded-host": "personalized.example",
+          },
           signal: AbortSignal.timeout(15_000),
         });
         expect(response.status).toBe(200);

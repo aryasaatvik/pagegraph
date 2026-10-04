@@ -147,5 +147,5 @@ export const acquireWorkflowRunner = async (options: {
     throw new Error(`Missing Pi credentials for ${provider}; set ${names?.join(" or ") ?? `${provider} provider credentials`}.`);
   }
   return createPiRunner({ root: options.root, presetDirectory: resolve(options.root, options.config.presetDirectory),
-    model, limit: options.limit, executor: options.executor ?? createExecutorToolset({ policy: "decline" }) });
+    model, limit: options.limit, executor: options.executor ?? await createExecutorToolset({ policy: "decline" }) });
 };

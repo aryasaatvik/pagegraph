@@ -77,7 +77,7 @@ export default defineConfig([
       neverBundle: [/^node:/, /^virtual:/],
       // Effect and every `@effect/*` package are bundled for the built CLI and
       // workflow runtime, so consumers do not resolve a different Effect version.
-      alwaysBundle: [/^effect(\/|$)/, /^@effect\//, /^@earendil-works\/pi-/],
+      alwaysBundle: [/^effect(\/|$)/, /^@effect\//, /^@earendil-works\/pi-/, /^@pi-ext\//],
     },
   },
 ]);

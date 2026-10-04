@@ -14,6 +14,7 @@
         "@effect/vitest": "4.0.0",
         "@noble/hashes": "^2.4.0",
         "@opencode/sdk": "2.0.22",
+        "@pi-ext/executor": "1.0.0",
         "@tanstack/react-router": "^1.170.26",
         "@tanstack/react-start": "^1.168.56",
         "@tanstack/router-generator": "^1.167.21",
@@ -606,6 +607,8 @@
     "@parcel/watcher-win32-x64": ["@parcel/watcher-win32-x64@2.5.1", "", { "os": "win32", "cpu": "x64" }, "sha512-9lHBdJITeNR++EvSQVUcaZoWupyHfXe1jZvGZ06O/5MflPcuPLtEphScIBL+AiCWBO46tDSHzWyD0uDmmZqsgA=="],
 
     "@paulirish/trace_engine": ["@paulirish/trace_engine@0.0.65", "", { "dependencies": { "legacy-javascript": "latest", "third-party-web": "latest" } }, "sha512-Qsm6F5C8xf6ZzQXbQc2+wcpe6sggfs/gvc/ytqSurdvYg3kyW0ECHCqE0CWBKZpqgjVfPNX9c7SCS3r2nEIRGg=="],
+
+    "@pi-ext/executor": ["@pi-ext/executor@1.0.0", "", { "dependencies": { "effect": "4.0.0" }, "peerDependencies": { "@earendil-works/pi-agent-core": "^1.0.0", "@earendil-works/pi-coding-agent": "^1.0.0", "@earendil-works/pi-tui": "^1.0.0", "typebox": "^1.3.0" }, "optionalPeers": ["@earendil-works/pi-coding-agent", "@earendil-works/pi-tui"] }, "sha512-wxMQv3f5gqJXSgbzI6QglM3enjgxDQvuAwRqh6GExamAfDZsrDP49n0VLFmmTjkglSS4ApMDXQJFi0QW4qms+A=="],
 
     "@pkgjs/parseargs": ["@pkgjs/parseargs@0.11.0", "", {}, "sha512-+1VkjdD0QBLPodGrJUeqarH8VAIvQODIbwh9XpP5Syisf7YoQgsJKPNFoqqLQlu+VQ/tVSshMR6loPMn8U+dPg=="],
 

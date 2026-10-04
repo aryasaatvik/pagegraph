@@ -216,9 +216,10 @@ describe("Pi runner acquisition", () => {
     await expect(acquire(`openai/${model.id}`)).rejects.toThrow("set OPENAI_API_KEY");
   });
 
-  it("fails clearly until Executor tools are configured", async () => {
+  it("fails clearly when the Executor server is not configured", async () => {
     vi.stubEnv("OPENAI_API_KEY", "pagegraph-test-key");
+    vi.stubEnv("EXECUTOR_BASE_URL", undefined);
     const model = builtinModels().getModels("openai")[0];
-    await expect(acquire(`openai/${model.id}`)).rejects.toThrow("Executor tools are not configured");
+    await expect(acquire(`openai/${model.id}`)).rejects.toThrow(/EXECUTOR_BASE_URL/);
   });
 });

@@ -3,8 +3,8 @@ import { Type } from "@earendil-works/pi-ai";
 import type { ExecutorToolset, ExecutorTraceRecord } from "../../../src/workflows/executor";
 
 export const completedExecutorTrace = (): ExecutorTraceRecord[] => [
-  { kind: "search", query: "SEO", result: ["seo.search"], isError: false, durationMs: 1 },
-  { kind: "execute", code: "await tools.seo.search()", result: { rows: [] }, isError: false, toolCalls: ["seo.search"], durationMs: 1 },
+  { kind: "search", query: "SEO", result: [{ path: "seo.search", name: "search", integration: "seo", score: 1 }], isError: false, durationMs: 1 },
+  { kind: "execute", code: "await tools.seo.search()", result: { rows: [] }, isError: false, toolCalls: [{ path: "seo.search", isError: false, durationMs: 1 }], approvals: [], durationMs: 1 },
 ];
 
 export const fakeExecutorToolset = (seed: ReadonlyArray<ExecutorTraceRecord> = []): ExecutorToolset => {
@@ -20,7 +20,7 @@ export const fakeExecutorToolset = (seed: ReadonlyArray<ExecutorTraceRecord> = [
         execute: async (_id, params) => {
           if (typeof params !== "object" || params === null || !("query" in params) || typeof params.query !== "string") throw new Error("Expected query");
           const query = params.query;
-          const result = ["seo.search"];
+          const result = [{ path: "seo.search", name: "search", integration: "seo", score: 1 }];
           trace.push({ kind: "search", query, result, isError: false, durationMs: 1 });
           return { content: [{ type: "text", text: JSON.stringify(result) }], details: undefined };
         },
@@ -32,7 +32,7 @@ export const fakeExecutorToolset = (seed: ReadonlyArray<ExecutorTraceRecord> = [
           if (typeof params !== "object" || params === null || !("code" in params) || typeof params.code !== "string") throw new Error("Expected code");
           const code = params.code;
           const result = { rows: [] };
-          trace.push({ kind: "execute", code, result, isError: false, toolCalls: ["seo.search"], durationMs: 1 });
+          trace.push({ kind: "execute", code, result, isError: false, toolCalls: [{ path: "seo.search", isError: false, durationMs: 1 }], approvals: [], durationMs: 1 });
           return { content: [{ type: "text", text: JSON.stringify(result) }], details: undefined };
         },
       },

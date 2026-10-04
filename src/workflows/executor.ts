@@ -10,13 +10,13 @@ export interface ExecutorToolset {
   readonly trace: ExecutorTraceRecord[];
 }
 
-// A completed script can still contain failed provider calls; only successful calls are evidence.
-// When the server reports tool calls and none succeeded, the execution produced no provider data.
+// Evidence is a provider call that succeeded. A completed script can still contain failed calls,
+// and an execution without a call report proves nothing.
 const executionEvidence = (record: Extract<ExecutorTraceRecord, { kind: "execute" }>): ExecutorEvidenceRecord | undefined => {
   if (record.isError) return undefined;
-  const succeeded = record.toolCalls?.filter((call) => !call.isError).map((call) => call.path);
-  if (succeeded !== undefined && succeeded.length === 0) return undefined;
-  return { tool: succeeded?.join(", ") ?? "execute", input: { code: record.code }, output: record.result };
+  const succeeded = (record.toolCalls ?? []).filter((call) => !call.isError).map((call) => call.path);
+  if (succeeded.length === 0) return undefined;
+  return { tool: succeeded.join(", "), input: { code: record.code }, output: record.result };
 };
 
 export const executorEvidence = (trace: ReadonlyArray<ExecutorTraceRecord>): ExecutorEvidence => ({

@@ -411,10 +411,12 @@ and customizable workflow skills with Executor recipes. Pi composes these files 
 prompt and fails if a required file is missing. Pi uses its provider-specific environment variables
 for model authentication, such as `ANTHROPIC_API_KEY` or `OPENAI_API_KEY`.
 
-Pi's Executor tool factory is an integration seam and currently fails with "Executor tools are not
-configured" until a host supplies the toolset. Research always declines Executor approval requests.
-For file-changing workflows, add the Executor plugin to the preset's `opencode.jsonc`; OpenCode and
-the plugin own their authentication. Tool paths are discovered at runtime.
+Research connects to [Executor](https://github.com/RhysSullivan/executor) through
+`@pi-ext/executor`. Set `EXECUTOR_BASE_URL` to the server, plus `EXECUTOR_CLIENT_ID[_FILE]` and
+`EXECUTOR_CLIENT_SECRET[_FILE]` when Cloudflare Access fronts it (both or neither). Research always
+declines Executor approval requests, and only provider calls that succeeded count as evidence. For
+file-changing workflows, add the Executor plugin to the preset's `opencode.jsonc`; OpenCode and the
+plugin own their authentication. Tool paths are discovered at runtime.
 
 Enable workflows in `pagegraph.config.ts`:
 

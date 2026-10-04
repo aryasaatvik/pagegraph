@@ -28,5 +28,6 @@ at least one Executor catalog search, and a completed relevant Executor call. In
 receive validation or evidence guidance in the agent loop; three rejected submissions fail the run.
 Research declines Executor approval requests and respects the per-run deadline.
 
-Pi workflows require a configured Executor toolset. The default factory reports
-"Executor tools are not configured" until the toolset is supplied.
+Research connects to Executor through `@pi-ext/executor`: set `EXECUTOR_BASE_URL`, plus
+`EXECUTOR_CLIENT_ID[_FILE]` and `EXECUTOR_CLIENT_SECRET[_FILE]` when Cloudflare Access fronts the
+server. Only provider calls that succeeded count as evidence.

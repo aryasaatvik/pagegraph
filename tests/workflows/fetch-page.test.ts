@@ -4,7 +4,11 @@ import { createFetchPageTool } from "../../src/workflows/run";
 
 const servers: Server[] = [];
 afterEach(async () => {
-  await Promise.all(servers.splice(0).map((server) => new Promise<void>((resolve, reject) => (server.closeAllConnections(), server).close((error) => error ? reject(error) : resolve()))));
+  await Promise.all(servers.splice(0).map((server) => new Promise<void>((resolve, reject) => {
+    server.close((error) => error ? reject(error) : resolve());
+    // The cancellation test leaves a response open; close waits for open connections.
+    server.closeAllConnections();
+  })));
 });
 
 const servedSite = async (robots = "User-agent: *\nDisallow: /private") => {

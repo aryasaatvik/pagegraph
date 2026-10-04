@@ -1,3 +1,54 @@
+## pagegraph@0.14.0
+
+### Run read-only workflows on Pi
+
+**Breaking:** Replace `workflows.opencode` with `workflows.agent` in `pagegraph.config.ts`.
+Rename `configDirectory` to `presetDirectory`; keep `defaultModel`, optional per-workflow `models`,
+and optional `timeoutMs` under `workflows.agent`. Model IDs use `provider/id`, and Pi reads model
+credentials from its provider-specific environment variables. Use `--preset-directory` in place
+of `--opencode-config` for CLI overrides.
+
+**Breaking:** Workflow runs, research checkpoints, and failure artifacts use `schemaVersion: 2`.
+Update artifact readers to use `agent` in place of `opencode` and inspect `agent.runtime`:
+`pi` records contain the model, messages, and usage with total cost; `opencode` records contain
+the model, session ID, and transcript.
+
+`research.*`, `analyze.*`, and `plan.architecture` run in-process on Pi 1.0.0. Pi composes the SEO
+agent instructions, `AGENTS.md`, and each workflow's skill and Executor reference from the configured
+preset directory. Missing preset files fail with their paths. Repository tools are read-only and
+reject paths outside the project root, including symlink escapes. `improve.*` workflows use OpenCode
+with the same preset directory.
+
+Pi submits structured state through `submit_result`. Acceptance requires valid workflow state,
+at least one Executor catalog search, and a completed relevant Executor call. Invalid submissions
+receive validation or evidence guidance in the agent loop; three rejected submissions fail the run.
+Research declines Executor approval requests and respects the per-run deadline.
+
+Research connects to Executor through `@pi-ext/executor`: set `EXECUTOR_BASE_URL`, plus
+`EXECUTOR_CLIENT_ID[_FILE]` and `EXECUTOR_CLIENT_SECRET[_FILE]` when Cloudflare Access fronts the
+server. Only provider calls that succeeded count as evidence.
+
+### Run improve workflows on Pi
+
+**Breaking:** Every workflow now runs on Pi. Improve workflows continue the research conversation
+and apply source changes with guarded `edit_file` and `write_file` tools. Dry-run actions expose
+only read tools and describe intended changes. Writes stay inside the repository and exclude
+`.git`, `node_modules`, workflow runs, and agent presets. There is no shell tool.
+
+OpenCode, its SDK install, patched client, preset JSON, and permission rules are removed.
+Schema-version-2 artifacts now record `agent.runtime` as the literal `pi`.
+
+**Breaking:** `pagegraph init` writes `.pagegraph/agent`. To migrate an existing preset, move
+`.pagegraph/opencode` to `.pagegraph/agent`, delete `opencode.jsonc`, and set
+`workflows.agent.presetDirectory: ".pagegraph/agent"` in `pagegraph.config.ts`.
+The preset uses `executor_search` and `executor_execute` for live tools and `submit_result`
+for structured workflow results.
+
+`improve links` can read served target-page sentences with `fetch_page`, restricted to
+suggestion-report origins and subject to robots rules and response size limits.
+
+Together with the Pi research runner, these changes make up release 0.14.0.
+
 ## pagegraph@0.13.0
 
 ### Capture rendered Markdown through TanStack Start

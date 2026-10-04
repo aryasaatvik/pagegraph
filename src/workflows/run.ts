@@ -53,11 +53,11 @@ export interface WorkflowDependencies {
   ) => Promise<DecisionBatchReport>;
   readonly now?: () => Date;
   /** Test seam for current served-copy validation before an accepted link edit. */
-  readonly readSuggestionSentences?: (origin: string, path: string, allowPrivate: boolean, maxBodyBytes: number) => Promise<ReadonlyArray<string>>;
+  readonly readSuggestionSentences?: (origin: string, path: string, allowPrivate: boolean, maxBodyBytes: number, signal?: AbortSignal) => Promise<ReadonlyArray<string>>;
 }
 
-const readCurrentSuggestionSentences = async (origin: string, path: string, allowPrivate: boolean, maxBodyBytes: number): Promise<ReadonlyArray<string>> => {
-  const options = { sameOrigin: origin, allowPrivate, timeoutMs: 15_000, maxBodyBytes };
+const readCurrentSuggestionSentences = async (origin: string, path: string, allowPrivate: boolean, maxBodyBytes: number, signal?: AbortSignal): Promise<ReadonlyArray<string>> => {
+  const options = { sameOrigin: origin, allowPrivate, timeoutMs: 15_000, maxBodyBytes, signal };
   const robots = await probeHttp({ kind: "robots", method: "GET", accept: "text/plain", url: new URL("/robots.txt", origin) }, { ...options, captureBody: true });
   if ((!robots.ok && robots.status !== 404) || robots.bodyTruncated) throw new Error("Could not verify current robots policy for suggestion freshness");
   const rules = robots.ok ? robotsRules(robots.body ?? "").rules : [];
@@ -95,7 +95,7 @@ export const createFetchPageTool = async (
       if (url.origin !== new URL(report.origin).origin || url.username || url.password) {
         throw new Error("fetch_page requires the suggestion report origin");
       }
-      const sentences = await readSentences(report.origin, `${url.pathname}${url.search}`, allowPrivate, report.maxBodyBytes);
+      const sentences = await readSentences(report.origin, `${url.pathname}${url.search}`, allowPrivate, report.maxBodyBytes, signal);
       signal?.throwIfAborted();
       return { content: [{ type: "text", text: JSON.stringify(sentences) }], details: undefined };
     },

@@ -290,7 +290,9 @@ const requestPinned = async (
       },
       agent: false,
       lookup: pinnedLookup(addresses),
-      signal: AbortSignal.timeout(options.timeoutMs),
+      signal: options.signal === undefined
+        ? AbortSignal.timeout(options.timeoutMs)
+        : AbortSignal.any([options.signal, AbortSignal.timeout(options.timeoutMs)]),
       ...(url.protocol === "https:"
         ? {
             servername: isIP(hostname) === 0 ? hostname : undefined,

@@ -4,7 +4,7 @@ import { createFetchPageTool } from "../../src/workflows/run";
 
 const servers: Server[] = [];
 afterEach(async () => {
-  await Promise.all(servers.splice(0).map((server) => new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()))));
+  await Promise.all(servers.splice(0).map((server) => new Promise<void>((resolve, reject) => (server.closeAllConnections(), server).close((error) => error ? reject(error) : resolve()))));
 });
 
 const servedSite = async (robots = "User-agent: *\nDisallow: /private") => {
@@ -14,6 +14,7 @@ const servedSite = async (robots = "User-agent: *\nDisallow: /private") => {
     response.setHeader("Content-Type", request.url === "/robots.txt" ? "text/plain" : "text/html");
     if (request.url === "/robots.txt") response.end(robots);
     else if (request.url === "/large") response.end(`<p>${"Large body. ".repeat(200)}</p>`);
+    else if (request.url === "/slow") response.write("<main>");
     else if (request.url === "/redirect") { response.writeHead(302, { location: "https://other.example/pricing" }); response.end(); }
     else response.end("<main><p>Pricing options include usage based plans for teams.</p></main>");
   });
@@ -65,5 +66,16 @@ describe("fetch_page", () => {
     const tool = await createFetchPageTool({ origin, maxBodyBytes: 200 }, true);
     await expect(tool.execute("read", { url: "/redirect" })).rejects.toThrow("Could not verify current served copy");
     expect(visited).toEqual(["/robots.txt", "/redirect"]);
+  });
+
+  it("cancels an in-flight page request when the workflow aborts", async () => {
+    const { origin, visited } = await servedSite();
+    const tool = await createFetchPageTool({ origin, maxBodyBytes: 200 }, true);
+    const controller = new AbortController();
+    const started = Date.now();
+    setTimeout(() => controller.abort(new Error("workflow deadline")), 100);
+    await expect(tool.execute("read", { url: "/slow" }, controller.signal)).rejects.toThrow();
+    expect(Date.now() - started).toBeLessThan(5_000);
+    expect(visited).toEqual(["/robots.txt", "/slow"]);
   });
 });

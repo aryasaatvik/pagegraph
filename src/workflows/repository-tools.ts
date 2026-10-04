@@ -52,6 +52,12 @@ const writableRepositoryPath = async (root: string, path: string, options: Repos
     const actual = await resolveWritablePath(directory);
     if (insideRoot(directory, requested) || insideRoot(actual, resolved)) throw new Error(`Repository write targets a protected directory: ${path}`);
   }
+  // A hard link passes the path checks but writing through it changes every linked copy, which may live outside the project.
+  const existing = await lstat(resolved).catch((error: unknown) => {
+    if (error instanceof Error && "code" in error && error.code === "ENOENT") return undefined;
+    throw error;
+  });
+  if (existing !== undefined && existing.nlink > 1) throw new Error(`Repository write targets a hard-linked file: ${path}`);
   return resolved;
 };
 

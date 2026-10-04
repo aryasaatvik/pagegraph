@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { link, mkdtemp, mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -121,5 +121,16 @@ describe("repository write tools", () => {
     const [write] = createRepositoryWriteTools(root, { presetDirectory: "alias/preset", runsDirectory: "alias/runs" });
     await expect(write.execute("write", { path: "storage/preset/file", content: "blocked" })).rejects.toThrow("protected");
     await expect(write.execute("write", { path: "storage/runs/file", content: "blocked" })).rejects.toThrow("protected");
+  });
+
+  it("refuses to write through a hard link shared with a file outside the project", async () => {
+    const { root, parent } = await fixture();
+    await link(join(parent, "outside.txt"), join(root, "shared.txt"));
+    const [write, edit] = tools(root);
+    const guard = guardRepositoryToolCall(root, { presetDirectory: "preset", runsDirectory: "runs" })!;
+    expect((await guard(context("write_file", "shared.txt")))?.block).toBe(true);
+    await expect(write.execute("write", { path: "shared.txt", content: "changed" })).rejects.toThrow("hard-linked");
+    await expect(edit.execute("edit", { path: "shared.txt", oldText: "outside", newText: "changed" })).rejects.toThrow("hard-linked");
+    expect(await readFile(join(parent, "outside.txt"), "utf8")).toBe("outside evidence");
   });
 });

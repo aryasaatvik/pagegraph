@@ -70,6 +70,8 @@ describe("page-backed workflow command surface", () => {
     expect(result.stdout).toContain("EXAMPLES");
     expect(result.stdout).toContain(example);
     expect(result.stdout).toContain("--json");
+    expect(result.stdout).toContain("--preset-directory");
+    expect(result.stdout).not.toContain("--opencode-config");
     expect(result.stdout).not.toContain("--input");
     expect(result.stdout).not.toContain("--no-input");
     for (const flag of flags) expect(result.stdout).toContain(flag);

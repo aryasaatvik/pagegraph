@@ -18,13 +18,19 @@ import { collectWorkflowEvidence, selectGraph } from "./evidence";
 import { changedFiles, inspectGit } from "./git";
 import type { WorkflowMutationPolicy } from "./mutation";
 import { createWorkflowMutationPolicy, repositoryMutationPermissionRules } from "./mutation";
-import type { WorkflowId, WorkflowResearchCheckpointV1, WorkflowRunV1, WorkflowTargetOptions } from "./model";
+import type { WorkflowId, WorkflowResearchCheckpointV2, WorkflowRunV2, WorkflowTargetOptions } from "./model";
 import type { WorkflowHost, WorkflowHostResult } from "./opencode";
 import { acquireWorkflowHost, WorkflowHostError } from "./opencode";
 import actionPromptSource from "./prompts/action.md" with { type: "text" };
 import researchPromptSource from "./prompts/research.md" with { type: "text" };
 import type { AnyWorkflowSpec } from "./specs/types";
+import { decodeResearchState } from "./state";
+import type { WorkflowRunner, RunnerResult } from "./runner";
+import type { ExecutorToolset } from "./executor";
+import type { WorkflowAgentArtifact } from "./model";
 import { TextTemplate } from "./template";
+
+export { dropNulls } from "./state";
 
 export interface WorkflowInput {
   readonly config: SeoCliConfig;
@@ -39,6 +45,8 @@ export interface WorkflowInput {
 
 export interface WorkflowDependencies {
   readonly acquireHost?: typeof acquireWorkflowHost;
+  readonly acquireRunner?: typeof import("./pi").acquireWorkflowRunner;
+  readonly executor?: ExecutorToolset;
   readonly decide?: (
     inputs: ReadonlyArray<unknown>,
     spec: AnyWorkflowSpec,
@@ -83,25 +91,6 @@ const defaultDecide = async (
   );
 };
 
-export const dropNulls = (value: unknown): unknown => {
-  if (Array.isArray(value)) return value.filter((item) => item !== null).map(dropNulls);
-  if (value !== null && typeof value === "object") {
-    return Object.fromEntries(Object.entries(value).filter(([, item]) => item !== null)
-      .map(([key, item]) => [key, dropNulls(item)]));
-  }
-  return value;
-};
-
-const capState = (state: unknown, limit: number): unknown => {
-  if (state === null || typeof state !== "object" || Array.isArray(state)) return state;
-  const record = state as Record<string, unknown>;
-  if (Array.isArray(record["opportunities"])) {
-    return { ...record, opportunities: record["opportunities"].slice(0, limit) };
-  }
-  if (Array.isArray(record["items"])) return { ...record, items: record["items"].slice(0, limit) };
-  return state;
-};
-
 const researchPrompt = (
   spec: AnyWorkflowSpec,
   evidence: ReturnType<typeof collectWorkflowEvidence>,
@@ -114,6 +103,7 @@ const researchPrompt = (
       instructions: spec.researchInstructions,
       skills: spec.skills.join(", "),
       stateSchema: JSON.stringify(spec.stateJsonSchema),
+      resultInstruction: spec.mutatesFiles ? "Return only one JSON object" : "Call submit_result with a state",
       market: options.market ?? "unspecified",
       language: options.language ?? "unspecified",
       device: options.device ?? "unspecified",
@@ -154,7 +144,7 @@ const decisionArtifact = (
 export const runWorkflow = async (
   input: WorkflowInput,
   dependencies: WorkflowDependencies = {},
-): Promise<{ readonly run: WorkflowRunV1; readonly directory: string }> => {
+): Promise<{ readonly run: WorkflowRunV2; readonly directory: string }> => {
   const workflows = input.config.workflows;
   if (workflows === undefined) {
     throw new Error("pagegraph.config.ts has no workflows configuration; run `pagegraph init` and configure workflows.");
@@ -165,11 +155,11 @@ export const runWorkflow = async (
   const id = createRunId(started, spec.id);
   const runsDirectory = input.out ?? workflows.runsDirectory ?? ".pagegraph/runs";
   let stage: "acquire" | "research" | "repair" | "decide" | "action" = "acquire";
-  let sessionId: string | undefined;
-  let transcript: unknown = null;
+  let agentArtifact: WorkflowAgentArtifact | undefined;
+  let pi: typeof import("./pi") | undefined;
+  let selectedModel: WorkflowRunner["model"] | undefined;
   const retainResult = (result: WorkflowHostResult): void => {
-    sessionId = result.sessionId;
-    transcript = result.transcript;
+    if (selectedModel) agentArtifact = { runtime: "opencode", model: selectedModel, sessionId: result.sessionId, transcript: result.transcript };
   };
   try {
     const gitAtStart = inspectGit(input.root);
@@ -203,12 +193,21 @@ export const runWorkflow = async (
       return report;
     })();
     const suppliedEvidence = suggestionReport === undefined ? evidence : { ...evidence, suggestions: suggestionReport };
-    const acquire = dependencies.acquireHost ?? acquireWorkflowHost;
-    const host: WorkflowHost = await acquire({
-      root: input.root,
-      config: workflows.opencode,
-      model: input.model ?? workflows.opencode.models?.[spec.id],
-    });
+    // Loading Pi only at the routing boundary keeps unrelated CLI commands lightweight.
+    pi = spec.mutatesFiles ? undefined : await import("./pi");
+    const host: WorkflowHost | undefined = spec.mutatesFiles ? await (dependencies.acquireHost ?? acquireWorkflowHost)({
+      root: input.root, config: workflows.agent, model: input.model ?? workflows.agent.models?.[spec.id],
+    }) : undefined;
+    const runner: WorkflowRunner | undefined = host === undefined ? await (dependencies.acquireRunner ?? pi!.acquireWorkflowRunner)({
+      root: input.root, config: workflows.agent, model: input.model ?? workflows.agent.models?.[spec.id],
+      limit: input.options.limit, executor: dependencies.executor,
+    }) : undefined;
+    const model = host?.model ?? runner!.model;
+    selectedModel = model;
+    const retainRunnerResult = (result: Omit<RunnerResult, "state">): void => {
+      agentArtifact = { runtime: "pi", model, messages: result.messages, usage: result.usage };
+    };
+    if (runner) retainRunnerResult({ messages: [], usage: pi!.totalUsage([]), executor: { searches: [], calls: [] } });
     let turnFailed = false;
     try {
       const researchPermissions = repositoryMutationPermissionRules(input.root);
@@ -217,34 +216,22 @@ export const runWorkflow = async (
           ? mutation.sessionPermissions
           : researchPermissions;
       stage = "research";
-      let researched = await host.research(researchPrompt(spec, suppliedEvidence, input.options), {
-        skills: spec.skills,
-        permissions: researchPermissions,
-      });
-      retainResult(researched);
+      let researched: WorkflowHostResult | RunnerResult = host !== undefined
+        ? await host.research(researchPrompt(spec, suppliedEvidence, input.options), { skills: spec.skills, permissions: researchPermissions })
+        : await runner!.research(spec, researchPrompt(spec, suppliedEvidence, input.options),
+          { signal: AbortSignal.timeout(workflows.agent.timeoutMs ?? 180_000) });
+      if ("messages" in researched) retainRunnerResult(researched);
+      else retainResult(researched);
       const assertResearchReadOnly = (): void => {
         const researchFiles = changedFiles(gitAtStart, inspectGit(input.root));
         if (researchFiles.length > 0) throw new Error(`${spec.id} changed repository files during its read-only research turn: ${researchFiles.join(", ")}`);
       };
       assertResearchReadOnly();
-      const decodeResearchState = (value: unknown) => {
-        const decoded = spec.decodeState(capState(dropNulls(value), input.options.limit));
-        const issues: Array<string> = [];
-        for (const [index, item] of spec.decisionInputs(decoded).entries()) {
-          try {
-            const error = spec.validateDecisionInput(item);
-            if (error !== undefined) issues.push(`decisionInputs[${index}]: ${error}`);
-          } catch (cause) {
-            issues.push(`decisionInputs[${index}]: ${cause instanceof Error ? cause.message : String(cause)}`);
-          }
-        }
-        if (issues.length > 0) throw new Error(issues.join("\n"));
-        return decoded;
-      };
-      let state: ReturnType<typeof decodeResearchState>;
+      let state: unknown;
       try {
-        state = decodeResearchState(researched.state);
+        state = decodeResearchState(spec, researched.state, input.options.limit);
       } catch (firstError) {
+        if (host === undefined || !("sessionId" in researched)) throw firstError;
         stage = "repair";
         try {
           const repaired = await host.continue(researched.sessionId, [
@@ -254,7 +241,7 @@ export const runWorkflow = async (
           ].join(" "), { skills: spec.skills, permissions: researchPermissions });
           retainResult(repaired);
           assertResearchReadOnly();
-          state = decodeResearchState(repaired.state);
+          state = decodeResearchState(spec, repaired.state, input.options.limit);
           researched = repaired;
         } catch (repairError) {
           throw new Error(`${spec.id} research state failed schema validation after one read-only repair.`, {
@@ -273,9 +260,9 @@ export const runWorkflow = async (
         }
       }
 
-      const checkpoint: WorkflowResearchCheckpointV1 = {
+      const checkpoint: WorkflowResearchCheckpointV2 = {
         kind: "pagegraph-workflow-research-checkpoint",
-        schemaVersion: 1,
+        schemaVersion: 2,
         id,
         workflow: spec.id,
         startedAt: started.toISOString(),
@@ -290,12 +277,7 @@ export const runWorkflow = async (
         evidence: { ...suppliedEvidence, executor: researched.executor },
         state,
         decisionInputs,
-        opencode: {
-          agent: "seo",
-          sessionId: researched.sessionId,
-          model: host.model,
-          transcript: researched.transcript,
-        },
+        agent: agentArtifact!,
       };
       const checkpointPath = writeResearchCheckpoint(input.root, runsDirectory, checkpoint);
       const gitAtCheckpoint = inspectGit(input.root);
@@ -345,28 +327,29 @@ export const runWorkflow = async (
         };
         const mayAct = spec.mutatesFiles && (actionItems === undefined || actionItems.length > 0);
         if (mayAct) stage = "action";
-        const acted = mayAct
+        const acted = mayAct && host !== undefined && "sessionId" in researched
           ? await host.continue(researched.sessionId, actionPrompt(spec, actionState, actionDecisions, mutation), {
               skills: spec.skills,
               permissions: actionPermissions,
             })
           : researched;
-        retainResult(acted);
+        if ("messages" in acted) retainRunnerResult(acted);
+        else retainResult(acted);
         const gitAfter = inspectGit(input.root);
         const files = changedFiles(gitAtCheckpoint, gitAfter);
         if ((!spec.mutatesFiles || input.options.dryRun) && files.length > 0) {
           throw new Error(`${spec.id} changed repository files while running in read-only mode: ${files.join(", ")}`);
         }
-        const run: WorkflowRunV1 = {
+        const run: WorkflowRunV2 = {
           kind: "pagegraph-workflow-run",
-          schemaVersion: 1,
+          schemaVersion: 2,
           id,
           workflow: spec.id,
           startedAt: started.toISOString(),
           finishedAt: now().toISOString(),
           project: { root: input.root, head: gitAtStart.head, dirtyAtStart: gitAtStart.dirty },
           options: input.options,
-          model: host.model,
+          model,
           targets: {
             pages: evidence.graph.nodes.map((node) => node.path),
             queries: input.options.queries,
@@ -379,7 +362,7 @@ export const runWorkflow = async (
             providerCalls: acted.executor.calls.map((call) => call.tool),
           },
           result: mayAct ? acted.state : accepted !== undefined ? { summary: "No link suggestions accepted.", outcome: "no-change", files: [] } : state,
-          opencode: { agent: "seo", sessionId: acted.sessionId, transcript: acted.transcript },
+          agent: agentArtifact!,
         };
         return { run, directory: writeRunBundle(input.root, runsDirectory, run) };
       } catch (cause) {
@@ -391,7 +374,8 @@ export const runWorkflow = async (
       throw cause;
     } finally {
       try {
-        await host.close();
+        if (host) await host.close();
+        else await runner!.close();
       } catch (cause) {
         if (!turnFailed) throw cause;
       }
@@ -401,9 +385,12 @@ export const runWorkflow = async (
     let current = cause;
     while (current instanceof Error && !seen.has(current)) {
       seen.add(current);
+      if (pi !== undefined && current instanceof pi.WorkflowRunnerError && selectedModel) {
+        agentArtifact = { runtime: "pi", model: selectedModel, messages: current.result.messages, usage: current.result.usage };
+        break;
+      }
       if (current instanceof WorkflowHostError) {
-        sessionId = current.sessionId;
-        transcript = current.transcript;
+        if (selectedModel) agentArtifact = { runtime: "opencode", model: selectedModel, sessionId: current.sessionId, transcript: current.transcript };
         break;
       }
       current = current.cause;
@@ -412,8 +399,8 @@ export const runWorkflow = async (
     let path: string;
     try {
       path = writeWorkflowFailure(input.root, runsDirectory, id, {
-        kind: "pagegraph-workflow-failure", schemaVersion: 1, id, workflow: spec.id,
-        stage, sessionId, transcript, cause: serializeCause(cause),
+        kind: "pagegraph-workflow-failure", schemaVersion: 2, id, workflow: spec.id,
+        stage, ...(agentArtifact === undefined ? {} : { agent: agentArtifact }), cause: serializeCause(cause),
       });
     } catch (writeError) {
       if (cause instanceof Error) {
@@ -423,10 +410,10 @@ export const runWorkflow = async (
       throw new Error(`${message}\nCould not write failure artifact: ${String(writeError)}`, { cause });
     }
     const next = stage === "acquire"
-      ? "inspect that file; check the OpenCode preset and Executor plugin configuration"
+      ? "inspect that file; check the agent preset and Executor tools configuration"
       : stage === "decide"
         ? "inspect that file and research.json; check the decision provider configuration and retry"
-        : "inspect the transcript in that file; rerun with --model <id> or raise workflows.opencode.timeoutMs";
+        : "inspect the agent messages or transcript in that file; rerun with --model <id> or raise workflows.agent.timeoutMs";
     throw new Error(`${message}\nFailure artifact: ${path}\nNext: ${next}`, { cause });
   }
 };
@@ -437,5 +424,5 @@ export type KeywordWorkflowDependencies = WorkflowDependencies;
 export const runKeywordWorkflow = (
   input: KeywordWorkflowInput,
   dependencies: KeywordWorkflowDependencies = {},
-): Promise<{ readonly run: WorkflowRunV1; readonly directory: string }> =>
+): Promise<{ readonly run: WorkflowRunV2; readonly directory: string }> =>
   runWorkflow({ ...input, workflow: "research.keywords" }, dependencies);

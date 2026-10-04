@@ -48,7 +48,7 @@ export interface AnyWorkflowSpec {
   readonly id: WorkflowId;
   readonly skills: ReadonlyArray<WorkflowSkill>;
   readonly mutatesFiles: boolean;
-  readonly stateJsonSchema: unknown;
+  readonly stateJsonSchema: Readonly<Record<string, unknown>>;
   readonly familyName: string;
   readonly researchInstructions: string;
   readonly actionInstructions?: string | undefined;
@@ -82,11 +82,12 @@ export const defineWorkflow = <State, Input>(
   });
   const decodeDecisionMetadata = Schema.decodeUnknownSync(DecisionMetadataSchema);
 
+  const stateDocument = Schema.toJsonSchemaDocument(definition.stateSchema);
   return {
     id: definition.id,
     skills: definition.skills,
     mutatesFiles: definition.mutatesFiles,
-    stateJsonSchema: Schema.toJsonSchemaDocument(definition.stateSchema),
+    stateJsonSchema: { ...stateDocument.schema, $defs: stateDocument.definitions },
     familyName: definition.family.name,
     researchInstructions: definition.researchInstructions,
     actionInstructions: definition.actionInstructions,

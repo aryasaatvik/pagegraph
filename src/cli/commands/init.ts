@@ -44,7 +44,7 @@ export const initCommand = Command.make("init", {
   json: jsonFlag,
 }).pipe(
   Command.withDescription(
-    "Scaffold the PageGraph CLI preset; configure graph access in pagegraph.config.ts",
+    "Scaffold the PageGraph agent preset; configure workflows.agent in pagegraph.config.ts",
   ),
   Command.withExamples([
     {

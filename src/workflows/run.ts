@@ -1,3 +1,6 @@
+import type { AgentTool } from "@earendil-works/pi-agent-core";
+import type { LinksSuggestionReport } from "../core/link-suggestions";
+
 import { TypeSafeClient, TypeSafeDecisionModel } from "@effect/ai-typesafe";
 import * as Config from "effect/Config";
 import * as Effect from "effect/Effect";
@@ -17,10 +20,8 @@ import { getWorkflowSpec } from "./catalog";
 import { collectWorkflowEvidence, selectGraph } from "./evidence";
 import { changedFiles, inspectGit } from "./git";
 import type { WorkflowMutationPolicy } from "./mutation";
-import { createWorkflowMutationPolicy, repositoryMutationPermissionRules } from "./mutation";
+import { createWorkflowMutationPolicy } from "./mutation";
 import type { WorkflowId, WorkflowResearchCheckpointV2, WorkflowRunV2, WorkflowTargetOptions } from "./model";
-import type { WorkflowHost, WorkflowHostResult } from "./opencode";
-import { acquireWorkflowHost, WorkflowHostError } from "./opencode";
 import actionPromptSource from "./prompts/action.md" with { type: "text" };
 import researchPromptSource from "./prompts/research.md" with { type: "text" };
 import type { AnyWorkflowSpec } from "./specs/types";
@@ -44,7 +45,6 @@ export interface WorkflowInput {
 }
 
 export interface WorkflowDependencies {
-  readonly acquireHost?: typeof acquireWorkflowHost;
   readonly acquireRunner?: typeof import("./pi").acquireWorkflowRunner;
   readonly executor?: ExecutorToolset;
   readonly decide?: (
@@ -53,11 +53,11 @@ export interface WorkflowDependencies {
   ) => Promise<DecisionBatchReport>;
   readonly now?: () => Date;
   /** Test seam for current served-copy validation before an accepted link edit. */
-  readonly readSuggestionSentences?: (origin: string, path: string, allowPrivate: boolean, maxBodyBytes: number) => Promise<ReadonlyArray<string>>;
+  readonly readSuggestionSentences?: (origin: string, path: string, allowPrivate: boolean, maxBodyBytes: number, signal?: AbortSignal) => Promise<ReadonlyArray<string>>;
 }
 
-const readCurrentSuggestionSentences = async (origin: string, path: string, allowPrivate: boolean, maxBodyBytes: number): Promise<ReadonlyArray<string>> => {
-  const options = { sameOrigin: origin, allowPrivate, timeoutMs: 15_000, maxBodyBytes };
+const readCurrentSuggestionSentences = async (origin: string, path: string, allowPrivate: boolean, maxBodyBytes: number, signal?: AbortSignal): Promise<ReadonlyArray<string>> => {
+  const options = { sameOrigin: origin, allowPrivate, timeoutMs: 15_000, maxBodyBytes, signal };
   const robots = await probeHttp({ kind: "robots", method: "GET", accept: "text/plain", url: new URL("/robots.txt", origin) }, { ...options, captureBody: true });
   if ((!robots.ok && robots.status !== 404) || robots.bodyTruncated) throw new Error("Could not verify current robots policy for suggestion freshness");
   const rules = robots.ok ? robotsRules(robots.body ?? "").rules : [];
@@ -69,10 +69,37 @@ const readCurrentSuggestionSentences = async (origin: string, path: string, allo
   const contentType = probe.responseHeaders["content-type"];
   if (!probe.ok || probe.bodyTruncated || !probe.body || !probe.finalUrl
     || (contentType !== undefined && !/text\/html|application\/xhtml\+xml/i.test(contentType))
-    || new URL(probe.finalUrl).pathname.replace(/\/+$/, "") !== path.replace(/\/+$/, "")) {
+    || new URL(probe.finalUrl).pathname.replace(/\/+$/, "") !== url.pathname.replace(/\/+$/, "")) {
     throw new Error(`Could not verify current served copy for suggestion page ${path}: ${probe.error ?? "unreadable or redirected page"}`);
   }
   return extractPageSentences(probe.body);
+};
+
+/** Served-page reads use only the report origin and the same bounded robots checks as freshness validation. */
+export const createFetchPageTool = async (
+  report: Pick<LinksSuggestionReport, "origin" | "maxBodyBytes">,
+  allowPrivate: boolean,
+  readSentences: NonNullable<WorkflowDependencies["readSuggestionSentences"]> = readCurrentSuggestionSentences,
+): Promise<AgentTool> => {
+  const { Type } = await import("@earendil-works/pi-ai");
+  return {
+    name: "fetch_page", label: "Read served page",
+    description: "Read extracted sentences from a served page on the suggestion report origin, respecting robots policy and the report body size bound.",
+    parameters: Type.Object({ url: Type.String() }),
+    execute: async (_id, args, signal) => {
+      signal?.throwIfAborted();
+      if (typeof args !== "object" || args === null || !("url" in args) || typeof args.url !== "string") {
+        throw new Error("fetch_page requires a string url");
+      }
+      const url = new URL(args.url, report.origin);
+      if (url.origin !== new URL(report.origin).origin || url.username || url.password) {
+        throw new Error("fetch_page requires the suggestion report origin");
+      }
+      const sentences = await readSentences(report.origin, `${url.pathname}${url.search}`, allowPrivate, report.maxBodyBytes, signal);
+      signal?.throwIfAborted();
+      return { content: [{ type: "text", text: JSON.stringify(sentences) }], details: undefined };
+    },
+  };
 };
 
 const defaultDecide = async (
@@ -103,7 +130,7 @@ const researchPrompt = (
       instructions: spec.researchInstructions,
       skills: spec.skills.join(", "),
       stateSchema: JSON.stringify(spec.stateJsonSchema),
-      resultInstruction: spec.mutatesFiles ? "Return only one JSON object" : "Call submit_result with a state",
+      resultInstruction: "Call submit_result with a state",
       market: options.market ?? "unspecified",
       language: options.language ?? "unspecified",
       device: options.device ?? "unspecified",
@@ -131,7 +158,7 @@ const actionPrompt = (
       mutationInstruction:
         policy.mode === "dry-run"
           ? "Do not edit files. Describe the exact intended changes only."
-          : "Edit the owning source files through OpenCode tools and inspect the resulting diff.",
+          : "Edit the owning source files through edit_file or write_file and inspect the resulting files.",
     })
     .render();
 
@@ -154,17 +181,13 @@ export const runWorkflow = async (
   const started = now();
   const id = createRunId(started, spec.id);
   const runsDirectory = input.out ?? workflows.runsDirectory ?? ".pagegraph/runs";
-  let stage: "acquire" | "research" | "repair" | "decide" | "action" = "acquire";
+  let stage: "acquire" | "research" | "decide" | "action" = "acquire";
   let agentArtifact: WorkflowAgentArtifact | undefined;
   let pi: typeof import("./pi") | undefined;
   let selectedModel: WorkflowRunner["model"] | undefined;
-  const retainResult = (result: WorkflowHostResult): void => {
-    if (selectedModel) agentArtifact = { runtime: "opencode", model: selectedModel, sessionId: result.sessionId, transcript: result.transcript };
-  };
   try {
     const gitAtStart = inspectGit(input.root);
     const mutation = createWorkflowMutationPolicy({
-      root: input.root,
       dirtyAtStart: gitAtStart.dirty,
       dryRun: spec.mutatesFiles ? input.options.dryRun : true,
       allowDirty: input.options.allowDirty,
@@ -193,62 +216,32 @@ export const runWorkflow = async (
       return report;
     })();
     const suppliedEvidence = suggestionReport === undefined ? evidence : { ...evidence, suggestions: suggestionReport };
-    // Loading Pi only at the routing boundary keeps unrelated CLI commands lightweight.
-    pi = spec.mutatesFiles ? undefined : await import("./pi");
-    const host: WorkflowHost | undefined = spec.mutatesFiles ? await (dependencies.acquireHost ?? acquireWorkflowHost)({
+    // Loading Pi at acquisition keeps unrelated CLI commands lightweight.
+    pi = await import("./pi");
+    const runner = await (dependencies.acquireRunner ?? pi.acquireWorkflowRunner)({
       root: input.root, config: workflows.agent, model: input.model ?? workflows.agent.models?.[spec.id],
-    }) : undefined;
-    const runner: WorkflowRunner | undefined = host === undefined ? await (dependencies.acquireRunner ?? pi!.acquireWorkflowRunner)({
-      root: input.root, config: workflows.agent, model: input.model ?? workflows.agent.models?.[spec.id],
-      limit: input.options.limit, executor: dependencies.executor,
-    }) : undefined;
-    const model = host?.model ?? runner!.model;
+      limit: input.options.limit, executor: dependencies.executor, runsDirectory: resolve(input.root, runsDirectory),
+      additionalTools: spec.id === "improve.links" && suggestionReport !== undefined
+        ? [await createFetchPageTool(suggestionReport, input.options.allowPrivate === true, dependencies.readSuggestionSentences)] : [],
+    });
+    const model = runner.model;
     selectedModel = model;
     const retainRunnerResult = (result: Omit<RunnerResult, "state">): void => {
       agentArtifact = { runtime: "pi", model, messages: result.messages, usage: result.usage };
     };
-    if (runner) retainRunnerResult({ messages: [], usage: pi!.totalUsage([]), executor: { searches: [], calls: [] } });
+    retainRunnerResult({ messages: [], usage: pi.totalUsage([]), executor: { searches: [], calls: [] } });
     let turnFailed = false;
     try {
-      const researchPermissions = repositoryMutationPermissionRules(input.root);
-      const actionPermissions =
-        spec.mutatesFiles && !input.options.dryRun
-          ? mutation.sessionPermissions
-          : researchPermissions;
       stage = "research";
-      let researched: WorkflowHostResult | RunnerResult = host !== undefined
-        ? await host.research(researchPrompt(spec, suppliedEvidence, input.options), { skills: spec.skills, permissions: researchPermissions })
-        : await runner!.research(spec, researchPrompt(spec, suppliedEvidence, input.options),
-          { signal: AbortSignal.timeout(workflows.agent.timeoutMs ?? 180_000) });
-      if ("messages" in researched) retainRunnerResult(researched);
-      else retainResult(researched);
+      const researched = await runner.research(spec, researchPrompt(spec, suppliedEvidence, input.options),
+        { signal: AbortSignal.timeout(workflows.agent.timeoutMs ?? 180_000) });
+      retainRunnerResult(researched);
       const assertResearchReadOnly = (): void => {
         const researchFiles = changedFiles(gitAtStart, inspectGit(input.root));
         if (researchFiles.length > 0) throw new Error(`${spec.id} changed repository files during its read-only research turn: ${researchFiles.join(", ")}`);
       };
       assertResearchReadOnly();
-      let state: unknown;
-      try {
-        state = decodeResearchState(spec, researched.state, input.options.limit);
-      } catch (firstError) {
-        if (host === undefined || !("sessionId" in researched)) throw firstError;
-        stage = "repair";
-        try {
-          const repaired = await host.continue(researched.sessionId, [
-            `The previous ${spec.id} research JSON did not match the required state schema: ${firstError instanceof Error ? firstError.message : String(firstError)}.`,
-            `Return only one corrected JSON object matching this schema: ${JSON.stringify(spec.stateJsonSchema)}.`,
-            "Use only evidence already collected. Do not call tools, edit files, or add commentary.",
-          ].join(" "), { skills: spec.skills, permissions: researchPermissions });
-          retainResult(repaired);
-          assertResearchReadOnly();
-          state = decodeResearchState(spec, repaired.state, input.options.limit);
-          researched = repaired;
-        } catch (repairError) {
-          throw new Error(`${spec.id} research state failed schema validation after one read-only repair.`, {
-            cause: new AggregateError([firstError, repairError], "Research decode and repair failed", { cause: repairError }),
-          });
-        }
-      }
+      const state = decodeResearchState(spec, researched.state, input.options.limit);
       const decisionInputs = spec.decisionInputs(state);
       if (suggestionReport !== undefined) {
         const valid = new Set(suggestionReport.candidates.map((item) => `${item.source}\u0000${item.destination}\u0000${item.anchor}\u0000${item.sentence}`));
@@ -327,14 +320,12 @@ export const runWorkflow = async (
         };
         const mayAct = spec.mutatesFiles && (actionItems === undefined || actionItems.length > 0);
         if (mayAct) stage = "action";
-        const acted = mayAct && host !== undefined && "sessionId" in researched
-          ? await host.continue(researched.sessionId, actionPrompt(spec, actionState, actionDecisions, mutation), {
-              skills: spec.skills,
-              permissions: actionPermissions,
+        const acted = mayAct
+          ? await runner.act(spec, actionPrompt(spec, actionState, actionDecisions, mutation), {
+              mode: mutation.mode, signal: AbortSignal.timeout(workflows.agent.timeoutMs ?? 180_000),
             })
           : researched;
-        if ("messages" in acted) retainRunnerResult(acted);
-        else retainResult(acted);
+        retainRunnerResult(acted);
         const gitAfter = inspectGit(input.root);
         const files = changedFiles(gitAtCheckpoint, gitAfter);
         if ((!spec.mutatesFiles || input.options.dryRun) && files.length > 0) {
@@ -374,8 +365,7 @@ export const runWorkflow = async (
       throw cause;
     } finally {
       try {
-        if (host) await host.close();
-        else await runner!.close();
+        await runner.close();
       } catch (cause) {
         if (!turnFailed) throw cause;
       }
@@ -387,10 +377,6 @@ export const runWorkflow = async (
       seen.add(current);
       if (pi !== undefined && current instanceof pi.WorkflowRunnerError && selectedModel) {
         agentArtifact = { runtime: "pi", model: selectedModel, messages: current.result.messages, usage: current.result.usage };
-        break;
-      }
-      if (current instanceof WorkflowHostError) {
-        if (selectedModel) agentArtifact = { runtime: "opencode", model: selectedModel, sessionId: current.sessionId, transcript: current.transcript };
         break;
       }
       current = current.cause;
@@ -413,7 +399,7 @@ export const runWorkflow = async (
       ? "inspect that file; check the agent preset and Executor tools configuration"
       : stage === "decide"
         ? "inspect that file and research.json; check the decision provider configuration and retry"
-        : "inspect the agent messages or transcript in that file; rerun with --model <id> or raise workflows.agent.timeoutMs";
+        : "inspect the agent messages in that file; rerun with --model <id> or raise workflows.agent.timeoutMs";
     throw new Error(`${message}\nFailure artifact: ${path}\nNext: ${next}`, { cause });
   }
 };

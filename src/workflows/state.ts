@@ -1,3 +1,4 @@
+import { Schema } from "effect";
 import type { AnyWorkflowSpec } from "./specs/types";
 
 export const dropNulls = (value: unknown): unknown => {
@@ -35,3 +36,12 @@ export const decodeResearchState = (spec: AnyWorkflowSpec, value: unknown, limit
   if (issues.length > 0) throw new Error(issues.join("\n"));
   return decoded;
 };
+
+export const ActionState = Schema.Struct({
+  summary: Schema.String,
+  files: Schema.Array(Schema.String),
+  outcome: Schema.Literals(["applied", "dry-run", "no-change"]),
+});
+export const decodeActionState = Schema.decodeUnknownSync(ActionState);
+const actionDocument = Schema.toJsonSchemaDocument(ActionState);
+export const actionStateJsonSchema = { ...actionDocument.schema, $defs: actionDocument.definitions };

@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, symlinkSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 
@@ -61,6 +61,61 @@ describe("Pi workflow runner", () => {
     expect(result.messages.some((message) => message.role === "toolResult")).toBe(true);
     expect(result.usage.totalTokens).toBeGreaterThan(0);
     expect(result.usage).toEqual(totalUsage(result.messages));
+  });
+
+  it("continues research context with write tools and submits the action schema", async () => {
+    const { runner, provider, root } = fixture();
+    writeFileSync(join(root, "page.txt"), "Original page");
+    provider.setResponses([submit({}), submit(validState)]);
+    const researched = await research(runner);
+    provider.setResponses([
+      (context) => {
+        expect(JSON.stringify(context)).toContain("Evidence supports the query.");
+        expect(JSON.stringify(context)).toContain("edit_file");
+        return fauxAssistantMessage(fauxToolCall("edit_file", { path: "page.txt", oldText: "Original", newText: "Improved" }), { stopReason: "toolUse" });
+      },
+      submit({}),
+      submit({ summary: "Improved page", files: ["page.txt"], outcome: "applied" }),
+    ]);
+    const acted = await runner.act(spec, "Apply the resolved changes.", { mode: "write", signal: AbortSignal.timeout(2000) });
+    expect(readFileSync(join(root, "page.txt"), "utf8")).toBe("Improved page");
+    expect(acted.state).toEqual({ summary: "Improved page", files: ["page.txt"], outcome: "applied" });
+    expect(acted.messages.slice(0, researched.messages.length)).toEqual(researched.messages);
+    expect(acted.messages.filter((message) => message.role === "toolResult" && message.isError)).toHaveLength(2);
+  });
+
+  it("blocks unsafe action writes before tool execution", async () => {
+    const { runner, provider, root } = fixture();
+    const outside = join(root, "..", `${root.split("/").at(-1)}-outside.txt`);
+    directories.push(outside);
+    writeFileSync(outside, "Outside evidence");
+    symlinkSync(outside, join(root, "escape.txt"));
+    provider.setResponses([submit(validState)]);
+    await research(runner);
+    const blockedPaths = [".git/config", "node_modules/pkg/file", outside, "escape.txt", "preset/AGENTS.md", ".pagegraph/runs/result.json"];
+    provider.setResponses([
+      ...blockedPaths.map((path) => fauxAssistantMessage(fauxToolCall("write_file", { path, content: "unsafe" }), { stopReason: "toolUse" })),
+      submit({ summary: "No safe change", files: [], outcome: "no-change" }),
+    ]);
+    const result = await runner.act(spec, "Apply changes", { mode: "write", signal: AbortSignal.timeout(2000) });
+    expect(result.messages.filter((message) => message.role === "toolResult" && message.toolName === "write_file" && message.isError))
+      .toHaveLength(blockedPaths.length);
+    expect(readFileSync(outside, "utf8")).toBe("Outside evidence");
+  });
+
+  it("offers only read and Executor tools in dry-run action mode", async () => {
+    const { runner, provider } = fixture();
+    provider.setResponses([submit(validState)]);
+    await research(runner);
+    provider.setResponses([(context) => {
+      expect(JSON.stringify(context)).not.toContain("edit_file");
+      expect(JSON.stringify(context)).not.toContain("write_file");
+      expect(JSON.stringify(context)).toContain("read_file");
+      expect(JSON.stringify(context)).toContain("executor_execute");
+      return submit({ summary: "Would improve the page", files: ["page.txt"], outcome: "dry-run" });
+    }]);
+    expect((await runner.act(spec, "Describe changes", { mode: "dry-run", signal: AbortSignal.timeout(2000) })).state)
+      .toEqual({ summary: "Would improve the page", files: ["page.txt"], outcome: "dry-run" });
   });
 
   it("returns invalid submission issues in-loop and accepts the correction", async () => {

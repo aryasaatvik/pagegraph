@@ -108,6 +108,8 @@ export interface ProbeOptions {
   readonly sameOrigin?: string | undefined;
   /** Optional per-redirect crawl policy, checked before each network request. */
   readonly allowUrl?: ((url: URL) => boolean) | undefined;
+  /** Caller cancellation, combined with each request's `timeoutMs`. */
+  readonly signal?: AbortSignal | undefined;
 }
 
 export interface DocumentSignals {

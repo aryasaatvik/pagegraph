@@ -27,12 +27,7 @@ const agents: ReadonlyArray<WorkflowAgentArtifact> = [
       cost: { input: 0.01, output: 0.02, cacheRead: 0, cacheWrite: 0, total: 0.03 },
     },
   },
-  {
-    runtime: "opencode",
-    model: { provider: "test", id: "model" },
-    sessionId: "session-1",
-    transcript: [{ text: "Applied the approved changes." }],
-  },
+
 ];
 
 const fixture = (agent: WorkflowAgentArtifact): WorkflowRunV2 => ({
@@ -74,7 +69,6 @@ describe("workflow artifacts", () => {
       const artifact = JSON.parse(readFileSync(path, "utf8"));
       expect(artifact.schemaVersion).toBe(2);
       expect(artifact.agent).toEqual(agent);
-      expect(artifact).not.toHaveProperty("opencode");
     }
     expect(readFileSync(join(directory, "summary.md"), "utf8")).toContain("Completed research.");
   });

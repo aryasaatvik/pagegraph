@@ -23,7 +23,7 @@ const load = (timeoutMs?: string) => {
       loadGraph: async () => ({ graph: { nodes: new Map(), edges: [] }, site: { origin: "https://example.com", indexable: true, robots: { disallow: [] } }, dispose: async () => {} }),
       workflows: {
         agent: {
-          presetDirectory: ".pagegraph/opencode",
+          presetDirectory: ".pagegraph/agent",
           defaultModel: "test/model",
           ${timeoutMs === undefined ? "" : `timeoutMs: ${timeoutMs},`}
         },
@@ -52,16 +52,6 @@ describe("Agent timeout configuration", () => {
     const project = await load();
 
     expect(project.config.workflows?.agent.timeoutMs).toBeUndefined();
-  });
-});
-
-describe("workflow config migration", () => {
-  it("rejects workflows.opencode with the workflows.agent migration", async () => {
-    const { project } = loadFixtureConfig(`export default {
-      loadGraph: async () => {},
-      workflows: { opencode: { configDirectory: ".pagegraph/opencode", defaultModel: "test/model" } },
-    };`);
-    await expect(project).rejects.toThrow("workflows.opencode was replaced by workflows.agent");
   });
 });
 

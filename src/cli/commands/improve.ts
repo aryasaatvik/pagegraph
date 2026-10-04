@@ -18,7 +18,7 @@ const allowPrivateFlag = Flag.Boolean("allow-private").pipe(
 
 /** File-writing content, metadata, schema, and link workflows. */
 export const improveCommandGroup = Command.make("improve").pipe(
-  Command.withDescription("Apply page-backed SEO improvements through the configured OpenCode agent"),
+  Command.withDescription("Apply page-backed SEO improvements with Pi and guarded repository edits"),
   Command.withSubcommands([
     workflowCommand({
       name: "content",

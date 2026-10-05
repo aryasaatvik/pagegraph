@@ -90,7 +90,8 @@ const dryRun = async () => {
 const run = (root: string, args: ReadonlyArray<string>) =>
   spawnSync("bun", [cli, "apply", ...args], { cwd: root, encoding: "utf8", timeout: 20_000, env: { ...process.env, NO_COLOR: "1" } });
 
-describe("improve dry-run and pagegraph apply", () => {
+// Each case spawns the CLI up to three times; the default 5s budget is too tight under a full parallel run.
+describe("improve dry-run and pagegraph apply", { timeout: 30_000 }, () => {
   it("records edits.json and review.md in dry-run without touching source files", async () => {
     const { root, run: recorded, directory } = await dryRun();
     expect(readFileSync(join(root, route), "utf8")).toBe(before);

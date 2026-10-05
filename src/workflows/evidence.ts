@@ -1,10 +1,10 @@
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { readFile } from "node:fs/promises";
 
 import type { SeoWorkflowContextConfig } from "../config";
 import type { SeoGraph } from "../core/graph";
 import { serializeGraph, serializeNode } from "../cli/serialize";
 import type { WorkflowGraphNeighborhood, WorkflowId, WorkflowTargetOptions } from "./model";
+import { resolveRepositoryReadPath, type RepositoryReadOptions } from "./repository-paths";
 
 const matches = (value: string, pattern: string): boolean => {
   if (pattern === value) return true;
@@ -44,26 +44,30 @@ const selectNeighborhood = (graph: SeoGraph, targetPaths: ReadonlySet<string>): 
   return { inbound, outbound };
 };
 
-export const collectContextFiles = (
+export const collectContextFiles = async (
   root: string,
   workflow: WorkflowId,
   context: SeoWorkflowContextConfig | undefined,
-): ReadonlyArray<{ readonly path: string; readonly content: string }> => {
+  readOptions?: RepositoryReadOptions,
+): Promise<ReadonlyArray<{ readonly path: string; readonly content: string }>> => {
   const paths = [...(context?.files ?? []), ...(context?.byWorkflow?.[workflow] ?? [])];
-  return [...new Set(paths)].map((path) => ({ path, content: readFileSync(resolve(root, path), "utf8") }));
+  return Promise.all([...new Set(paths)].map(async (path) => ({
+    path, content: await readFile(await resolveRepositoryReadPath(root, path, readOptions), "utf8"),
+  })));
 };
 
-export const collectWorkflowEvidence = (
+export const collectWorkflowEvidence = async (
   graph: SeoGraph,
   options: WorkflowTargetOptions,
   root: string,
   workflow: WorkflowId,
   context: SeoWorkflowContextConfig | undefined,
+  readOptions?: RepositoryReadOptions,
 ) => {
   const selected = selectGraph(graph, options);
   return {
     graph: serializeGraph(selected),
     neighborhood: selectNeighborhood(graph, new Set(selected.nodes.keys())),
-    sources: collectContextFiles(root, workflow, context),
+    sources: await collectContextFiles(root, workflow, context, readOptions),
   };
 };

@@ -3,6 +3,8 @@ import type { Usage } from "@earendil-works/pi-ai";
 
 import type { DecisionBatchReport } from "../decide/record";
 import type { SerializedGraph } from "../cli/serialize";
+import type { GitState } from "./git";
+import type { RunnerResult } from "./runner";
 import type { LinksSuggestionReport } from "../core/link-suggestions";
 
 /** A selected page's direct relationship to a page outside the workflow target set. */
@@ -123,6 +125,7 @@ export interface WorkflowRunV2 {
   };
   readonly result: unknown;
   readonly agent: WorkflowAgentArtifact;
+  readonly rejectedItems?: ReadonlyArray<{ readonly index: number; readonly reason: string }> | undefined;
 }
 
 /** Incomplete research-stage evidence; it is not a final workflow recommendation. */
@@ -150,6 +153,7 @@ export interface WorkflowResearchCheckpointV2 {
   readonly state: unknown;
   readonly decisionInputs: ReadonlyArray<unknown>;
   readonly agent: WorkflowAgentArtifact;
+  readonly rejectedItems?: ReadonlyArray<{ readonly index: number; readonly reason: string }> | undefined;
 }
 
 export interface WorkflowFailureV2 {
@@ -160,5 +164,24 @@ export interface WorkflowFailureV2 {
   readonly stage: string;
   /** Acquisition can fail before a runtime has produced an agent record. */
   readonly agent?: WorkflowAgentArtifact | undefined;
+  readonly executor?: ExecutorEvidence | undefined;
   readonly cause: unknown;
+}
+
+/** Durable stage boundaries. An interrupted action is deliberately not replayed. */
+export interface WorkflowProgressV2 {
+  readonly kind: "pagegraph-workflow-progress";
+  readonly schemaVersion: 2;
+  readonly id: string;
+  readonly workflow: WorkflowId;
+  readonly startedAt: string;
+  readonly project: WorkflowResearchCheckpointV2["project"];
+  readonly options: WorkflowTargetOptions;
+  readonly evidence: WorkflowResearchCheckpointV2["evidence"];
+  readonly git: GitState;
+  readonly research?: WorkflowResearchCheckpointV2 | undefined;
+  readonly decisions?: DecisionBatchReport | undefined;
+  readonly actionStarted?: boolean | undefined;
+  readonly action?: RunnerResult | undefined;
+  readonly actionGit?: GitState | undefined;
 }

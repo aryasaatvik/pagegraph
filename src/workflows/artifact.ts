@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-import type { WorkflowFailureV2, WorkflowResearchCheckpointV2, WorkflowRunV2 } from "./model";
+import type { WorkflowFailureV2, WorkflowProgressV2, WorkflowResearchCheckpointV2, WorkflowRunV2 } from "./model";
 import summaryTemplate from "./prompts/summary.md" with { type: "text" };
 import { TextTemplate } from "./template";
 
@@ -90,4 +90,16 @@ export const serializeCause = (value: unknown, top = true, seen = new Set<unknow
     };
   }
   return { name: "Error", message: String(value) };
+};
+
+export const writeWorkflowProgress = (
+  root: string,
+  runsDirectory: string,
+  progress: WorkflowProgressV2,
+): string => {
+  const directory = resolve(root, runsDirectory, progress.id);
+  mkdirSync(directory, { recursive: true });
+  const path = resolve(directory, "progress.json");
+  writeFileSync(path, `${JSON.stringify(progress, null, 2)}\n`, "utf8");
+  return path;
 };

@@ -118,7 +118,9 @@ const isWorkflowConfig = (value: unknown): boolean => {
       (Predicate.isObject(context) &&
         (context["files"] === undefined || isStringArray(context["files"])) &&
         (context["byWorkflow"] === undefined || isStringArrayRecord(context["byWorkflow"])))) &&
-    (value["runsDirectory"] === undefined || Predicate.isString(value["runsDirectory"]))
+    (value["runsDirectory"] === undefined || Predicate.isString(value["runsDirectory"])) &&
+    (value["repositoryRoot"] === undefined ||
+      (Predicate.isString(value["repositoryRoot"]) && value["repositoryRoot"].trim().length > 0))
   );
 };
 

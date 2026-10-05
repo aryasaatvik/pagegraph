@@ -20,6 +20,7 @@ export interface WorkflowCommandInput {
   readonly options: WorkflowTargetOptions;
   readonly model?: string | undefined;
   readonly out?: string | undefined;
+  readonly from?: string | undefined;
 }
 
 export interface WorkflowCommandResult {
@@ -77,6 +78,10 @@ const presetDirectoryFlag = Flag.String("preset-directory").pipe(
   Flag.withDescription("Agent preset-directory override"),
   Flag.optional,
 );
+const fromFlag = Flag.String("from").pipe(
+  Flag.withDescription("Resume a recorded run directory or run ID, retaining its targets and completed stages"),
+  Flag.optional,
+);
 const outFlag = Flag.String("out").pipe(
   Flag.withDescription("Run-artifact directory override"),
   Flag.optional,
@@ -104,6 +109,7 @@ const baseFlags = {
   model: modelFlag,
   presetDirectory: presetDirectoryFlag,
   out: outFlag,
+  from: fromFlag,
   json: jsonFlag,
 } as const;
 
@@ -203,6 +209,7 @@ export const runWorkflowCommand = async (
           options: optionsFrom(flags, extra),
           model: optionalString(flags.model),
           out: optionalString(flags.out),
+          from: optionalString(flags.from),
         };
         return yield* Effect.promise(() => runWorkflow(input));
       }),

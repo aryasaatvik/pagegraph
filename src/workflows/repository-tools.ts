@@ -1,10 +1,10 @@
-import { execFile } from "node:child_process";
 import { lstat, mkdir, open, readFile, readdir, realpath, writeFile } from "node:fs/promises";
-import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
-import { promisify } from "node:util";
+import { dirname, relative, resolve, sep } from "node:path";
 
 import type { AgentOptions, AgentTool } from "@earendil-works/pi-agent-core";
 import { Type } from "@earendil-works/pi-ai";
+
+import { insideRoot, resolveRepositoryReadPath, resolveWritablePath, type RepositoryReadOptions } from "./repository-paths";
 
 const MAX_FILE_BYTES = 64 * 1024;
 const MAX_ENTRIES = 500;
@@ -17,42 +17,6 @@ export interface RepositoryWriteOptions {
   readonly presetDirectory: string;
   readonly runsDirectory: string;
 }
-
-export interface RepositoryReadOptions {
-  readonly runsDirectory?: string;
-}
-
-export const resolveWorkflowRepositoryRoot = async (appRoot: string, configuredRoot?: string): Promise<string> => {
-  const root = await realpath(appRoot);
-  if (configuredRoot !== undefined) return realpath(resolve(root, configuredRoot));
-  try {
-    const { stdout } = await promisify(execFile)("git", ["rev-parse", "--show-toplevel"], { cwd: root });
-    return await realpath(stdout.trim());
-  } catch {
-    return root;
-  }
-};
-
-const missingPath = (cause: unknown): boolean => cause instanceof Error && "code" in cause && cause.code === "ENOENT";
-
-// Missing leaves retain the real target of their existing ancestor; dangling symlinks are rejected.
-const resolveWritablePath = async (path: string): Promise<string> => {
-  let ancestor = path;
-  const suffix: string[] = [];
-  while (true) {
-    try { return resolve(await realpath(ancestor), ...suffix); }
-    catch (cause) {
-      if (!missingPath(cause)) throw cause;
-      try {
-        if ((await lstat(ancestor)).isSymbolicLink()) throw new Error(`Repository path has a dangling symlink: ${path}`);
-      } catch (statCause) { if (!missingPath(statCause)) throw statCause; }
-      const parent = dirname(ancestor);
-      if (parent === ancestor) throw cause;
-      suffix.unshift(relative(parent, ancestor));
-      ancestor = parent;
-    }
-  }
-};
 
 const writableRepositoryPath = async (root: string, path: string, options: RepositoryWriteOptions): Promise<string> => {
   const projectRoot = await realpath(root);
@@ -75,31 +39,6 @@ const writableRepositoryPath = async (root: string, path: string, options: Repos
     throw error;
   });
   if (existing !== undefined && existing.nlink > 1) throw new Error(`Repository write targets a hard-linked file: ${path}`);
-  return resolved;
-};
-
-const insideRoot = (root: string, path: string): boolean => {
-  const pathFromRoot = relative(root, path);
-  return pathFromRoot !== ".." && !pathFromRoot.startsWith(`..${sep}`) && !isAbsolute(pathFromRoot);
-};
-
-export const resolveRepositoryReadPath = async (root: string, path: string, options: RepositoryReadOptions = {}): Promise<string> => {
-  const projectRoot = await realpath(root);
-  const requested = resolve(projectRoot, path);
-  const allowedRoots = [{ requested: resolve(root), actual: projectRoot }];
-  if (options.runsDirectory !== undefined) {
-    const runsDirectory = resolve(options.runsDirectory);
-    // Runs are created after context collection; the existing ancestor still determines the real bound.
-    allowedRoots.push({ requested: runsDirectory, actual: await resolveWritablePath(runsDirectory) });
-  }
-  const matchingRoots = allowedRoots.filter((allowed) => insideRoot(allowed.requested, requested) || insideRoot(allowed.actual, requested));
-  if (matchingRoots.length === 0) {
-    throw new Error(`Repository path escapes project root: ${path}`);
-  }
-  const resolved = await realpath(requested);
-  if (!matchingRoots.some((allowed) => insideRoot(allowed.actual, resolved))) {
-    throw new Error(`Repository path escapes project root through a symlink: ${path}`);
-  }
   return resolved;
 };
 

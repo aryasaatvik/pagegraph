@@ -27,3 +27,10 @@ individual result pages only when their content is material to the decision.
 
 Use `read_file`, `list_files`, and `search_text` for repository evidence. Finish the turn with
 `submit_result` using the workflow result shape.
+
+Keep `executor_execute` results small: project to only the fields and rows needed in the TypeScript
+snippet. For example, use `rows.slice(0, 50).map(({ keyword, searchVolume, keywordDifficulty }) => ({
+  keyword, searchVolume, keywordDifficulty,
+}))`.
+If PageGraph reports that a result was truncated, read the named JSON artifact with `read_file`.
+Use `offset` and `maxBytes` to read large files in chunks.

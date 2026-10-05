@@ -33,6 +33,39 @@ describe("resolved graph images", () => {
     expect(pageHeads(roundtrip, { exclude: ["/missing-head"] }).find((head) => head.path === "/fallback")?.image).toEqual(graph.nodes.get("/fallback")?.head?.image);
   });
 
+  it("uses the head owner's canonical override without changing graph ownership or inheriting a layout override", () => {
+    const head = { title: "Alias", description: "An alias", canonicalPath: "/canonical" };
+    const graph = buildSeoGraph({ origin: "https://example.com", ogImage: (node) => ({ url: `/og${node.path}.png` }), routeTree: {
+      options: {}, children: [
+        { options: { path: "alias", staticData: { seo: { kind: "page", head } } } },
+        { options: { path: "parent", staticData: { seo: { kind: "layout", head } } }, children: [
+          { options: { path: "/", staticData: { seo: { kind: "page", head: { title: "Index", description: "Own head" } } } } },
+          { options: { path: "child", staticData: { seo: { kind: "page", head: { title: "Child", description: "Own head" } } } } },
+        ] },
+      ],
+    } });
+    expect(graph.nodes.get("/alias")?.head?.image?.url).toBe("https://example.com/og/canonical.png");
+    expect(graph.nodes.get("/alias")?.path).toBe("/alias");
+    expect(graph.nodes.has("/canonical")).toBe(false);
+    expect(graph.nodes.get("/parent")?.head?.image?.url).toBe("https://example.com/og/parent.png");
+    expect(graph.nodes.get("/parent/child")?.head?.image?.url).toBe("https://example.com/og/parent/child.png");
+  });
+
+  it("preserves malformed explicit and resolved image URLs for policy-controlled checks", () => {
+    for (const explicit of [false, true]) {
+      const graph = buildSeoGraph({ origin: "https://example.com", ogImage: () => ({ url: "http://[", alt: "Invalid fallback" }), routeTree: {
+        options: {}, children: [{ options: { path: "invalid", staticData: { seo: { kind: "page", sitemap, head: {
+          title: "Invalid", description: "Invalid image", ...(explicit ? { image: { url: "http://[", width: 1200 } } : {}),
+        } } } } }],
+      } });
+      expect(graph.nodes.get("/invalid")?.head?.image).toEqual(explicit ? { url: "http://[", width: 1200 } : { url: "http://[", alt: "Invalid fallback" });
+    }
+  });
+
+  it("still rejects an invalid site origin instead of treating it as invalid image metadata", () => {
+    expect(() => buildSeoGraph({ routeTree, origin: "not-an-origin" })).toThrow();
+  });
+
   it("leaves missing images absent and does not fabricate metadata for a resolver-only head", () => {
     const graph = buildSeoGraph({ routeTree, ogImage: () => undefined });
     expect(graph.nodes.get("/fallback")?.head?.image).toBeUndefined();

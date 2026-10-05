@@ -220,7 +220,7 @@ describe("social images", () => {
     };
     const declaration: RouteSeo = {
       kind: "page", titleTemplate: "%s | Example",
-      head: { title: "Post", description: "About it", faqs: [{ question: "Why?", answer: "Because.", category: "extra", isHighlighted: true }] },
+      head: { title: "Post", description: "About it", canonicalPath: "/canonical", faqs: [{ question: "Why?", answer: "Because.", category: "extra", isHighlighted: true }] },
     };
     buildSeoGraph({ origin: config.origin, ogImage: resolver, routeTree: {
       options: {}, children: [{ options: { path: "post", staticData: { seo: declaration } } }],
@@ -229,6 +229,7 @@ describe("social images", () => {
     createSeo({ ...config, ogImage: resolver }).head({ match: declaredMatch, matches: [declaredMatch] });
     expect(seen).toHaveLength(2);
     expect(seen[0]).toEqual(seen[1]);
+    expect(seen[0]?.path).toBe("/canonical");
     expect(seen[1]?.head?.faqs).toEqual([{ question: "Why?", answer: "Because." }]);
     expect(Object.keys(seen[1]!)).toEqual(["path", "kind", "head"]);
   });

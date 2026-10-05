@@ -390,7 +390,8 @@ createSeo({ origin: "https://example.com", ogImage, site, organization, website 
 ```
 
 The resolver is synchronous and returns an image or `undefined`. It receives a concrete node
-with its path, kind, and head metadata (the shared `OgImageNode` shape). Keep it
+with its path, kind, and head metadata (the shared `OgImageNode` shape). The resolver path
+honors `head.canonicalPath` while graph path ownership stays unchanged. Keep it
 deterministic and safe to import in the server/browser runtime. The consumer renders the PNGs
 at build time; pagegraph only resolves metadata. The graph stores the absolute URL in
 `node.head.image`, preserved by graph serialization and exposed by `pageHeads` for downstream

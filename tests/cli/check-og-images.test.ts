@@ -8,6 +8,7 @@ import { checkLocalOgImages } from "../../src/cli/og-images";
 import type { SeoGraph } from "../../src/core/graph";
 
 const cli = fileURLToPath(new URL("../../src/cli/bin.ts", import.meta.url));
+const graphModule = new URL("../../src/core/graph.ts", import.meta.url).href;
 const roots: Array<string> = [];
 const project = (image?: string, policy = "", directory = "public"): string => {
   const root = mkdtempSync(join(tmpdir(), "pagegraph-og-check-"));
@@ -79,6 +80,37 @@ describe("pagegraph check — OG images", () => {
     expect(run(project("/missing.png", 'ogImage: { severity: "off" },')).status).toBe(0);
     expect(run(project(undefined, 'ogImage: { severity: "oops" },')).status).toBe(1);
   });
+  it.each(["structural", "editorial", "off"] as const)(
+    "reports malformed URLs from actual graph loading under %s policy",
+    (severity) => {
+      const root = project();
+      writeFileSync(join(root, "pagegraph.config.mjs"), `
+        import { buildSeoGraph } from ${JSON.stringify(graphModule)};
+        export default {
+          ogImage: { severity: ${JSON.stringify(severity)} },
+          loadGraph: async () => ({
+            site: { origin: "https://example.com", indexable: true, robots: { disallow: [] } },
+            graph: buildSeoGraph({
+              origin: "https://example.com",
+              routeTree: { options: {}, children: [{ options: { path: "pricing", staticData: { seo: {
+                kind: "page", sitemap: { priority: 0.5, changeFrequency: "monthly" },
+                head: { title: "Pricing", image: { url: "http://[" } },
+              } } } }] },
+            }),
+            dispose: async () => {},
+          }),
+        };
+      `);
+      const result = run(root);
+      expect(result.status).toBe(severity === "structural" ? 1 : 0);
+      expect(result.stdout).not.toBe("");
+      const report = JSON.parse(result.stdout);
+      expect(report.ok).toBe(severity !== "structural");
+      expect(report.violations).toEqual(severity === "off" ? [] : [
+        expect.objectContaining({ path: "/pricing", rule: "invalid-og-image", severity }),
+      ]);
+    },
+  );
   it("rejects directories, decoded traversal, malformed encoding, and escaping symlinks", () => {
     for (const image of ["/folder", "/%2e%2e%2foutside.png", "/%ff.png", "/escape.png"]) {
       const root = project(image);

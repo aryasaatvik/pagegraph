@@ -63,6 +63,8 @@ export interface SeoNodeHead {
   /** May be absent when only the image resolver supplies head data. */
   readonly title?: string | undefined;
   readonly description?: string | undefined;
+  /** Authored canonical override used for the image resolver, without changing graph path ownership. */
+  readonly canonicalPath?: string | undefined;
   readonly image?: SeoImage | undefined;
   readonly faqs?: ReadonlyArray<{ readonly question: string; readonly answer: string }> | undefined;
 }
@@ -134,7 +136,7 @@ export type OgImageResolver = (node: OgImageNode) => SeoImage | undefined;
 /** Resolve the shared page/article/resolver precedence and site-relative URL semantics. */
 export function resolveOgImage(node: OgImageNode, origin?: string, resolver?: OgImageResolver): SeoImage | undefined {
   const image = node.head?.image ?? resolver?.({
-    path: node.path,
+    path: node.head?.canonicalPath ?? node.path,
     kind: node.kind,
     head: node.head === undefined ? undefined : {
       title: node.head.title,
@@ -144,7 +146,15 @@ export function resolveOgImage(node: OgImageNode, origin?: string, resolver?: Og
     },
   });
   if (image === undefined) return undefined;
-  return { ...image, url: origin === undefined ? image.url : new URL(image.url, `${origin}/`).href };
+  if (origin === undefined) return image;
+  const base = new URL("/", origin);
+  try {
+    return { ...image, url: new URL(image.url, base).href };
+  } catch (cause) {
+    // Preserve invalid declarations so the check engine can apply the configured severity.
+    if (cause instanceof TypeError) return image;
+    throw cause;
+  }
 }
 
 export interface BuildSeoGraphInput {
@@ -178,6 +188,7 @@ function declaredHead(seo: RouteSeo): SeoNodeHead | undefined {
   return {
     title: applyTitleTemplate(seo.titleTemplate, seo.head.title),
     description: seo.head.description,
+    ...(seo.head.canonicalPath === undefined ? {} : { canonicalPath: seo.head.canonicalPath }),
     image: seo.head.image ?? (seo.head.article?.image === undefined ? undefined : { url: seo.head.article.image }),
     faqs: seo.head.faqs?.map(({ question, answer }) => ({ question, answer })),
   };

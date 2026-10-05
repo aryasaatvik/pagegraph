@@ -81,7 +81,7 @@ describe("repository tools", () => {
     await writeFile(join(root, "large.txt"), "a".repeat(100_000));
     const read = tool(root, "read_file");
     const result = await read.execute("call", { path: "large.txt" });
-    expect(result.content[0]).toEqual({ type: "text", text: "a".repeat(64 * 1024) + "\n[File truncated at 64 KiB]" });
+    expect(result.content[0]).toEqual({ type: "text", text: "a".repeat(64 * 1024) + "\n[File truncated; continue with read_file offset=65536]" });
     await expect(read.execute("call", { path: "inside.txt" }, AbortSignal.abort())).rejects.toThrow();
   });
 });

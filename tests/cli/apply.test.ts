@@ -39,7 +39,7 @@ const executor = {
 const decisions: DecisionBatchReport = {
   kind: "decide", schemaVersion: 1, family: "meta", model: "jev-latest", threshold: 0.7,
   counts: { inputs: 2, resolved: 1, review: 1 }, verdicts: { "choose:a": 1, review: 1 }, resolved: [],
-  review: [{ decisionId: "meta:1", schemaVersion: 1, family: "meta", model: "jev-latest", threshold: 0.7, inputHash: "hash",
+  review: [{ decisionId: "meta:0", schemaVersion: 1, family: "meta", model: "jev-latest", threshold: 0.7, inputHash: "hash",
     inputRef: "/enterprise", verdict: "review", review: true, answers: { intentFit: { probability: 0.6 } } }],
 };
 const state = { summary: "Two candidates.", items: [{ url: "/pricing", intent: "pricing", categoryLock: "email API",
@@ -101,7 +101,8 @@ describe("improve dry-run and pagegraph apply", { timeout: 30_000 }, () => {
     expect(edits).toMatchObject({ kind: "pagegraph-workflow-edits", schemaVersion: 1, mode: "dry-run", root });
     expect(edits.reviewItems).toEqual([
       { source: "agent", path: "src/routeTree.gen.ts", reason: "Generated; titles live in the route.", evidence: [] },
-      { source: "decision", path: "/enterprise", reason: expect.stringContaining("meta:1"), evidence: ["intentFit: 0.60"] },
+      { source: "decision", path: "/enterprise", reason: expect.stringContaining("meta:0"),
+        evidence: [`proposal: ${JSON.stringify(state.items[0])}`, "intentFit: 0.60"] },
     ]);
     const review = readFileSync(join(directory, "review.md"), "utf8");
     expect(review).toContain("dry-run (source files are unchanged)");

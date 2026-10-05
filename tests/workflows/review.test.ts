@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync, mkdirSync } from "node:fs";
+import { mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -67,6 +67,29 @@ describe("workflow edits", () => {
     expect(readFileSync(join(root, "src/exists.ts"), "utf8")).toBe("existing\n");
   });
 
+  it("refuses overlapping ambiguous targets", async () => {
+    const root = fixture();
+    writeFileSync(join(root, "rule.md"), "a\n----\nb\n");
+    const [outcome] = await applyWorkflowEdits(root, [{ id: "e1", path: "rule.md", oldText: "---", newText: "***" }], { ...options, check: false });
+    expect(outcome).toMatchObject({ status: "stale", reason: "target text matches 2 times" });
+    expect(readFileSync(join(root, "rule.md"), "utf8")).toBe("a\n----\nb\n");
+  });
+
+  it("simulates every name of one file together so check and apply agree", async () => {
+    const root = fixture();
+    symlinkSync(join(root, "page.mdx"), join(root, "alias.mdx"));
+    const edits = [
+      { id: "e1", path: "page.mdx", oldText: "See plans.", newText: "See pricing." },
+      { id: "e2", path: "alias.mdx", oldText: "See plans.", newText: "See plans and pricing." },
+    ];
+    const checked = await applyWorkflowEdits(root, edits, { ...options, check: true });
+    const applied = await applyWorkflowEdits(root, edits, { ...options, check: false });
+    expect(checked.map(({ status }) => status)).toEqual(["applicable", "stale"]);
+    expect(applied.map(({ status }) => status)).toEqual(["applied", "stale"]);
+    expect(applied[1]).toMatchObject({ path: "alias.mdx", reason: "target text not found" });
+    expect(readFileSync(join(root, "page.mdx"), "utf8")).toContain("See pricing.");
+  });
+
   it("reports applicable edits in check mode without writing", async () => {
     const root = fixture();
     const before = readFileSync(join(root, "page.mdx"), "utf8");
@@ -95,7 +118,7 @@ describe("workflow edits", () => {
     const directory = join(root, ".pagegraph/runs/run-1");
     const artifact = workflowEditsArtifact({
       id: "run-1", workflow: "improve.links", mode: "dry-run", root,
-      decisions,
+      decisions, decisionInputs: [{ from: "/docs/email", to: "/pricing", anchor: "pricing options" }],
       action: {
         summary: "One link and one manual follow-up.",
         edits: [{ path: "page.mdx", oldText: "See plans.", newText: "See ```plans```.", reason: "Pricing is the next step.", evidence: ["GSC: 40 impressions"] }],
@@ -109,7 +132,7 @@ describe("workflow edits", () => {
     expect(read.edits.edits.map(({ id }) => id)).toEqual(["e1"]);
     expect(read.edits.reviewItems).toEqual([
       { source: "agent", path: "src/generated/routes.ts", reason: "Generated file; change the route declaration.", evidence: ["header: generated"] },
-      { source: "decision", path: "/docs/email → /pricing", reason: expect.stringContaining("workflow-links:0"), evidence: ["useful: 0.62", "action: add (0.55)"] },
+      { source: "decision", path: "/docs/email → /pricing", reason: expect.stringContaining("workflow-links:0"), evidence: ['proposal: {"from":"/docs/email","to":"/pricing","anchor":"pricing options"}', "useful: 0.62", "action: add (0.55)"] },
     ]);
     const review = readFileSync(join(directory, "review.md"), "utf8");
     expect(review).toBe(renderReview(artifact, directory));

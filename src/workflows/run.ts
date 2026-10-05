@@ -397,7 +397,7 @@ export const runWorkflow = async (
         const action = !spec.mutatesFiles ? undefined
           : decodeActionState(mayAct ? acted.state : { summary: "No link suggestions accepted.", edits: [], reviewItems: [] });
         const edits = action === undefined ? undefined : workflowEditsArtifact({
-          id, workflow: spec.id, mode: mutation.mode, root: input.root, action, decisions: decisionReport,
+          id, workflow: spec.id, mode: mutation.mode, root: input.root, action, decisions: decisionReport, decisionInputs,
         });
         if (edits !== undefined) {
           writeWorkflowEdits(runDirectory, edits);

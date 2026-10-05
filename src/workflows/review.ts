@@ -94,6 +94,13 @@ const answerSummary = (answers: unknown): ReadonlyArray<string> => {
   });
 };
 
+/** The researched proposal a review decision judged, so a reviewer can act without opening research.json. */
+const decisionProposal = (decisionId: string, inputs: ReadonlyArray<unknown>): ReadonlyArray<string> => {
+  const match = /:(\d+)$/.exec(decisionId);
+  const proposal = match === null ? undefined : inputs[Number(match[1])];
+  return proposal === undefined ? [] : [`proposal: ${JSON.stringify(proposal)}`];
+};
+
 export const workflowEditsArtifact = (input: {
   readonly id: string;
   readonly workflow: WorkflowId;
@@ -101,6 +108,8 @@ export const workflowEditsArtifact = (input: {
   readonly root: string;
   readonly action: ActionState;
   readonly decisions: DecisionBatchReport;
+  /** Research decision inputs, indexed by the `<family>:<index>` decision ID. */
+  readonly decisionInputs: ReadonlyArray<unknown>;
 }): WorkflowEditsV1 => ({
   kind: "pagegraph-workflow-edits",
   schemaVersion: 1,
@@ -116,7 +125,7 @@ export const workflowEditsArtifact = (input: {
       source: "decision" as const,
       path: record.inputRef,
       reason: `Jev returned ${record.verdict} for ${record.decisionId} at threshold ${record.threshold}; a human decides whether to change it.`,
-      evidence: answerSummary(record.answers),
+      evidence: [...decisionProposal(record.decisionId, input.decisionInputs), ...answerSummary(record.answers)],
     })),
   ],
 });
@@ -197,7 +206,8 @@ export interface EditOutcome {
 
 const occurrences = (content: string, text: string): number => {
   let count = 0;
-  for (let index = content.indexOf(text); index >= 0; index = content.indexOf(text, index + text.length)) count++;
+  // Overlapping matches count: "---" occurs twice in "----", so that target is ambiguous.
+  for (let index = content.indexOf(text); index >= 0; index = content.indexOf(text, index + 1)) count++;
   return count;
 };
 
@@ -220,24 +230,23 @@ export const applyWorkflowEdits = async (
   options: RepositoryWriteOptions & { readonly check: boolean },
 ): Promise<ReadonlyArray<EditOutcome>> => {
   const outcomes = new Map<string, EditOutcome>();
-  const byPath = new Map<string, Array<(typeof edits)[number]>>();
-  for (const edit of edits) byPath.set(edit.path, [...(byPath.get(edit.path) ?? []), edit]);
-  for (const [path, pathEdits] of byPath) {
-    const fail = (reason: string, targets = pathEdits) => {
-      for (const edit of targets) outcomes.set(edit.id, { id: edit.id, path, status: "failed", reason });
-    };
-    let target: string;
-    let content: string | undefined;
+  const fail = (edit: (typeof edits)[number], cause: unknown) =>
+    outcomes.set(edit.id, { id: edit.id, path: edit.path, status: "failed", reason: cause instanceof Error ? cause.message : String(cause) });
+  // Group by resolved file so every name of one file (for example an allowed symlink) shares one simulation.
+  const byTarget = new Map<string, Array<(typeof edits)[number]>>();
+  for (const edit of edits) {
     try {
-      target = await resolveWorkflowWritePath(root, path, options);
-      content = await readOptional(target);
-    } catch (cause) {
-      fail(cause instanceof Error ? cause.message : String(cause));
-      continue;
-    }
+      const target = await resolveWorkflowWritePath(root, edit.path, options);
+      byTarget.set(target, [...(byTarget.get(target) ?? []), edit]);
+    } catch (cause) { fail(edit, cause); }
+  }
+  for (const [target, targetEdits] of byTarget) {
+    let content: string | undefined;
+    try { content = await readOptional(target); }
+    catch (cause) { for (const edit of targetEdits) fail(edit, cause); continue; }
     const matched: Array<(typeof edits)[number]> = [];
-    for (const edit of pathEdits) {
-      const stale = (reason: string) => outcomes.set(edit.id, { id: edit.id, path, status: "stale", reason });
+    for (const edit of targetEdits) {
+      const stale = (reason: string) => outcomes.set(edit.id, { id: edit.id, path: edit.path, status: "stale", reason });
       if (edit.oldText === undefined) {
         if (content !== undefined) { stale("file already exists"); continue; }
         content = edit.newText;
@@ -255,13 +264,15 @@ export const applyWorkflowEdits = async (
       try {
         await mkdir(dirname(target), { recursive: true });
         // Re-resolve after creating parents so a directory swapped for a symlink is still refused.
-        await writeFile(await resolveWorkflowWritePath(root, path, options), content!, "utf8");
+        const writable = await resolveWorkflowWritePath(root, matched[0]!.path, options);
+        if (writable !== target) throw new Error(`Repository path changed while applying: ${matched[0]!.path}`);
+        await writeFile(writable, content!, "utf8");
       } catch (cause) {
-        fail(cause instanceof Error ? cause.message : String(cause), matched);
+        for (const edit of matched) fail(edit, cause);
         continue;
       }
     }
-    for (const edit of matched) outcomes.set(edit.id, { id: edit.id, path, status: options.check ? "applicable" : "applied" });
+    for (const edit of matched) outcomes.set(edit.id, { id: edit.id, path: edit.path, status: options.check ? "applicable" : "applied" });
   }
   return edits.map((edit) => outcomes.get(edit.id)!);
 };

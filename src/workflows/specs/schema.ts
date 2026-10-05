@@ -86,5 +86,5 @@ export const schemaWorkflow = defineWorkflow({
   researchInstructions:
     "Inspect rendered head output and the route or Fumadocs source to derive only structured-data types justified by visible content.",
   actionInstructions:
-    "Apply justified JSON-LD changes at the owning source, preserve the existing composition contracts, and leave the diff uncommitted.",
+    "Submit edits for justified JSON-LD changes at the owning source and preserve the existing composition contracts.",
 });

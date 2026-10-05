@@ -9,7 +9,8 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { collectContextFiles } from "../src/workflows/evidence";
 import { loadSeoProjectConfig } from "../src/cli/load-config";
-import { createRepositoryTools, createRepositoryWriteTools, guardRepositoryToolCall } from "../src/workflows/repository-tools";
+import { createRepositoryTools, guardRepositoryToolCall } from "../src/workflows/repository-tools";
+import { applyWorkflowEdits } from "../src/workflows/review";
 import { resolveWorkflowRepositoryRoot } from "../src/workflows/repository-paths";
 
 const directories: string[] = [];
@@ -88,14 +89,16 @@ describe("workflow read scope", () => {
     expect(text(await read.execute("read", { path: "AGENTS.md" }))).toBe("repository context");
     expect(text(await list.execute("list", { path: ".", recursive: true }))).toContain("apps/web/route.ts");
     expect(text(await search.execute("search", { path: ".", text: "repository context" }))).toContain("AGENTS.md:1:repository context");
-    const writeOptions = { runsDirectory, presetDirectory: ".pagegraph/agent" };
-    const guard = guardRepositoryToolCall(app, writeOptions, { repositoryRoot: repository, runsDirectory })!;
+    const writeOptions = { runsDirectory, presetDirectory: ".pagegraph/agent", check: false };
+    const guard = guardRepositoryToolCall(app, { repositoryRoot: repository, runsDirectory })!;
     expect(await guard(context("read_file", join(repository, "AGENTS.md")))).toBeUndefined();
-    expect((await guard(context("write_file", "../../AGENTS.md")))?.block).toBe(true);
-    const [write] = createRepositoryWriteTools(app, writeOptions);
-    await expect(write.execute("write", { path: "../../AGENTS.md", content: "changed" })).rejects.toThrow("escapes project root");
-    expect(await guard(context("write_file", "new.ts"))).toBeUndefined();
-    await write.execute("write", { path: "new.ts", content: "app change" });
+    const outcomes = await applyWorkflowEdits(app, [
+      { id: "e1", path: "../../AGENTS.md", oldText: "repository context", newText: "changed" },
+      { id: "e2", path: "new.ts", newText: "app change" },
+    ], writeOptions);
+    expect(outcomes.map(({ status }) => status)).toEqual(["failed", "applied"]);
+    expect(outcomes[0]?.reason).toContain("escapes project root");
+    expect(text(await read.execute("read", { path: "AGENTS.md" }))).toBe("repository context");
     expect(text(await read.execute("read", { path: "apps/web/new.ts" }))).toBe("app change");
   });
 
@@ -104,7 +107,7 @@ describe("workflow read scope", () => {
     const readOptions = { runsDirectory };
     const tools = createRepositoryTools(repository, readOptions);
     const read = tools.find((entry) => entry.name === "read_file")!;
-    const guard = guardRepositoryToolCall(app, undefined, { repositoryRoot: repository, runsDirectory })!;
+    const guard = guardRepositoryToolCall(app, { repositoryRoot: repository, runsDirectory })!;
     for (const path of ["../outside.txt", join(parent, "outside.txt"), "escape.txt", join(runsDirectory, "escape.txt"), join(runsDirectory, "../outside.txt")]) {
       expect((await guard(context("read_file", path)))?.block).toBe(true);
       await expect(read.execute("read", { path })).rejects.toThrow("escapes project root");

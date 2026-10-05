@@ -13,6 +13,6 @@ Prefer links that help a reader continue a task, strengthen a clear hierarchy, o
 orphaned but relevant page. Reject forced anchors, repeated links, unsupported wording, and links
 whose target does not satisfy the promised intent.
 
-During the host-authorized action turn, apply only accepted links at the owning source or route
-declaration. Preserve generated graph contracts, use natural anchor text, leave the diff uncommitted,
-and keep provider state read-only.
+During the host-authorized action turn, submit edits only for accepted links at the owning source or
+route declaration. Preserve generated graph contracts, use natural anchor text, and keep provider
+state read-only.

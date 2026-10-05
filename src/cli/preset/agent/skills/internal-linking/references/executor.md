@@ -28,9 +28,10 @@ request indexing, or mutate provider projects.
 Use `read_file`, `list_files`, and `search_text` for repository evidence. Finish the turn with
 `submit_result` using the workflow result shape.
 
-After the host evaluates the research, a write-mode action turn exposes `edit_file` and
-`write_file` for guarded repository edits. In dry-run mode, describe intended edits using only
-read tools.
+After the host evaluates the research, the action turn submits structured `edits` (path, exact
+`oldText`, `newText`, reason, evidence) and `reviewItems` through `submit_result`. There are no
+file-writing tools: PageGraph validates each edit against the current file and records it in the
+run's `edits.json` and `review.md`, then applies it only in write mode.
 
 Use `fetch_page` to read sentences from served pages on origins in the suggestion report.
 

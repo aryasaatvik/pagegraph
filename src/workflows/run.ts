@@ -5,8 +5,8 @@ import { TypeSafeClient, TypeSafeDecisionModel } from "@effect/ai-typesafe";
 import * as Config from "effect/Config";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
-import { readFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { readFileSync, realpathSync } from "node:fs";
+import { dirname, relative, resolve } from "node:path";
 import * as FetchHttpClient from "effect/http/FetchHttpClient";
 
 import type { SeoCliConfig, SiteRuntime } from "../config";
@@ -32,6 +32,7 @@ import type { WorkflowAgentArtifact } from "./model";
 import { inspectWorkflowGit, loadWorkflowResume, readRecordedWorkflowSources } from "./resume";
 import { resolveWorkflowRepositoryRoot } from "./repository-paths";
 import { TextTemplate } from "./template";
+import { applyWorkflowEdits, decodeActionState, workflowEditsArtifact, writeWorkflowEdits } from "./review";
 
 export { dropNulls } from "./state";
 
@@ -150,6 +151,7 @@ const actionPrompt = (
   state: unknown,
   decisions: DecisionBatchReport,
   policy: WorkflowMutationPolicy,
+  appRoot: string,
 ): string =>
   TextTemplate.from(actionPromptSource)
     .values({
@@ -157,11 +159,12 @@ const actionPrompt = (
       instructions: spec.actionInstructions ?? "Produce the final recommendation.",
       state: JSON.stringify(state),
       decisions: JSON.stringify(decisions),
+      appRoot,
       mutationMode: policy.mode,
       mutationInstruction:
         policy.mode === "dry-run"
-          ? "Do not edit files. Describe the exact intended changes only."
-          : "Edit the owning source files through edit_file or write_file and inspect the resulting files.",
+          ? "PageGraph validates your edits and records them in edits.json and review.md without changing source files; a human applies them later with `pagegraph apply`."
+          : "PageGraph validates your edits against the current files and then applies them.",
     })
     .render();
 
@@ -174,7 +177,7 @@ const decisionArtifact = (
 const failureRecovery = (stage: string, runDirectory: string): string => {
   if (stage === "acquire") return "inspect that file; check the agent preset and Executor tools configuration";
   if (stage === "decide") return `inspect that file and research.json; check the decision provider configuration and resume with --from ${runDirectory}`;
-  if (stage === "action") return "inspect the agent messages and repository edits; interrupted actions cannot be resumed safely";
+  if (stage === "action") return `inspect the agent messages and repository; interrupted actions cannot be resumed safely. If ${runDirectory}/edits.json exists, \`pagegraph apply ${runDirectory} --check\` reports which edits remain`;
   return `inspect the agent messages in that file; resume with --from ${runDirectory}, optionally --model <id>, or raise workflows.agent.timeoutMs`;
 };
 
@@ -376,20 +379,44 @@ export const runWorkflow = async (
             writeWorkflowProgress(input.root, runsDirectory, progress);
           }
         }
+        const actionRecorded = progress.action !== undefined;
         const acted = progress.action ?? (mayAct
-          ? await runner.act(spec, actionPrompt(spec, actionState, actionDecisions, mutation), {
-              mode: mutation.mode, signal: AbortSignal.timeout(workflows.agent.timeoutMs ?? 180_000),
+          ? await runner.act(spec, actionPrompt(spec, actionState, actionDecisions, mutation, relative(repositoryRoot, realpathSync(input.root)) || "."), {
+              signal: AbortSignal.timeout(workflows.agent.timeoutMs ?? 180_000),
             })
           : researched);
         retainRunnerResult(acted);
         if (readFileSync(checkpointPath, "utf8") !== checkpointContents) {
           throw new Error(`${spec.id} changed repository files while running in read-only mode: ${checkpointPath}`);
         }
+        // Agents never write files; only PageGraph applies recorded edits, and only in write mode.
+        if (!actionRecorded) {
+          const agentFiles = changedFiles(gitAtCheckpoint, inspectWorkflowGit(input.root, runDirectory));
+          if (agentFiles.length > 0) throw new Error(`${spec.id} changed repository files while running in read-only mode: ${agentFiles.join(", ")}`);
+        }
+        const action = !spec.mutatesFiles ? undefined
+          : decodeActionState(mayAct ? acted.state : { summary: "No link suggestions accepted.", edits: [], reviewItems: [] });
+        const edits = action === undefined ? undefined : workflowEditsArtifact({
+          id, workflow: spec.id, mode: mutation.mode, root: input.root, action, decisions: decisionReport,
+        });
+        if (edits !== undefined) {
+          writeWorkflowEdits(runDirectory, edits);
+          if (!actionRecorded && mutation.mode === "write" && edits.edits.length > 0) {
+            const writeOptions = { presetDirectory: resolve(input.root, workflows.agent.presetDirectory), runsDirectory: resolve(input.root, runsDirectory) };
+            const checked = await applyWorkflowEdits(input.root, edits.edits, { ...writeOptions, check: true });
+            const refused = checked.filter((outcome) => outcome.status !== "applicable");
+            if (refused.length > 0) {
+              throw new Error(`Recorded edits no longer apply: ${refused.map((outcome) => `${outcome.id} (${outcome.path}): ${outcome.reason}`).join("; ")}`);
+            }
+            const applied = await applyWorkflowEdits(input.root, edits.edits, { ...writeOptions, check: false });
+            const failed = applied.filter((outcome) => outcome.status !== "applied");
+            if (failed.length > 0) {
+              throw new Error(`Could not apply recorded edits: ${failed.map((outcome) => `${outcome.id} (${outcome.path}): ${outcome.reason}`).join("; ")}`);
+            }
+          }
+        }
         const gitAfter = inspectWorkflowGit(input.root, runDirectory);
         const files = changedFiles(gitAtCheckpoint, gitAfter);
-        if ((!spec.mutatesFiles || input.options.dryRun) && files.length > 0) {
-          throw new Error(`${spec.id} changed repository files while running in read-only mode: ${files.join(", ")}`);
-        }
         if (mayAct) {
           progress = { ...progress, action: acted, actionGit: gitAfter,
             actionSources: await readRecordedWorkflowSources(repositoryRoot, progress.evidence.sources, resolve(input.root, runsDirectory)) };
@@ -416,7 +443,12 @@ export const runWorkflow = async (
             files,
             providerCalls: acted.executor.calls.map((call) => call.tool),
           },
-          result: mayAct ? acted.state : accepted !== undefined ? { summary: "No link suggestions accepted.", outcome: "no-change", files: [] } : state,
+          result: edits === undefined ? state : {
+            summary: edits.summary,
+            outcome: edits.edits.length === 0 ? "no-change" : edits.mode === "write" ? "applied" : "dry-run",
+            edits: edits.edits,
+            reviewItems: edits.reviewItems,
+          },
           agent: agentArtifact!,
           ...(researched.rejectedItems === undefined ? {} : { rejectedItems: researched.rejectedItems }),
         };

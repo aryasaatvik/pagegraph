@@ -193,6 +193,10 @@ const mutationCases: ReadonlyArray<{
   },
 ];
 
+const edit = (testCase: (typeof mutationCases)[number]) => ({
+  path: testCase.file, oldText: testCase.before, newText: testCase.after, reason: "Evidence-backed change.", evidence: ["gsc.performance"],
+});
+
 beforeEach(() => { vi.stubEnv("TYPESAFE_API_KEY", "offline-test-key"); });
 
 afterEach(() => {
@@ -482,10 +486,10 @@ describe("workflow runner", () => {
       acquireRunner: async () => ({
         model: { provider: "test", id: "model" },
         research: async () => ({ state: mutationCases[1]!.state, messages, usage, executor: executorEvidence }),
-        act: async (_spec, _prompt, actionOptions) => {
-          expect(actionOptions.mode).toBe("dry-run");
+        act: async (_spec, prompt) => {
+          expect(prompt).toContain("Repository mutation mode: dry-run");
           writeFileSync(join(root, "AGENTS.md"), "Unexpected action edit\n");
-          return { state: { summary: "Preview", files: [], outcome: "dry-run" }, messages, usage, executor: executorEvidence };
+          return { state: { summary: "Preview", edits: [], reviewItems: [] }, messages, usage, executor: executorEvidence };
         },
         close: async () => {},
       }),
@@ -513,13 +517,12 @@ describe("workflow runner", () => {
               messages, usage, executor: executorEvidence,
             };
           },
-          act: async (_spec, _prompt, workflowOptions) => {
+          act: async (_spec, prompt, workflowOptions) => {
             acted = true;
-            expect(workflowOptions.mode).toBe("write");
+            expect(prompt).toContain("Repository mutation mode: write");
             expect(workflowOptions.signal).toBeInstanceOf(AbortSignal);
-            writeFileSync(join(root, testCase.file), testCase.after);
             return {
-              state: { summary: `Updated ${testCase.workflow}.`, files: [testCase.file], outcome: "applied" },
+              state: { summary: `Updated ${testCase.workflow}.`, edits: [edit(testCase)], reviewItems: [] },
               messages, usage, executor: executorEvidence,
             };
           },
@@ -536,10 +539,12 @@ describe("workflow runner", () => {
     expect(result.run.changes.files).toEqual([testCase.file]);
     expect(result.run.result).toEqual({
       summary: `Updated ${testCase.workflow}.`,
-      files: [testCase.file],
       outcome: "applied",
+      edits: [{ id: "e1", ...edit(testCase) }],
+      reviewItems: [],
     });
     expect(readFileSync(join(root, testCase.file), "utf8")).toBe(testCase.after);
+    expect(JSON.parse(readFileSync(join(result.directory, "edits.json"), "utf8"))).toMatchObject({ mode: "write", edits: [{ id: "e1", path: testCase.file }] });
   });
 
   it.each(["skip", "review"])("never opens an edit turn for %s link suggestions", async (verdict) => {
@@ -565,7 +570,10 @@ describe("workflow runner", () => {
       decide: async () => ({ ...report("workflow-links"), resolved: verdict === "skip" ? [{ decisionId: "workflow-links:0", schemaVersion: 1, family: "workflow-links", model: "jev-latest", threshold: 0.7, inputHash: "fixture", inputRef: "/docs/email → /pricing", verdict, review: false, answers: {} }] : [], review: verdict === "review" ? [{ decisionId: "workflow-links:0", schemaVersion: 1, family: "workflow-links", model: "jev-latest", threshold: 0.7, inputHash: "fixture", inputRef: "/docs/email → /pricing", verdict, review: true, answers: {} }] : [] }),
     });
     expect(continued).toBe(false);
-    expect(result.run.result).toMatchObject({ outcome: "no-change" });
+    expect(result.run.result).toMatchObject({ outcome: "no-change", edits: [] });
+    // Review verdicts reach a human through review.md instead of disappearing from the run.
+    expect(JSON.parse(readFileSync(join(result.directory, "edits.json"), "utf8")).reviewItems)
+      .toEqual(verdict === "review" ? [expect.objectContaining({ source: "decision", path: "/docs/email → /pricing" })] : []);
     expect(result.run.evidence.suggestions?.candidates[0]).toMatchObject({ sentence: suggestion.sentence, anchor: suggestion.anchor });
     expect(result.run.changes.files).toEqual([]);
   });
@@ -628,7 +636,7 @@ describe("workflow runner", () => {
       acquireRunner: async () => ({ ...noAction,
         model: { provider: "test", id: "model" },
         research: async () => ({ state: { summary: "Two proposals", items: [accepted, rejected] }, messages, usage, executor: executorEvidence }),
-        act: async (_spec, prompt) => { actionPrompt = prompt; return { state: { summary: "One edit", files: [], outcome: "applied" }, messages, usage, executor: executorEvidence }; },
+        act: async (_spec, prompt) => { actionPrompt = prompt; return { state: { summary: "One edit", edits: [], reviewItems: [] }, messages, usage, executor: executorEvidence }; },
         close: async () => {},
       }),
       decide: async () => ({ ...report("workflow-links"), resolved: [{ decisionId: "workflow-links:0", schemaVersion: 1, family: "workflow-links", model: "jev-latest", threshold: 0.7, inputHash: "fixture", inputRef: "/docs/email → /pricing", verdict: "add", review: false, answers: {} }],
@@ -646,11 +654,10 @@ describe("workflow runner", () => {
       acquireRunner: async () => ({ ...noAction,
         model: { provider: "test", id: "model" },
         research: async () => ({ state: { summary: "One proposal", items: [item] }, messages, usage, executor: executorEvidence }),
-        act: async (_spec, prompt, workflowOptions) => {
+        act: async (_spec, prompt) => {
           continued = true;
-          expect(prompt).toContain("Do not edit files");
-          expect(workflowOptions.mode).toBe("dry-run");
-          return { state: { summary: "Preview", files: [], outcome: "dry-run" }, messages, usage, executor: executorEvidence };
+          expect(prompt).toContain("without changing source files");
+          return { state: { summary: "Preview", edits: [], reviewItems: [] }, messages, usage, executor: executorEvidence };
         },
         close: async () => {},
       }),

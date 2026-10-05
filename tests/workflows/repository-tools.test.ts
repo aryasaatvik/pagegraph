@@ -5,7 +5,8 @@ import { join } from "node:path";
 import type { BeforeToolCallContext } from "@earendil-works/pi-agent-core";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { createRepositoryTools, createRepositoryWriteTools, guardRepositoryToolCall } from "../../src/workflows/repository-tools";
+import { createRepositoryTools, guardRepositoryToolCall } from "../../src/workflows/repository-tools";
+import { applyWorkflowEdits } from "../../src/workflows/review";
 
 const directories: Array<string> = [];
 const fixture = async () => {
@@ -86,18 +87,9 @@ describe("repository tools", () => {
   });
 });
 
-describe("repository write tools", () => {
-  const tools = (root: string) => createRepositoryWriteTools(root, { presetDirectory: "preset", runsDirectory: "runs" });
-
-  it("creates and edits files and rejects ambiguous or absent matches", async () => {
-    const { root } = await fixture();
-    const [write, edit] = tools(root);
-    await write.execute("write", { path: "nested/page.txt", content: "one two one" });
-    await expect(edit.execute("edit", { path: "nested/page.txt", oldText: "one", newText: "three" })).rejects.toThrow("exactly once");
-    await expect(edit.execute("edit", { path: "nested/page.txt", oldText: "absent", newText: "three" })).rejects.toThrow("exactly once");
-    await edit.execute("edit", { path: "nested/page.txt", oldText: "two", newText: "three" });
-    expect(await readFile(join(root, "nested/page.txt"), "utf8")).toBe("one three one");
-  });
+describe("workflow edit write policy", () => {
+  const options = { presetDirectory: "preset", runsDirectory: "runs", check: false };
+  const write = (root: string, path: string) => applyWorkflowEdits(root, [{ id: "e1", path, newText: "blocked" }], options);
 
   it("blocks protected directories, outside paths, symlink escapes and dangling symlinks", async () => {
     const { root, parent } = await fixture();
@@ -105,11 +97,8 @@ describe("repository write tools", () => {
     await symlink(join(parent, "not-created.txt"), join(root, "dangling.txt"));
     await mkdir(join(root, "preset"));
     await symlink(join(root, "preset"), join(root, "preset-alias"));
-    const [write] = tools(root);
-    const guard = guardRepositoryToolCall(root, { presetDirectory: "preset", runsDirectory: "runs" })!;
     for (const path of [".git/config", "node_modules/pkg/file", "nested/node_modules/file", "runs/id/run.json", "preset/AGENTS.md", "preset-alias/new.txt", "../outside.txt", join(parent, "outside.txt"), "escape.txt", "outside-directory/new.txt", "dangling.txt"]) {
-      expect((await guard(context("write_file", path)))?.block).toBe(true);
-      await expect(write.execute("write", { path, content: "blocked" })).rejects.toThrow();
+      expect((await write(root, path))[0]?.status).toBe("failed");
     }
     expect(await readFile(join(parent, "outside.txt"), "utf8")).toBe("outside evidence");
   });
@@ -118,19 +107,18 @@ describe("repository write tools", () => {
     const { root } = await fixture();
     await mkdir(join(root, "storage"));
     await symlink(join(root, "storage"), join(root, "alias"));
-    const [write] = createRepositoryWriteTools(root, { presetDirectory: "alias/preset", runsDirectory: "alias/runs" });
-    await expect(write.execute("write", { path: "storage/preset/file", content: "blocked" })).rejects.toThrow("protected");
-    await expect(write.execute("write", { path: "storage/runs/file", content: "blocked" })).rejects.toThrow("protected");
+    const aliased = { presetDirectory: "alias/preset", runsDirectory: "alias/runs", check: false };
+    for (const path of ["storage/preset/file", "storage/runs/file"]) {
+      const [outcome] = await applyWorkflowEdits(root, [{ id: "e1", path, newText: "blocked" }], aliased);
+      expect(outcome).toMatchObject({ status: "failed", reason: expect.stringContaining("protected") });
+    }
   });
 
   it("refuses to write through a hard link shared with a file outside the project", async () => {
     const { root, parent } = await fixture();
     await link(join(parent, "outside.txt"), join(root, "shared.txt"));
-    const [write, edit] = tools(root);
-    const guard = guardRepositoryToolCall(root, { presetDirectory: "preset", runsDirectory: "runs" })!;
-    expect((await guard(context("write_file", "shared.txt")))?.block).toBe(true);
-    await expect(write.execute("write", { path: "shared.txt", content: "changed" })).rejects.toThrow("hard-linked");
-    await expect(edit.execute("edit", { path: "shared.txt", oldText: "outside", newText: "changed" })).rejects.toThrow("hard-linked");
+    const [outcome] = await applyWorkflowEdits(root, [{ id: "e1", path: "shared.txt", oldText: "outside", newText: "changed" }], options);
+    expect(outcome).toMatchObject({ status: "failed", reason: expect.stringContaining("hard-linked") });
     expect(await readFile(join(parent, "outside.txt"), "utf8")).toBe("outside evidence");
   });
 });

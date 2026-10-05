@@ -1,4 +1,3 @@
-import { Schema } from "effect";
 import type { AnyWorkflowSpec } from "./specs/types";
 
 export const dropNulls = (value: unknown): unknown => {
@@ -69,12 +68,3 @@ export const salvageResearchState = (spec: AnyWorkflowSpec, value: unknown, limi
   if (valid.length === 0) throw new Error(rejectedItems.map(({ index, reason }) => `${key}[${index}]: ${reason}`).join("\n") || "No valid workflow items were submitted.");
   return { state: decodeResearchState(spec, { ...record, [key]: valid }, limit), rejectedItems };
 };
-
-export const ActionState = Schema.Struct({
-  summary: Schema.String,
-  files: Schema.Array(Schema.String),
-  outcome: Schema.Literals(["applied", "dry-run", "no-change"]),
-});
-export const decodeActionState = Schema.decodeUnknownSync(ActionState);
-const actionDocument = Schema.toJsonSchemaDocument(ActionState);
-export const actionStateJsonSchema = { ...actionDocument.schema, $defs: actionDocument.definitions };

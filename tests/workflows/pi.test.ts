@@ -63,28 +63,29 @@ describe("Pi workflow runner", () => {
     expect(result.usage).toEqual(totalUsage(result.messages));
   });
 
-  it("continues research context with write tools and submits the action schema", async () => {
+  it("continues research context and validates submitted edits against current files", async () => {
     const { runner, provider, root } = fixture();
     writeFileSync(join(root, "page.txt"), "Original page");
     provider.setResponses([submit({}), submit(validState)]);
     const researched = await research(runner);
+    const edit = { path: "page.txt", oldText: "Original", newText: "Improved", reason: "Clearer", evidence: ["seo.search"] };
     provider.setResponses([
       (context) => {
         expect(JSON.stringify(context)).toContain("Evidence supports the query.");
-        expect(JSON.stringify(context)).toContain("edit_file");
-        return fauxAssistantMessage(fauxToolCall("edit_file", { path: "page.txt", oldText: "Original", newText: "Improved" }), { stopReason: "toolUse" });
+        return submit({ summary: "Improved page", edits: [{ ...edit, oldText: "Missing" }], reviewItems: [] });
       },
-      submit({}),
-      submit({ summary: "Improved page", files: ["page.txt"], outcome: "applied" }),
+      submit({ summary: "Improved page", edits: [edit], reviewItems: [{ path: "/pricing", reason: "Needs legal review", evidence: [] }] }),
     ]);
-    const acted = await runner.act(spec, "Apply the resolved changes.", { mode: "write", signal: AbortSignal.timeout(2000) });
-    expect(readFileSync(join(root, "page.txt"), "utf8")).toBe("Improved page");
-    expect(acted.state).toEqual({ summary: "Improved page", files: ["page.txt"], outcome: "applied" });
+    const acted = await runner.act(spec, "Submit the resolved changes.", { signal: AbortSignal.timeout(2000) });
+    expect(readFileSync(join(root, "page.txt"), "utf8")).toBe("Original page");
+    expect(acted.state).toEqual({ summary: "Improved page", edits: [edit], reviewItems: [{ path: "/pricing", reason: "Needs legal review", evidence: [] }] });
     expect(acted.messages.slice(0, researched.messages.length)).toEqual(researched.messages);
-    expect(acted.messages.filter((message) => message.role === "toolResult" && message.isError)).toHaveLength(2);
+    const errors = acted.messages.filter((message) => message.role === "toolResult" && message.isError);
+    expect(errors).toHaveLength(2);
+    expect(JSON.stringify(errors.at(-1))).toContain("edits[0] (page.txt): stale, target text not found");
   });
 
-  it("blocks unsafe action writes before tool execution", async () => {
+  it("refuses edits outside the app root or in protected directories at submission", async () => {
     const { runner, provider, root } = fixture();
     const outside = join(root, "..", `${root.split("/").at(-1)}-outside.txt`);
     directories.push(outside);
@@ -92,18 +93,22 @@ describe("Pi workflow runner", () => {
     symlinkSync(outside, join(root, "escape.txt"));
     provider.setResponses([submit(validState)]);
     await research(runner);
-    const blockedPaths = [".git/config", "node_modules/pkg/file", outside, "escape.txt", "preset/AGENTS.md", ".pagegraph/runs/result.json"];
+    const blockedPaths = [".git/config", "node_modules/pkg/file", "escape.txt", "preset/AGENTS.md", ".pagegraph/runs/result.json"];
     provider.setResponses([
-      ...blockedPaths.map((path) => fauxAssistantMessage(fauxToolCall("write_file", { path, content: "unsafe" }), { stopReason: "toolUse" })),
-      submit({ summary: "No safe change", files: [], outcome: "no-change" }),
+      submit({ summary: "Unsafe", reviewItems: [], edits: blockedPaths.map((path) => ({ path, newText: "unsafe", reason: "r", evidence: [] })) }),
+      submit({ summary: "Outside", reviewItems: [], edits: [{ path: outside, oldText: "Outside", newText: "unsafe", reason: "r", evidence: [] }] }),
+      submit({ summary: "No safe change", edits: [], reviewItems: [] }),
     ]);
-    const result = await runner.act(spec, "Apply changes", { mode: "write", signal: AbortSignal.timeout(2000) });
-    expect(result.messages.filter((message) => message.role === "toolResult" && message.toolName === "write_file" && message.isError))
-      .toHaveLength(blockedPaths.length);
+    const result = await runner.act(spec, "Apply changes", { signal: AbortSignal.timeout(2000) });
+    const errors = result.messages.filter((message) => message.role === "toolResult" && message.toolName === "submit_result" && message.isError);
+    expect(errors).toHaveLength(2);
+    for (const index of blockedPaths.keys()) expect(JSON.stringify(errors[0])).toContain(`edits[${index}]`);
+    expect(JSON.stringify(errors[1])).toContain("outside the app root");
+    expect(result.state).toEqual({ summary: "No safe change", edits: [], reviewItems: [] });
     expect(readFileSync(outside, "utf8")).toBe("Outside evidence");
   });
 
-  it("offers only read and Executor tools in dry-run action mode", async () => {
+  it("offers only read and Executor tools in action turns", async () => {
     const { runner, provider } = fixture();
     provider.setResponses([submit(validState)]);
     await research(runner);
@@ -112,10 +117,10 @@ describe("Pi workflow runner", () => {
       expect(JSON.stringify(context)).not.toContain("write_file");
       expect(JSON.stringify(context)).toContain("read_file");
       expect(JSON.stringify(context)).toContain("executor_execute");
-      return submit({ summary: "Would improve the page", files: ["page.txt"], outcome: "dry-run" });
+      return submit({ summary: "Nothing to change", edits: [], reviewItems: [] });
     }]);
-    expect((await runner.act(spec, "Describe changes", { mode: "dry-run", signal: AbortSignal.timeout(2000) })).state)
-      .toEqual({ summary: "Would improve the page", files: ["page.txt"], outcome: "dry-run" });
+    expect((await runner.act(spec, "Describe changes", { signal: AbortSignal.timeout(2000) })).state)
+      .toEqual({ summary: "Nothing to change", edits: [], reviewItems: [] });
   });
 
   it("returns invalid submission issues in-loop and accepts the correction", async () => {

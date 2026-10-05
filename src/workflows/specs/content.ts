@@ -29,5 +29,5 @@ export const improveContentWorkflow = defineWorkflow({
   researchInstructions:
     "Inspect the target page and its supporting research before proposing a bounded content improvement.",
   actionInstructions:
-    "Apply only evidence-backed copy edits that preserve the page's category, intent, and public product claims; leave the diff uncommitted.",
+    "Submit edits only for evidence-backed copy changes that preserve the page's category, intent, and public product claims.",
 });

@@ -13,7 +13,8 @@ When a result says it was truncated, read its named JSON file with `read_file`; 
 `maxBytes` to page through large artifacts. Repository evidence is available through `read_file`,
 `list_files`, and `search_text`. Submit structured workflow state with `submit_result`.
 
-For improve workflows, the action turn exposes `edit_file` and `write_file` only in write mode.
-Dry-run actions describe intended changes using read tools. There is no shell tool.
+Improve workflows have no file-writing tools. Their action turn submits `edits`, each with a path,
+`oldText` copied exactly from the current file, `newText`, a reason, and evidence, plus `reviewItems`
+for changes a human must make. PageGraph applies edits only in write mode. There is no shell tool.
 
 Configure `workflows.agent.presetDirectory: ".pagegraph/agent"` in `pagegraph.config.ts`.

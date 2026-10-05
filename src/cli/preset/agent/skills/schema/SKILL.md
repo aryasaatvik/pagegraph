@@ -13,6 +13,6 @@ Propose only types and properties that describe visible content. Schema does not
 content, guarantee a rich result, or justify unsupported ratings, prices, authorship, FAQs, or
 organization claims.
 
-During the host-authorized action turn, apply only accepted changes through the repository's
-existing JSON-LD composition primitives. Do not edit rendered or generated output. Leave the diff
-uncommitted and provider state unchanged.
+During the host-authorized action turn, submit edits only for accepted changes, using the
+repository's existing JSON-LD composition primitives. Do not target rendered or generated output;
+record a review item when the owning source is unclear. Provider state stays unchanged.

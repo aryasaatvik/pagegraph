@@ -412,7 +412,8 @@ declines Executor approval requests, and only provider calls that succeeded coun
 Use `executor_search` to discover tools and their TypeScript shapes, then `executor_execute` with
 a TypeScript snippet calling `tools.<namespace>.<tool>(input)` and a top-level `return`.
 Repository tools are `read_file`, `list_files`, and `search_text`; structured results go through
-`submit_result`. Improve action turns expose `edit_file` and `write_file` in write mode.
+`submit_result`. Improve action turns submit structured edits instead of writing files; see
+[Review and apply edits](#review-and-apply-edits).
 
 Enable workflows in `pagegraph.config.ts`:
 
@@ -479,8 +480,8 @@ editable starter recipes, not a fixed integration list.
 the config directory's Git top level, falling back to the config directory when it is outside Git.
 Context file paths are now relative to this read root, so adjust existing app-relative paths when the
 default Git root is above the app (for example, `apps/web/AGENTS.md`). Run artifacts under
-`runsDirectory` are readable. `edit_file` and `write_file` remain bounded to
-the app root containing `pagegraph.config.ts`.
+`runsDirectory` are readable. Improve edits name files the way `read_file` does and must stay
+inside the app root containing `pagegraph.config.ts`.
 
 Before Pi makes a paid model request, PageGraph checks that the selected model's provider key,
 `TYPESAFE_API_KEY`, and required Executor configuration are present. Missing configuration fails
@@ -541,16 +542,60 @@ The common selectors are repeatable `--page`, `--query`, and `--kind`, plus `--l
 accept `--competitor`, `--domain`, or `--device desktop|mobile`. Workflow prompts direct the agent
 to proceed without questions or forms and fail clearly when required input is missing.
 
-The four `improve` workflows write source files by default and require a clean Git tree. Use
-`--dry-run` to expose only read tools, or `--allow-dirty` when you explicitly
-want the agent to edit alongside existing changes. PageGraph leaves every diff uncommitted and
-records modified, added, and deleted files after the workflow finishes. Write tools reject paths
-outside the repository, including symlink escapes, and paths under `.git`, `node_modules`,
-the runs directory, and the preset directory. There is no shell tool. For `improve links`,
-`fetch_page` reads extracted sentences from served pages on suggestion-report origins, respecting
-robots rules and the response size limit.
+The four `improve` workflows apply their edits by default and require a clean Git tree. Use
+`--dry-run` to record edits for review without changing source files, or `--allow-dirty` when you
+explicitly want edits applied alongside existing changes. There is no shell tool. For
+`improve links`, `fetch_page` reads extracted sentences from served pages on suggestion-report
+origins, respecting robots rules and the response size limit.
 
-Each run writes `.pagegraph/runs/<run-id>/run.json` and `summary.md`. The JSON retains the
+### Review and apply edits
+
+The agent never writes files. Its action turn submits `edits` and `reviewItems` through
+`submit_result`:
+
+| Field | Meaning |
+| --- | --- |
+| `edits[].path` | File to change, as `read_file` names it; it must be inside the app root |
+| `edits[].oldText` | Exact current text; it must match once. Omit it to create a new file |
+| `edits[].newText` | Replacement text |
+| `edits[].reason`, `edits[].evidence` | Why the change is justified, with repository and provider evidence |
+| `reviewItems[]` | `path`, `reason`, and `evidence` for a change a human must make |
+
+PageGraph rejects a submission whose edits do not apply to the current files and returns the reasons
+to the agent. Accepted edits are written to the run directory:
+
+- `edits.json` lists each edit with an ID (`e1`, `e2`, …) and paths relative to the app root, plus
+  review items. Jev decisions that land in review are included as `decision` review items.
+- `review.md` renders the same content for a human: each edit as a diff with its reason and
+  evidence, followed by the review items.
+
+The two modes differ only in who applies the edits:
+
+| Mode | Source files | Next step |
+| --- | --- | --- |
+| Write (default) | PageGraph applies every edit after recording it | Review the uncommitted diff |
+| `--dry-run` | Unchanged | Review `review.md`, then run `pagegraph apply` |
+
+A write run is equivalent to a dry run followed by `pagegraph apply`. Writes reject paths outside the
+app root, including symlink escapes, hard-linked files, and paths under `.git`, `node_modules`, the
+runs directory, and the preset directory. PageGraph leaves every diff uncommitted and records the
+changed files in `run.json`.
+
+```bash
+pagegraph improve metadata --page /pricing --dry-run
+pagegraph apply <run-id> --check          # report which edits still apply; no writes
+pagegraph apply <run-id> --only e1,e3     # apply a subset (repeatable or comma-separated)
+pagegraph apply <run-id>                  # apply every edit that still matches
+```
+
+`pagegraph apply <run-dir|run-id>` runs from the app containing `pagegraph.config.ts` and applies
+edits in recorded order. An edit is `stale` when its `oldText` no longer matches exactly once or
+its new file already exists; `failed` when the write policy refuses the path or the write errors.
+Stale and failed edits are skipped, the others apply, and the command exits non-zero if any edit
+was skipped. `--json` emits a versioned `pagegraph-apply-report`.
+
+Each run writes `.pagegraph/runs/<run-id>/run.json` and `summary.md`; improve runs also write
+`edits.json` and `review.md`. The JSON retains the
 deterministic graph, context, Executor tool evidence, Jev question definitions and answers, Git
 provenance, changed files, and model provenance. Schema-version-2 artifacts record `agent.runtime`
 as the literal `pi`, with messages and usage. Keep this directory ignored: provider output can be large or account-specific. Workflows fail when the configured model,
@@ -773,6 +818,7 @@ pagegraph links verify <url> --emit-rendered <file>  # save the rendered edge se
 pagegraph links candidates      # propose contextual links from the declared graph
 pagegraph research keywords --query "email api"  # combine graph, Executor, and Jev evidence
 pagegraph improve metadata --page /pricing       # apply a clean-tree source improvement
+pagegraph apply <run-id>                         # apply a dry-run's recorded edits
 pagegraph sitemap               # print sitemap.xml
 pagegraph robots                # print robots.txt
 ```

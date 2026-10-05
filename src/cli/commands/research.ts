@@ -1,3 +1,5 @@
+import { join } from "node:path";
+
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Command from "effect/cli/Command";
@@ -88,7 +90,7 @@ const outFlag = Flag.String("out").pipe(
   Flag.optional,
 );
 const dryRunFlag = Flag.Boolean("dry-run").pipe(
-  Flag.withDescription("Suppress file writes; discovered Executor tools remain available"),
+  Flag.withDescription("Record edits in edits.json and review.md without changing source files"),
   Flag.withDefault(false),
 );
 const allowDirtyFlag = Flag.Boolean("allow-dirty").pipe(
@@ -270,7 +272,13 @@ export const workflowCommand = (input: {
           catch: (cause) => new SeoCliError({ message: messageOf(cause) }),
         });
         if (rawFlags.json === true) yield* printJson(result.run);
-        else yield* printText(`${resultSummary(result)}\n\nRun artifact: ${result.directory}`);
+        else yield* printText([
+          resultSummary(result),
+          "",
+          `Run artifact: ${result.directory}`,
+          ...(input.writesFiles ? [`Review: ${join(result.directory, "review.md")}`] : []),
+          ...(input.writesFiles && result.run.options.dryRun ? [`Apply: pagegraph apply ${result.directory} --check`] : []),
+        ].join("\n"));
       }),
     ),
   );

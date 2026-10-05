@@ -40,7 +40,7 @@ const fixture = (workflow: WorkflowId = "research.keywords", gitRepository = tru
   const input = { root, graph, site, config, workflow, options };
   const researchResult: RunnerResult = { state: workflow === "research.keywords" ? { summary: "Research", opportunities: [] } : { summary: "Metadata", items: [] }, messages, usage, executor: evidence };
   const research = vi.fn<WorkflowRunner["research"]>(async () => researchResult);
-  const act = vi.fn<WorkflowRunner["act"]>(async (): Promise<RunnerResult> => ({ ...researchResult, state: { summary: "Applied", outcome: "applied", files: [] } }));
+  const act = vi.fn<WorkflowRunner["act"]>(async (): Promise<RunnerResult> => ({ ...researchResult, state: { summary: "Applied", edits: [], reviewItems: [] } }));
   const runner: WorkflowRunner = { model: { provider: "test", id: "model" }, research, act, close: async () => {} };
   const acquireRunner = vi.fn(async () => runner);
   const directory = () => join(root, ".pagegraph/runs", readdirSync(join(root, ".pagegraph/runs"))[0]!);
@@ -129,10 +129,8 @@ describe("workflow resume", () => {
 
   it("finishes artifacts from a completed action without replaying its edits or any paid turn", async () => {
     const f = fixture("improve.metadata");
-    f.act.mockImplementationOnce(async () => {
-      writeFileSync(join(f.input.root, "context.md"), "Applied metadata edit\n");
-      return { ...f.researchResult, state: { summary: "Applied", outcome: "applied", files: ["context.md"] } };
-    });
+    f.act.mockImplementationOnce(async () => ({ ...f.researchResult, state: { summary: "Applied", reviewItems: [],
+      edits: [{ path: "context.md", oldText: "Original source", newText: "Applied metadata edit", reason: "r", evidence: [] }] } }));
     const first = await runWorkflow(f.input, { acquireRunner: f.acquireRunner, decide: async () => decisionReport });
     rmSync(join(first.directory, "run.json"));
     const acquire = vi.fn(async () => { throw new Error("must not acquire"); });
@@ -148,12 +146,17 @@ describe("workflow resume", () => {
   it("allows --dry-run to suppress remaining writes without escalating a recorded dry run", async () => {
     const f = fixture("improve.metadata"); const directory = await failedDecision(f);
     patchProgress(directory, { decisions: { ...decisionReport, family: "meta" } });
-    f.act.mockImplementationOnce(async (_spec, _prompt, actionOptions) => {
-      expect(actionOptions.mode).toBe("dry-run");
-      return { ...f.researchResult, state: { summary: "Preview", outcome: "dry-run", files: [] } };
+    f.act.mockImplementationOnce(async (_spec, prompt) => {
+      expect(prompt).toContain("Repository mutation mode: dry-run");
+      return { ...f.researchResult, state: { summary: "Preview", reviewItems: [],
+        edits: [{ path: "context.md", oldText: "Original source", newText: "Previewed edit", reason: "r", evidence: [] }] } };
     });
     const result = await runWorkflow({ ...f.input, from: directory, options: { ...f.input.options, dryRun: true } }, { acquireRunner: f.acquireRunner, decide: async () => decisionReport });
     expect(result.run.options.dryRun).toBe(true);
+    expect(result.run.result).toMatchObject({ outcome: "dry-run" });
+    expect(result.run.changes.files).toEqual([]);
+    expect(readFileSync(join(f.input.root, "context.md"), "utf8")).toBe("Original source\n");
+    expect(JSON.parse(readFileSync(join(directory, "edits.json"), "utf8"))).toMatchObject({ mode: "dry-run", edits: [{ id: "e1", path: "context.md" }] });
   });
 
   it("refuses interrupted actions, even if they left no visible file edit", async () => {
@@ -223,10 +226,8 @@ describe("workflow resume", () => {
 
   it("refuses ignored context drift after a completed action while allowing that action's recorded edits", async () => {
     const f = fixture("improve.metadata", false);
-    f.act.mockImplementationOnce(async () => {
-      writeFileSync(join(f.input.root, "context.md"), "Recorded action edit\n");
-      return { ...f.researchResult, state: { summary: "Applied", outcome: "applied", files: ["context.md"] } };
-    });
+    f.act.mockImplementationOnce(async () => ({ ...f.researchResult, state: { summary: "Applied", reviewItems: [],
+      edits: [{ path: "context.md", oldText: "Original source", newText: "Recorded action edit", reason: "r", evidence: [] }] } }));
     const first = await runWorkflow(f.input, { acquireRunner: f.acquireRunner, decide: async () => decisionReport });
     rmSync(join(first.directory, "run.json"));
     const result = await runWorkflow({ ...f.input, from: first.directory }, { decide: async () => { throw new Error("must not decide"); } });

@@ -7,10 +7,11 @@ import { resolve } from "node:path";
 import type { SeoWorkflowAgentConfig } from "../config";
 import { createExecutorToolset, executorEvidence, persistExecutorToolResults, type ExecutorToolset } from "./executor";
 import type { ExecutorEvidence, WorkflowAgentArtifact } from "./model";
-import { createRepositoryTools, createRepositoryWriteTools, guardRepositoryToolCall } from "./repository-tools";
+import { createRepositoryTools, guardRepositoryToolCall } from "./repository-tools";
+import { actionStateJsonSchema, applyWorkflowEdits, decodeActionState, normalizeEditPaths } from "./review";
 import type { RunnerResult, WorkflowRunner } from "./runner";
 import type { AnyWorkflowSpec } from "./specs/types";
-import { actionStateJsonSchema, decodeActionState, decodeResearchState, normalizeResearchState, salvageResearchState } from "./state";
+import { decodeResearchState, dropNulls, normalizeResearchState, salvageResearchState } from "./state";
 
 const MAX_REJECTED_SUBMISSIONS = 3;
 
@@ -96,16 +97,28 @@ export const createPiRunner = (options: PiRunnerOptions): WorkflowRunner => {
   }));
   const executor = options.runDirectory === undefined ? { ...options.executor, tools: replayTools }
     : persistExecutorToolResults({ ...options.executor, tools: replayTools }, options.runDirectory);
-  const phase = async (spec: AnyWorkflowSpec, prompt: string, signal: AbortSignal, mode?: "write" | "dry-run"): Promise<RunnerResult> => {
+  const writeOptions = { presetDirectory: options.presetDirectory, runsDirectory: options.runsDirectory ?? resolve(options.root, ".pagegraph/runs") };
+  const readOptions = { repositoryRoot: options.repositoryRoot ?? options.root, runsDirectory: options.runsDirectory ?? resolve(options.root, ".pagegraph/runs") };
+  const phase = async (spec: AnyWorkflowSpec, prompt: string, signal: AbortSignal, action = false): Promise<RunnerResult> => {
     const assertDeadline = (messages: ReadonlyArray<AgentMessage> = []): void => {
       if (signal.aborted) throw new WorkflowRunnerError(`Workflow deadline exceeded or run aborted: ${String(signal.reason)}`, {
         messages, usage: totalUsage(messages), executor: evidence(),
       }, { cause: signal.reason });
     };
     assertDeadline(agent?.state.messages);
-    if (mode !== undefined && !researched) throw new Error("Workflow action requires a completed research conversation");
-    const systemPrompt = mode === undefined || agent === undefined ? await composeSystemPrompt(options.presetDirectory, spec) : undefined;
+    if (action && !researched) throw new Error("Workflow action requires a completed research conversation");
+    const systemPrompt = !action || agent === undefined ? await composeSystemPrompt(options.presetDirectory, spec) : undefined;
     assertDeadline();
+    // Edits must apply cleanly to the current files when submitted, so recorded edits start applicable.
+    const validateAction = async (raw: unknown) => {
+      const state = normalizeEditPaths(decodeActionState(dropNulls(raw)), readOptions.repositoryRoot, options.root);
+      const outcomes = await applyWorkflowEdits(options.root, state.edits.map((edit, index) => ({ id: `edits[${index}]`, ...edit })), { ...writeOptions, check: true });
+      const refused = outcomes.filter((outcome) => outcome.status !== "applicable");
+      if (refused.length > 0) {
+        throw new Error(`Edits must apply to the current files:\n${refused.map((outcome) => `${outcome.id} (${outcome.path}): ${outcome.status}, ${outcome.reason}`).join("\n")}\nCopy oldText exactly from a fresh read_file result, with enough context to match once.`);
+      }
+      return state;
+    };
     let state: unknown;
     let submitted = false;
     let rejected = 0;
@@ -115,18 +128,18 @@ export const createPiRunner = (options: PiRunnerOptions): WorkflowRunner => {
     const rawSubmissions = new Map<string, unknown>();
     const submit: AgentTool = {
       name: "submit_result", label: "Submit workflow result", description: "Validate and submit the final workflow state after collecting Executor evidence.",
-      parameters: Type.Unsafe(mode === undefined ? spec.stateJsonSchema : actionStateJsonSchema),
+      parameters: Type.Unsafe(action ? actionStateJsonSchema : spec.stateJsonSchema),
       prepareArguments: (args) => {
         // Pi validates parameters before beforeToolCall, so retain raw values at this boundary.
         lastSubmission = args;
-        return mode === undefined ? normalizeResearchState(args, options.limit) : args;
+        return action ? dropNulls(args) : normalizeResearchState(args, options.limit);
       },
       execute: async (_id, params) => {
         try {
-          const decoded = mode === undefined ? decodeResearchState(spec, rawSubmissions.get(_id) ?? lastSubmission ?? params, options.limit)
-            : decodeActionState(rawSubmissions.get(_id) ?? lastSubmission ?? params);
+          const raw = rawSubmissions.get(_id) ?? lastSubmission ?? params;
+          const decoded = action ? await validateAction(raw) : decodeResearchState(spec, raw, options.limit);
           const collected = evidence();
-          if (mode === undefined && (collected.searches.length === 0 || collected.calls.length === 0)) {
+          if (!action && (collected.searches.length === 0 || collected.calls.length === 0)) {
             throw new Error([
               `Your research returned without completed Executor provider evidence (searches: ${collected.searches.length}, calls: ${collected.calls.length}).`,
               "Catalog searches and schema discovery alone do not satisfy this workflow.",
@@ -144,12 +157,9 @@ export const createPiRunner = (options: PiRunnerOptions): WorkflowRunner => {
         }
       },
     };
-    const writeOptions = { presetDirectory: options.presetDirectory, runsDirectory: options.runsDirectory ?? resolve(options.root, ".pagegraph/runs") };
-    const readOptions = { repositoryRoot: options.repositoryRoot ?? options.root, runsDirectory: options.runsDirectory ?? resolve(options.root, ".pagegraph/runs") };
-    const tools = [...executor.tools, ...createRepositoryTools(readOptions.repositoryRoot, readOptions), ...(options.additionalTools ?? []),
-      ...(mode === "write" ? createRepositoryWriteTools(options.root, writeOptions) : []), submit];
+    const tools = [...executor.tools, ...createRepositoryTools(readOptions.repositoryRoot, readOptions), ...(options.additionalTools ?? []), submit];
     if (systemPrompt !== undefined) {
-      if (mode === undefined) researched = false;
+      if (!action) researched = false;
       agent = new Agent({
         initialState: { systemPrompt, model: options.model, tools, ...(resume === undefined ? {} : { messages: [...resume.agent.messages] }) },
         streamFn: options.streamFn ?? streamSimple,
@@ -163,7 +173,7 @@ export const createPiRunner = (options: PiRunnerOptions): WorkflowRunner => {
     agent.beforeToolCall = async (context, signal) => {
       if (submitted || rejected >= MAX_REJECTED_SUBMISSIONS) return { block: true, reason: "Workflow submission is closed.", terminate: true };
       if (context.toolCall.name === "submit_result") rawSubmissions.set(context.toolCall.id, context.toolCall.arguments);
-      return guardRepositoryToolCall(options.root, mode === "write" ? writeOptions : undefined, readOptions)?.(context, signal);
+      return guardRepositoryToolCall(options.root, readOptions)?.(context, signal);
     };
     agent.finishTurn = () => submitted || rejected >= MAX_REJECTED_SUBMISSIONS ? { action: "end" } : undefined;
     const current = agent;
@@ -181,7 +191,7 @@ export const createPiRunner = (options: PiRunnerOptions): WorkflowRunner => {
       await current.prompt(prompt);
       const result = { messages: current.state.messages, usage: totalUsage(current.state.messages), executor: evidence() };
       if (signal.aborted) throw new WorkflowRunnerError(`Workflow deadline exceeded or run aborted: ${String(signal.reason)}`, result, { cause: signal.reason });
-      if (!submitted && mode === undefined && rejected >= MAX_REJECTED_SUBMISSIONS && result.executor.searches.length > 0 && result.executor.calls.length > 0) {
+      if (!submitted && !action && rejected >= MAX_REJECTED_SUBMISSIONS && result.executor.searches.length > 0 && result.executor.calls.length > 0) {
         try {
           const salvaged = salvageResearchState(spec, lastSubmission, options.limit);
           state = salvaged.state;
@@ -190,7 +200,7 @@ export const createPiRunner = (options: PiRunnerOptions): WorkflowRunner => {
         } catch { /* Keep the original submission diagnostics when no recommendations survive. */ }
       }
       if (!submitted) throw new WorkflowRunnerError(`Workflow result rejected: ${lastIssues}${current.state.errorMessage ? `\n${current.state.errorMessage}` : ""}`, result);
-      if (mode === undefined) researched = true;
+      if (!action) researched = true;
       return { ...result, state, ...(rejectedItems === undefined ? {} : { rejectedItems }) };
     } catch (cause) {
       if (cause instanceof WorkflowRunnerError) throw cause;
@@ -203,7 +213,7 @@ export const createPiRunner = (options: PiRunnerOptions): WorkflowRunner => {
   return {
     model: { provider: options.model.provider, id: options.model.id },
     research: (spec, prompt, { signal }) => phase(spec, prompt, signal),
-    act: (spec, prompt, { signal, mode }) => phase(spec, prompt, signal, mode),
+    act: (spec, prompt, { signal }) => phase(spec, prompt, signal, true),
     async close() { agent?.abort(); await agent?.waitForIdle(); },
   };
 };

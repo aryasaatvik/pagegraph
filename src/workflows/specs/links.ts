@@ -80,5 +80,5 @@ export const linksWorkflow = defineWorkflow({
   researchInstructions:
     "Use the deterministic PageGraph edges and source content to propose useful contextual internal links and safe anchor text.",
   actionInstructions:
-    "Apply only useful, supported links at the owning source or route declaration; preserve generated graph contracts and leave the diff uncommitted.",
+    "Submit edits only for useful, supported links at the owning source or route declaration, and preserve generated graph contracts.",
 });

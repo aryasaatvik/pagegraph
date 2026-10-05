@@ -217,9 +217,9 @@ describe("restored Pi conversation", () => {
       runtime: "pi", model: { provider: "faux", id: "faux" }, messages: [prior], usage: totalUsage([prior]),
     } };
     const { provider, runner } = fixture(spec, { evidence: false, resume });
-    provider.setResponses([submit({ summary: "No change needed", files: [], outcome: "no-change" })]);
-    const result = await runner.act(spec, "Finish action", { mode: "dry-run", signal: AbortSignal.timeout(2000) });
-    expect(result.state).toEqual({ summary: "No change needed", files: [], outcome: "no-change" });
+    provider.setResponses([submit({ summary: "No change needed", edits: [], reviewItems: [] })]);
+    const result = await runner.act(spec, "Finish action", { signal: AbortSignal.timeout(2000) });
+    expect(result.state).toEqual({ summary: "No change needed", edits: [], reviewItems: [] });
     expect(result.messages).toContainEqual(prior);
     expect(result.executor).toEqual(resume.executor);
     expect(provider.state.callCount).toBe(1);

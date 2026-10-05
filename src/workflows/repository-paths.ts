@@ -63,3 +63,34 @@ export const resolveRepositoryReadPath = async (root: string, path: string, opti
   }
   return resolved;
 };
+
+/** Directories, relative to the app root or absolute, that workflow edits must never write. */
+export interface RepositoryWriteOptions {
+  readonly presetDirectory: string;
+  readonly runsDirectory: string;
+}
+
+/** Resolve an edit target inside the app root, rejecting escapes, protected directories, and hard links. */
+export const resolveWorkflowWritePath = async (root: string, path: string, options: RepositoryWriteOptions): Promise<string> => {
+  const projectRoot = await realpath(root);
+  const requested = resolve(projectRoot, path);
+  if (!insideRoot(projectRoot, requested)) throw new Error(`Repository path escapes project root: ${path}`);
+  const resolved = await resolveWritablePath(requested);
+  if (!insideRoot(projectRoot, resolved)) throw new Error(`Repository path escapes project root through a symlink: ${path}`);
+  if ([requested, resolved].some((target) => relative(projectRoot, target).split(sep).some((part) => part === ".git" || part === "node_modules"))) {
+    throw new Error(`Repository write targets a protected directory: ${path}`);
+  }
+  const forbidden = [resolve(projectRoot, ".git"), resolve(projectRoot, "node_modules"),
+    resolve(projectRoot, options.runsDirectory), resolve(projectRoot, options.presetDirectory)];
+  for (const directory of forbidden) {
+    const actual = await resolveWritablePath(directory);
+    if (insideRoot(directory, requested) || insideRoot(actual, resolved)) throw new Error(`Repository write targets a protected directory: ${path}`);
+  }
+  // A hard link passes the path checks but writing through it changes every linked copy, which may live outside the project.
+  const existing = await lstat(resolved).catch((error: unknown) => {
+    if (missingPath(error)) return undefined;
+    throw error;
+  });
+  if (existing !== undefined && existing.nlink > 1) throw new Error(`Repository write targets a hard-linked file: ${path}`);
+  return resolved;
+};

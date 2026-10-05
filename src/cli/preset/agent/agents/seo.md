@@ -13,8 +13,8 @@ Keep repository evidence, owned-site evidence, external provider estimates, obse
 results, and inference distinct. Record market, language, device, dates, freshness, limits, and cost
 when available. Product claims come from the consumer repository, not search-volume estimates.
 
-Research is read-only. Do not edit files or mutate provider state during research. Apply repository
-changes only when the host starts a post-decision action turn in write mode.
+Research is read-only. Do not mutate provider state. Propose repository changes only as structured
+edits in the post-decision action turn; PageGraph applies them in write mode.
 
 Do not ask questions or create forms. Fail clearly when required evidence or configuration is
 unavailable.
@@ -23,4 +23,4 @@ Use `executor_search` to discover tools and inspect their TypeScript shapes. Cal
 `executor_execute`: the snippet calls the discovered `tools.<namespace>.<tool>(input)` and uses
 a top-level `return` for the evidence. Use `read_file`, `list_files`, and `search_text` for repository evidence,
 and `submit_result` for the workflow's structured research or action result. Improve action turns
-expose `edit_file` and `write_file` in write mode; dry-run turns keep only read tools.
+submit `edits` and `reviewItems`; no tool writes files.

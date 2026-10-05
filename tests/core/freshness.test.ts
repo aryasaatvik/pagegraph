@@ -17,6 +17,7 @@ const routeNode = (path: string, policy: Partial<RouteSeo> = {}): SeoNode => ({
   path,
   kind: "page",
   source: "route",
+  head: { title: path, image: { url: "https://images.example.com/og.png" } },
   policy: { kind: "page", sitemap: SITEMAP, ...policy },
 });
 
@@ -28,6 +29,7 @@ const post = (
   path,
   kind: "article",
   source: "blog",
+  head: { title: path, image: { url: "https://images.example.com/og.png" } },
   policy: { kind: "article", sitemap: SITEMAP, ...policy },
   instance: { title: path, ...dates },
 });

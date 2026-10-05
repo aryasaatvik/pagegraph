@@ -65,7 +65,7 @@ describe("evaluateAppGraph", () => {
     const { graph, site } = await evaluateAppGraph({ root: fixture });
 
     // `define` and aliases apply: the home head reads a build constant through `@/seo`.
-    expect(graph.nodes.get("/")?.head).toEqual({ title: "Example — home", description: "The home page.", faqs: undefined });
+    expect(graph.nodes.get("/")?.head).toEqual({ title: "Example — home", description: "The home page.", faqs: undefined, image: { url: "http://localhost:5173/og/default.png", width: 1200, height: 630, alt: "Example — home" } });
     expect(graph.nodes.get("/pricing")?.head?.faqs).toEqual([{ question: "Is there a free plan?", answer: "Yes." }]);
     // Instances take their route's title template; the collection's related links become edges.
     expect(graph.nodes.get("/blog/first")?.head?.title).toBe("First post | Example Blog");

@@ -2,8 +2,8 @@
  * SEO graph — the derived model that projections (sitemap, robots), the CLI, and
  * the check engine all read from. Built from route declarations (`staticData.seo`)
  * plus consumer-supplied content collections. This module is pure: no React, no
- * env, no knowledge of where instances come from. Origins and env-derived values
- * are injected by the callers of the projections, never read here.
+ * env, no knowledge of where instances come from. The caller supplies an origin
+ * when resolving social images; projections receive their own origin.
  *
  * A node is one of:
  *  - a structural route (`source: "route"`), keyed by its normalized full path,
@@ -20,7 +20,7 @@
 
 import type { AnyRoute } from "@tanstack/react-router";
 
-import { applyTitleTemplate, type PublicPath, type RouteSeo, type SeoKind } from "./declare";
+import { applyTitleTemplate, type PublicPath, type RouteSeo, type SeoKind, type SeoImage } from "./declare";
 
 /**
  * Where a node came from: `"route"` for a structural route declaration, or the
@@ -60,8 +60,10 @@ export interface SeoNode {
  * instance without a description still carries its title.
  */
 export interface SeoNodeHead {
-  readonly title: string;
+  /** May be absent when only the image resolver supplies head data. */
+  readonly title?: string | undefined;
   readonly description?: string | undefined;
+  readonly image?: SeoImage | undefined;
   readonly faqs?: ReadonlyArray<{ readonly question: string; readonly answer: string }> | undefined;
 }
 
@@ -86,6 +88,7 @@ export interface SeoInstance {
   readonly path: string;
   readonly title: string;
   readonly description?: string | undefined;
+  readonly image?: SeoImage | undefined;
   readonly publishedAt?: string | undefined;
   readonly modifiedAt?: string | undefined;
 }
@@ -122,8 +125,33 @@ export interface SeoRouteNode {
   readonly children?: ReadonlyArray<SeoRouteNode> | undefined;
 }
 
+/** Metadata shared by graph construction and rendering, excluding build-only collection/source details. */
+export type OgImageNode = Pick<SeoNode, "path" | "kind" | "head">;
+
+/** Supplies a social image only when the page has no explicit image. Keep it deterministic for builds and rendering. */
+export type OgImageResolver = (node: OgImageNode) => SeoImage | undefined;
+
+/** Resolve the shared page/article/resolver precedence and site-relative URL semantics. */
+export function resolveOgImage(node: OgImageNode, origin?: string, resolver?: OgImageResolver): SeoImage | undefined {
+  const image = node.head?.image ?? resolver?.({
+    path: node.path,
+    kind: node.kind,
+    head: node.head === undefined ? undefined : {
+      title: node.head.title,
+      description: node.head.description,
+      faqs: node.head.faqs,
+      image: node.head.image,
+    },
+  });
+  if (image === undefined) return undefined;
+  return { ...image, url: origin === undefined ? image.url : new URL(image.url, `${origin}/`).href };
+}
+
 export interface BuildSeoGraphInput {
   readonly routeTree: AnyRoute | SeoRouteNode;
+  /** Resolve image paths against this site origin; omitted preserves the declared URL. */
+  readonly origin?: string | undefined;
+  readonly ogImage?: OgImageResolver | undefined;
   readonly collections?: ReadonlyArray<SeoCollection> | undefined;
 }
 
@@ -150,6 +178,7 @@ function declaredHead(seo: RouteSeo): SeoNodeHead | undefined {
   return {
     title: applyTitleTemplate(seo.titleTemplate, seo.head.title),
     description: seo.head.description,
+    image: seo.head.image ?? (seo.head.article?.image === undefined ? undefined : { url: seo.head.article.image }),
     faqs: seo.head.faqs?.map(({ question, answer }) => ({ question, answer })),
   };
 }
@@ -261,7 +290,7 @@ function addCollection(
       markdown: collectionNode?.markdown,
       llms: collectionNode?.llms,
       policy: { kind, sitemap },
-      head: { title: applyTitleTemplate(titleTemplate, instance.title), description: instance.description },
+      head: { title: applyTitleTemplate(titleTemplate, instance.title), description: instance.description, image: instance.image },
       instance: {
         title: instance.title,
         description: instance.description,
@@ -281,7 +310,7 @@ function addCollection(
  * Build the SEO graph from route declarations and content collections.
  *
  * Synchronous: the caller materializes its collections before calling, so there is
- * no async work here. Callers own the origin.
+ * no async work here. The optional origin resolves social-image asset paths.
  */
 export function buildSeoGraph(input: BuildSeoGraphInput): SeoGraph {
   const nodes = new Map<string, SeoNode>();
@@ -295,6 +324,10 @@ export function buildSeoGraph(input: BuildSeoGraphInput): SeoGraph {
   }
 
   for (const node of nodes.values()) {
+    const image = node.kind === "layout" || node.path.includes("$")
+      ? undefined
+      : resolveOgImage(node, input.origin, input.ogImage);
+    if (image !== undefined) node.head = { ...node.head, image };
     if (node.source !== "route") continue;
     for (const to of node.policy.related ?? []) {
       edges.push({ from: node.path, to, type: "related" });

@@ -1,3 +1,4 @@
+import type { SeoImage } from "./declare";
 import { globToRegExp } from "./checks";
 import type { SeoGraph, SeoNode } from "./graph";
 
@@ -6,6 +7,7 @@ export interface PageHead {
   readonly path: string;
   readonly title: string;
   readonly description: string;
+  readonly image?: SeoImage | undefined;
 }
 
 export interface PageHeadsOptions {
@@ -37,6 +39,6 @@ export function pageHeads(graph: SeoGraph, options: PageHeadsOptions = {}): Arra
     const description = node.head?.description;
     if (!title?.trim()) throw new Error(`Invalid page head for ${node.path}: missing title`);
     if (!description?.trim()) throw new Error(`Invalid page head for ${node.path}: missing description`);
-    return { path: node.path, title, description };
+    return { path: node.path, title, description, ...(node.head?.image === undefined ? {} : { image: node.head.image }) };
   });
 }

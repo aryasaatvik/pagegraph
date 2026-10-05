@@ -71,6 +71,7 @@ const CONFIG = (extra: string): string => `const SITEMAP = { priority: 0.5, chan
 const node = (path, policy = {}, instance) => ({
   path,
   kind: "page",
+  head: { title: path, image: { url: "https://images.example.com/og.png" } },
   source: instance ? "blog" : "route",
   policy: { kind: "page", sitemap: SITEMAP, ...policy },
   ...(instance ? { instance } : {}),

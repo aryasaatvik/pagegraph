@@ -66,7 +66,7 @@ export function llmsSection(): string {
   const pages = [...seoGraph().nodes.values()]
     .filter((node) => !node.path.includes("$") && (node.markdown === "rendered" || node.llms !== undefined))
     .map((node) => {
-      if (node.head?.description === undefined)
+      if (node.head?.title === undefined || node.head.description === undefined)
         throw new Error(`Markdown page ${node.path} must declare a graph head with title and description for llms.txt`);
       return {
         document: { path: node.path, title: node.head.title, description: node.head.description },

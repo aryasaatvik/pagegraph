@@ -30,7 +30,7 @@ export { viteGraphLoader } from "./vite-graph-loader";
 
 export { loadPageHeads } from "./page-heads";
 
-import type { CoverageRule } from "../core/checks";
+import type { CoverageRule, OgImagePolicy } from "../core/checks";
 import type { ContentPolicy } from "../core/content";
 import type { FreshnessPolicy } from "../core/freshness";
 import type { SeoGraphLoader } from "./vite-graph-loader";
@@ -63,6 +63,8 @@ export interface SeoWorkflowConfig {
 }
 
 export interface SeoCliConfig {
+  /** OG image checks: defaults to structural errors and assets in public/. */
+  readonly ogImage?: OgImagePolicy | undefined;
   /**
    * Last-mile robots.txt override, forwarded to `renderRobots` as `transform`.
    * Runs for indexable and preview hosts.

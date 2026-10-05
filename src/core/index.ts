@@ -8,11 +8,13 @@
  */
 
 export { applyTitleTemplate } from "./declare";
-export type { JsonLdDocument, PublicPath, Register, RouteSeo, SeoFaq, SeoKind, SeoPageHead, SitemapPolicy } from "./declare";
+export type { JsonLdDocument, PublicPath, Register, RouteSeo, SeoFaq, SeoKind, SeoImage, SeoPageHead, SitemapPolicy } from "./declare";
 
-export { buildSeoGraph } from "./graph";
+export { buildSeoGraph, resolveOgImage } from "./graph";
 export type {
   BuildSeoGraphInput,
+  OgImageNode,
+  OgImageResolver,
   SeoCollection,
   SeoEdge,
   SeoEdgeType,
@@ -47,7 +49,7 @@ export {
   checkRenderedCoverage,
   hasStructuralViolations,
 } from "./checks";
-export type { CheckGraphOptions, CoverageRule, Severity, Violation } from "./checks";
+export type { CheckGraphOptions, CoverageRule, OgImagePolicy, Severity, Violation } from "./checks";
 
 export {
   checkPageContent,

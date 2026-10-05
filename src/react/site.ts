@@ -7,6 +7,7 @@
  * `json-ld.ts`.
  */
 
+import type { OgImageResolver } from "../core/graph";
 import type { SeoHead } from "./create-seo";
 import type { SeoJsonLdConfig } from "./json-ld-composition";
 
@@ -59,6 +60,8 @@ export interface SeoConfig {
   organization: SeoOrganization;
   website: SeoWebsite;
   jsonLd?: SeoJsonLdConfig | undefined;
+  /** Shared with pagegraph({ ogImage }) so rendered tags and graph heads agree. */
+  ogImage?: OgImageResolver | undefined;
   /**
    * Last-mile override for every head `seoHead` renders, e.g. to append
    * site-specific meta. Runs after the canonical, title template, and JSON-LD.

@@ -12,7 +12,9 @@
 
 export { createSeo } from "./create-seo";
 export type { Seo, SeoHead, SeoHeadCtx } from "./create-seo";
-export type { JsonLdDocument, SeoFaq, SeoPageHead } from "../core/declare";
+export type { JsonLdDocument, SeoFaq, SeoImage, SeoPageHead } from "../core/declare";
+
+export type { OgImageNode, OgImageResolver } from "../core/graph";
 
 export type {
   SeoConfig,

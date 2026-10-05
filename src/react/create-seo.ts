@@ -12,9 +12,11 @@ import type { AnyRouteMatch, MetaDescriptor } from "@tanstack/react-router";
 
 import { applyTitleTemplate, type SeoPageHead } from "../core/declare";
 
+import { resolveOgImage } from "../core/graph";
+
 import { resolveCrumbTrail } from "./breadcrumbs";
 import type { JsonLdDocument, JsonLdEntry } from "./json-ld-composition";
-import { absoluteUrl, type SeoConfig } from "./site";
+import type { SeoConfig } from "./site";
 import { createJsonLd, type JsonLd } from "./json-ld";
 
 /** Structural subset of TanStack's head() ctx — the leaf match plus the full chain. */
@@ -69,6 +71,16 @@ export function createSeo(config: SeoConfig): Seo {
       instance.ogDescription ?? instance.description;
     const routeSeo = ctx.match.staticData.seo;
     const { article } = instance;
+    const image = resolveOgImage({
+      path: instance.canonicalPath ?? normalizePathname(ctx.match.pathname),
+      kind: routeSeo?.kind ?? "page",
+      head: {
+        title,
+        description: instance.description,
+        faqs: instance.faqs?.map(({ question, answer }) => ({ question, answer })),
+        image: instance.image ?? (article?.image === undefined ? undefined : { url: article.image }),
+      },
+    }, origin, config.ogImage);
     const jsonLdEntries: Array<JsonLdEntry> = [];
 
     const meta: Array<MetaDescriptor> = [
@@ -78,7 +90,7 @@ export function createSeo(config: SeoConfig): Seo {
       { property: "og:description", content: resolvedOgDescription },
       { property: "og:type", content: article ? "article" : "website" },
       { property: "og:url", content: canonical },
-      { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:card", content: image === undefined ? "summary" : "summary_large_image" },
       { name: "twitter:title", content: resolvedOgTitle },
       { name: "twitter:description", content: resolvedOgDescription },
     ];
@@ -99,13 +111,13 @@ export function createSeo(config: SeoConfig): Seo {
           content: article.modifiedAt ?? article.publishedAt,
         },
       );
-      if (article.image !== undefined) {
-        const imageUrl = absoluteUrl(origin, article.image);
-        meta.push(
-          { property: "og:image", content: imageUrl },
-          { name: "twitter:image", content: imageUrl },
-        );
-      }
+    }
+
+    if (image !== undefined) {
+      meta.push({ property: "og:image", content: image.url }, { name: "twitter:image", content: image.url });
+      if (image.width !== undefined) meta.push({ property: "og:image:width", content: String(image.width) });
+      if (image.height !== undefined) meta.push({ property: "og:image:height", content: String(image.height) });
+      if (image.alt !== undefined) meta.push({ property: "og:image:alt", content: image.alt });
     }
 
     if (article) {
@@ -115,7 +127,7 @@ export function createSeo(config: SeoConfig): Seo {
         document: jsonLd.generateArticleSchema({
           headline: resolvedOgTitle,
           description: instance.description,
-          image: article.image,
+          image: image?.url,
           datePublished: article.publishedAt,
           dateModified: article.modifiedAt ?? article.publishedAt,
           author: article.author ?? site.defaultAuthor,

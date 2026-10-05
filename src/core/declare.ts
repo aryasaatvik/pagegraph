@@ -48,6 +48,14 @@ export interface SeoFaq {
 /** A top-level JSON-LD entity or graph ready to serialize into a script element. */
 export type JsonLdDocument = WithContext<Thing> | Graph;
 
+/** A consumer-owned social image, as an absolute URL or site-relative asset path. */
+export interface SeoImage {
+  readonly url: string;
+  readonly width?: number | undefined;
+  readonly height?: number | undefined;
+  readonly alt?: string | undefined;
+}
+
 /**
  * The document head a page ships. A static route declares it once in
  * `staticData.seo.head` and renders it with `seo.head` from `pagegraph/react`;
@@ -61,6 +69,8 @@ export interface SeoPageHead {
    */
   title: string;
   description: string;
+  /** Social image override; takes precedence over article.image and the site resolver. */
+  image?: SeoImage | undefined;
   ogTitle?: string | undefined;
   ogDescription?: string | undefined;
   /** Override of the route's robots policy. */

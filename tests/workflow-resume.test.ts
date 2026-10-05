@@ -1,5 +1,5 @@
 import { execFileSync, spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -27,12 +27,12 @@ const evidence = { searches: [{ tool: "executor_search", input: { query: "SEO" }
 const messages: RunnerResult["messages"] = [{ role: "user", content: "recorded research", timestamp: 1 }];
 const decisionReport: DecisionBatchReport = { kind: "decide", schemaVersion: 1, family: "workflow-keywords", model: "jev-latest", threshold: 0.7,
   counts: { inputs: 0, resolved: 0, review: 0 }, verdicts: {}, resolved: [], review: [] };
-const fixture = (workflow: WorkflowId = "research.keywords") => {
+const fixture = (workflow: WorkflowId = "research.keywords", gitRepository = true) => {
   const root = mkdtempSync(join(tmpdir(), "pagegraph-resume-"));
   directories.push(root);
   writeFileSync(join(root, "context.md"), "Original source\n");
   const git = (...args: string[]) => execFileSync("git", args, { cwd: root, stdio: "ignore" });
-  git("init"); git("add", "context.md"); git("-c", "user.name=Test", "-c", "user.email=test@example.com", "commit", "-m", "fixture");
+  if (gitRepository) { git("init"); git("add", "context.md"); git("-c", "user.name=Test", "-c", "user.email=test@example.com", "commit", "-m", "fixture"); }
   const graph: SeoGraph = { nodes: new Map(), edges: [] };
   const site = { origin: "https://example.com", indexable: true, robots: { disallow: [] } };
   const config: SeoCliConfig = { loadGraph: async () => ({ graph, site, dispose: async () => {} }), workflows: { agent: { presetDirectory: ".pagegraph/agent", defaultModel: "test/model" }, context: { files: ["context.md"] } } };
@@ -170,6 +170,69 @@ describe("workflow resume", () => {
     writeFileSync(join(f.input.root, "context.md"), "Changed source\n");
     await expect(runWorkflow({ ...f.input, from: directory })).rejects.toThrow("repository HEAD or file contents changed");
     expect(f.acquireRunner).toHaveBeenCalledTimes(1);
+  });
+
+  it("refuses changed context in a non-Git project before another paid call", async () => {
+    const f = fixture("research.keywords", false); const directory = await failedDecision(f);
+    writeFileSync(join(f.input.root, "context.md"), "Changed untracked source\n");
+    const decide = vi.fn(async () => decisionReport);
+    await expect(runWorkflow({ ...f.input, from: directory }, { acquireRunner: f.acquireRunner, decide })).rejects.toThrow("recorded context source changed");
+    expect(f.acquireRunner).toHaveBeenCalledTimes(1); expect(decide).not.toHaveBeenCalled();
+  });
+
+  it("refuses changed ignored context even when Git reports the same clean source state", async () => {
+    const f = fixture();
+    writeFileSync(join(f.input.root, ".gitignore"), "context.md\n.pagegraph/\n");
+    const git = (...args: string[]) => execFileSync("git", args, { cwd: f.input.root, stdio: "ignore" });
+    git("rm", "--cached", "context.md"); git("add", ".gitignore");
+    git("-c", "user.name=Test", "-c", "user.email=test@example.com", "commit", "-m", "Ignore context source");
+    const directory = await failedDecision(f);
+    writeFileSync(join(f.input.root, "context.md"), "Changed ignored source\n");
+    await expect(runWorkflow({ ...f.input, from: directory })).rejects.toThrow("recorded context source changed");
+    expect(f.acquireRunner).toHaveBeenCalledTimes(1);
+  });
+
+  it("checks the recorded external repository root rather than the current context configuration", async () => {
+    const f = fixture();
+    const repositoryRoot = mkdtempSync(join(tmpdir(), "pagegraph-shared-context-")); directories.push(repositoryRoot);
+    writeFileSync(join(repositoryRoot, "shared.md"), "Shared outside-Git evidence\n");
+    f.input.config = { ...f.input.config, workflows: { ...f.input.config.workflows!, repositoryRoot, context: { files: ["shared.md"] } } };
+    const directory = await failedDecision(f);
+    f.input.config = { ...f.input.config, workflows: { ...f.input.config.workflows!, repositoryRoot: f.input.root, context: { files: ["missing-current-context.md"] } } };
+    writeFileSync(join(repositoryRoot, "shared.md"), "Changed shared evidence\n");
+    await expect(runWorkflow({ ...f.input, from: directory })).rejects.toThrow("recorded context source changed");
+    expect(f.acquireRunner).toHaveBeenCalledTimes(1);
+  });
+
+  it("restores the recorded read root after config changes when its context remains unchanged", async () => {
+    const f = fixture("research.keywords", false);
+    const directory = await failedDecision(f);
+    f.input.config = { ...f.input.config, workflows: { ...f.input.config.workflows!, repositoryRoot: "missing-read-root", context: { files: ["missing-current-context.md"] } } };
+    const result = await runWorkflow({ ...f.input, from: directory }, { decide: async () => decisionReport });
+    expect(result.run.evidence.sources).toEqual([{ path: "context.md", content: "Original source\n" }]);
+  });
+
+  it("refuses a saved context path replaced by a symlink outside its recorded read root", async () => {
+    const f = fixture("research.keywords", false); const directory = await failedDecision(f);
+    const outside = mkdtempSync(join(tmpdir(), "pagegraph-context-escape-")); directories.push(outside);
+    writeFileSync(join(outside, "context.md"), "Original source\n");
+    rmSync(join(f.input.root, "context.md")); symlinkSync(join(outside, "context.md"), join(f.input.root, "context.md"));
+    await expect(runWorkflow({ ...f.input, from: directory })).rejects.toThrow("outside its original read bounds");
+    expect(f.acquireRunner).toHaveBeenCalledTimes(1);
+  });
+
+  it("refuses ignored context drift after a completed action while allowing that action's recorded edits", async () => {
+    const f = fixture("improve.metadata", false);
+    f.act.mockImplementationOnce(async () => {
+      writeFileSync(join(f.input.root, "context.md"), "Recorded action edit\n");
+      return { ...f.researchResult, state: { summary: "Applied", outcome: "applied", files: ["context.md"] } };
+    });
+    const first = await runWorkflow(f.input, { acquireRunner: f.acquireRunner, decide: async () => decisionReport });
+    rmSync(join(first.directory, "run.json"));
+    const result = await runWorkflow({ ...f.input, from: first.directory }, { decide: async () => { throw new Error("must not decide"); } });
+    expect(result.run.result).toEqual(first.run.result); expect(f.act).toHaveBeenCalledTimes(1);
+    rmSync(join(first.directory, "run.json")); writeFileSync(join(f.input.root, "context.md"), "Changed after action completion\n");
+    await expect(runWorkflow({ ...f.input, from: first.directory })).rejects.toThrow("recorded context source changed");
   });
 
   it.each([{ actionStarted: "false" }, { research: { agent: { runtime: "other" } } }, { git: { fingerprints: {} } }])("rejects malformed nested artifacts: %j", async (patch) => {

@@ -29,7 +29,7 @@ import { decodeResearchState } from "./state";
 import type { WorkflowRunner, RunnerResult } from "./runner";
 import type { ExecutorToolset } from "./executor";
 import type { WorkflowAgentArtifact } from "./model";
-import { inspectWorkflowGit, loadWorkflowResume } from "./resume";
+import { inspectWorkflowGit, loadWorkflowResume, readRecordedWorkflowSources } from "./resume";
 import { resolveWorkflowRepositoryRoot } from "./repository-paths";
 import { TextTemplate } from "./template";
 
@@ -189,7 +189,7 @@ export const runWorkflow = async (
   const spec = getWorkflowSpec(input.workflow);
   const now = dependencies.now ?? (() => new Date());
   let runsDirectory = input.out ?? workflows.runsDirectory ?? ".pagegraph/runs";
-  const resumed = input.from === undefined ? undefined : loadWorkflowResume(input.root, runsDirectory, input.from, spec.id);
+  const resumed = input.from === undefined ? undefined : await loadWorkflowResume(input.root, runsDirectory, input.from, spec.id);
   if (resumed?.run !== undefined) return { run: resumed.run, directory: resumed.directory };
   if (resumed !== undefined) {
     runsDirectory = dirname(resumed.directory);
@@ -213,7 +213,7 @@ export const runWorkflow = async (
     });
     if (spec.mutatesFiles) mutation.assertStartAllowed();
 
-    const repositoryRoot = await resolveWorkflowRepositoryRoot(input.root, workflows.repositoryRoot);
+    const repositoryRoot = progress?.repositoryRoot ?? await resolveWorkflowRepositoryRoot(input.root, workflows.repositoryRoot);
     const evidence = progress?.evidence ?? await collectWorkflowEvidence(
       input.graph,
       input.options,
@@ -241,7 +241,7 @@ export const runWorkflow = async (
       kind: "pagegraph-workflow-progress", schemaVersion: 2, id, workflow: spec.id,
       startedAt: started.toISOString(),
       project: { root: input.root, head: gitAtStart.head, dirtyAtStart: gitAtStart.dirty, filesAtStart: gitAtStart.files },
-      options: input.options, evidence: { ...suppliedEvidence, executor: { searches: [], calls: [] } }, git: gitAtStart,
+      options: input.options, evidence: { ...suppliedEvidence, executor: { searches: [], calls: [] } }, repositoryRoot, git: gitAtStart,
     };
     const restoredAgent = progress.research?.agent ?? resumed?.failure?.agent;
     const restoredExecutor = progress.research?.evidence.executor ?? resumed?.failure?.executor;
@@ -391,7 +391,8 @@ export const runWorkflow = async (
           throw new Error(`${spec.id} changed repository files while running in read-only mode: ${files.join(", ")}`);
         }
         if (mayAct) {
-          progress = { ...progress, action: acted, actionGit: gitAfter };
+          progress = { ...progress, action: acted, actionGit: gitAfter,
+            actionSources: await readRecordedWorkflowSources(repositoryRoot, progress.evidence.sources, resolve(input.root, runsDirectory)) };
           writeWorkflowProgress(input.root, runsDirectory, progress);
         }
         const run: WorkflowRunV2 = {

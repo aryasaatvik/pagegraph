@@ -178,10 +178,14 @@ export interface WorkflowProgressV2 {
   readonly project: WorkflowResearchCheckpointV2["project"];
   readonly options: WorkflowTargetOptions;
   readonly evidence: WorkflowResearchCheckpointV2["evidence"];
+  /** Canonical read root used to collect the recorded evidence, independent of current config. */
+  readonly repositoryRoot: string;
   readonly git: GitState;
   readonly research?: WorkflowResearchCheckpointV2 | undefined;
   readonly decisions?: DecisionBatchReport | undefined;
   readonly actionStarted?: boolean | undefined;
   readonly action?: RunnerResult | undefined;
   readonly actionGit?: GitState | undefined;
+  /** Context contents after a completed action, which may legitimately update a context file. */
+  readonly actionSources?: WorkflowResearchCheckpointV2["evidence"]["sources"] | undefined;
 }

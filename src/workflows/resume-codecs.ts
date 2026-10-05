@@ -77,8 +77,9 @@ const research = Schema.Struct({ ...common, kind: Schema.Literal("pagegraph-work
   checkpointedAt: Schema.String, project, options, evidence, state: Schema.Unknown, decisionInputs: array(Schema.Unknown), agent, rejectedItems });
 const result = Schema.Struct({ state: Schema.Unknown, messages: array(message), usage, executor, rejectedItems });
 const progress: Schema.Codec<WorkflowProgressV2> = Schema.Struct({ ...common, kind: Schema.Literal("pagegraph-workflow-progress"), startedAt: Schema.String,
-  project, options, evidence, git, research: Schema.optional(research), decisions: Schema.optional(decisions), actionStarted: Schema.optional(Schema.Boolean),
-  action: Schema.optional(result), actionGit: Schema.optional(git) });
+  project, options, evidence, repositoryRoot: Schema.String, git, research: Schema.optional(research), decisions: Schema.optional(decisions), actionStarted: Schema.optional(Schema.Boolean),
+  action: Schema.optional(result), actionGit: Schema.optional(git),
+  actionSources: Schema.optional(array(Schema.Struct({ path: Schema.String, content: Schema.String }))) });
 const failure: Schema.Codec<WorkflowFailureV2> = Schema.Struct({ ...common, kind: Schema.Literal("pagegraph-workflow-failure"),
   stage: Schema.String, agent: Schema.optional(agent), executor: Schema.optional(executor), cause: Schema.Unknown });
 const run: Schema.Codec<WorkflowRunV2> = Schema.Struct({ ...common, kind: Schema.Literal("pagegraph-workflow-run"), startedAt: Schema.String, finishedAt: Schema.String,

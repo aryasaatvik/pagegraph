@@ -1,10 +1,26 @@
 import { randomUUID } from "node:crypto";
-import { mkdirSync, writeFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { mkdirSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
+import { basename, dirname, resolve } from "node:path";
 
 import type { WorkflowFailureV2, WorkflowProgressV2, WorkflowResearchCheckpointV2, WorkflowRunV2 } from "./model";
 import summaryTemplate from "./prompts/summary.md" with { type: "text" };
 import { TextTemplate } from "./template";
+
+const writeJsonArtifact = (path: string, value: unknown): void => {
+  const temporary = resolve(dirname(path), `.${basename(path)}.${randomUUID()}.tmp`);
+  try {
+    writeFileSync(temporary, `${JSON.stringify(value, null, 2)}\n`, { encoding: "utf8", flag: "wx" });
+    renameSync(temporary, path);
+  } catch (cause) {
+    try { unlinkSync(temporary); }
+    catch (cleanup) {
+      if (!(cleanup instanceof Error && "code" in cleanup && cleanup.code === "ENOENT")) {
+        throw new AggregateError([cause, cleanup], `Could not write artifact or remove its temporary file: ${path}`);
+      }
+    }
+    throw cause;
+  }
+};
 
 export const createRunId = (
   date = new Date(),
@@ -46,7 +62,7 @@ export const writeRunBundle = (
 ): string => {
   const directory = resolve(root, runsDirectory, run.id);
   mkdirSync(directory, { recursive: true });
-  writeFileSync(resolve(directory, "run.json"), `${JSON.stringify(run, null, 2)}\n`, "utf8");
+  writeJsonArtifact(resolve(directory, "run.json"), run);
   writeFileSync(resolve(directory, "summary.md"), summary(run), "utf8");
   return directory;
 };
@@ -59,7 +75,7 @@ export const writeResearchCheckpoint = (
   const directory = resolve(root, runsDirectory, checkpoint.id);
   mkdirSync(directory, { recursive: true });
   const path = resolve(directory, "research.json");
-  writeFileSync(path, `${JSON.stringify(checkpoint, null, 2)}\n`, "utf8");
+  writeJsonArtifact(path, checkpoint);
   return path;
 };
 
@@ -72,7 +88,7 @@ export const writeWorkflowFailure = (
   const directory = resolve(root, runsDirectory, id);
   mkdirSync(directory, { recursive: true });
   const path = resolve(directory, "failure.json");
-  writeFileSync(path, `${JSON.stringify(details, null, 2)}\n`, "utf8");
+  writeJsonArtifact(path, details);
   return path;
 };
 
@@ -100,6 +116,6 @@ export const writeWorkflowProgress = (
   const directory = resolve(root, runsDirectory, progress.id);
   mkdirSync(directory, { recursive: true });
   const path = resolve(directory, "progress.json");
-  writeFileSync(path, `${JSON.stringify(progress, null, 2)}\n`, "utf8");
+  writeJsonArtifact(path, progress);
   return path;
 };

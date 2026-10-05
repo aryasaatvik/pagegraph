@@ -459,6 +459,9 @@ checkpoint and skips recorded completed calls; PageGraph checks that repository 
 match that checkpoint. If an action started without recording completion, resume is refused because
 replaying it could repeat edits; inspect the run artifacts and repository before starting a new run.
 Earlier unfinished runs without `progress.json` cannot be resumed.
+Completed-run reuse does not load the current app graph. Incomplete resume also compares saved
+context contents independently of Git, including ignored files and projects outside Git. Checkpoint
+updates replace the previous JSON atomically, preserving the last usable checkpoint if a write fails.
 Executor replay matches the exact script or catalog query and reuses its most recent recorded
 completed result. A changed script or query is a new call.
 

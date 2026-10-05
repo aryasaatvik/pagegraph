@@ -1,6 +1,8 @@
+import { readFile, realpath } from "node:fs/promises";
 import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { basename, dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import type { GitState } from "./git";
+import { resolveRepositoryReadPath } from "./repository-paths";
 import { inspectGit } from "./git";
 import { decodeWorkflowFailure, decodeWorkflowProgress, decodeWorkflowRun } from "./resume-codecs";
 import type { WorkflowFailureV2, WorkflowId, WorkflowProgressV2, WorkflowRunV2 } from "./model";
@@ -49,14 +51,34 @@ export interface ResumedWorkflow {
   readonly failure?: WorkflowFailureV2 | undefined;
 }
 
-export const loadWorkflowResume = (root: string, runsDirectory: string, from: string, workflow: WorkflowId): ResumedWorkflow => {
-  const directory = isAbsolute(from) || from.includes("/") || from.includes("\\")
-    ? resolve(root, from) : resolve(root, runsDirectory, from);
+const resumeDirectory = (root: string, runsDirectory: string, from: string): string =>
+  isAbsolute(from) || from.includes("/") || from.includes("\\") ? resolve(root, from) : resolve(root, runsDirectory, from);
+
+export const loadCompletedWorkflowRun = (root: string, runsDirectory: string, from: string, workflow: WorkflowId): { readonly directory: string; readonly run: WorkflowRunV2 } | undefined => {
+  const directory = resumeDirectory(root, runsDirectory, from);
   const run = readArtifact(directory, "run.json", decodeWorkflowRun, workflow);
-  if (run !== undefined) {
-    assertProjectRoot(root, run.project.root, directory);
-    return { directory, run };
+  if (run === undefined) return undefined;
+  assertProjectRoot(root, run.project.root, directory);
+  return { directory, run };
+};
+
+export const readRecordedWorkflowSources = async (
+  repositoryRoot: string,
+  sources: WorkflowProgressV2["evidence"]["sources"],
+  runsDirectory: string,
+): Promise<WorkflowProgressV2["evidence"]["sources"]> => {
+  if (await realpath(repositoryRoot) !== repositoryRoot) {
+    throw new Error("The recorded repository read root is no longer its original canonical directory.");
   }
+  return Promise.all(sources.map(async ({ path }) => ({
+    path, content: await readFile(await resolveRepositoryReadPath(repositoryRoot, path, { runsDirectory }), "utf8"),
+  })));
+};
+
+export const loadWorkflowResume = async (root: string, runsDirectory: string, from: string, workflow: WorkflowId): Promise<ResumedWorkflow> => {
+  const completed = loadCompletedWorkflowRun(root, runsDirectory, from, workflow);
+  if (completed !== undefined) return completed;
+  const directory = resumeDirectory(root, runsDirectory, from);
   const progress = readArtifact(directory, "progress.json", decodeWorkflowProgress, workflow);
   if (progress === undefined) {
     throw new Error(`Cannot resume ${directory}: no resumable progress.json is recorded. Completed run.json artifacts can also be reused.`);
@@ -75,6 +97,16 @@ export const loadWorkflowResume = (root: string, runsDirectory: string, from: st
   if (checkpointGit.head !== currentGit.head
     || JSON.stringify(checkpointGit.fingerprints) !== JSON.stringify(currentGit.fingerprints)) {
     throw new Error(`Cannot resume ${directory}: repository HEAD or file contents changed since the recorded checkpoint. Restore the recorded source state or start a new run.`);
+  }
+  const expectedSources = progress.action === undefined ? progress.evidence.sources : progress.actionSources;
+  if (expectedSources === undefined) throw new Error(`Cannot resume ${directory}: action completion lacks its context source snapshot.`);
+  let currentSources: WorkflowProgressV2["evidence"]["sources"];
+  try { currentSources = await readRecordedWorkflowSources(progress.repositoryRoot, expectedSources, dirname(directory)); }
+  catch (cause) { throw new Error(`Cannot resume ${directory}: a recorded context source is unreadable or outside its original read bounds. ${cause instanceof Error ? cause.message : String(cause)}`, { cause }); }
+  for (const [index, source] of expectedSources.entries()) {
+    if (source.content !== currentSources[index]!.content) {
+      throw new Error(`Cannot resume ${directory}: recorded context source changed since the checkpoint: ${source.path}. Restore the recorded context or start a new run.`);
+    }
   }
   if (progress.research !== undefined) {
     assertProjectRoot(root, progress.research.project.root, directory);

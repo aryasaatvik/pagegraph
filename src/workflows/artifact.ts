@@ -6,7 +6,8 @@ import type { WorkflowFailureV2, WorkflowProgressV2, WorkflowResearchCheckpointV
 import summaryTemplate from "./prompts/summary.md" with { type: "text" };
 import { TextTemplate } from "./template";
 
-const writeJsonArtifact = (path: string, value: unknown): void => {
+/** Write JSON through a temporary file and rename, so readers never see a partial artifact. */
+export const writeJsonArtifact = (path: string, value: unknown): void => {
   const temporary = resolve(dirname(path), `.${basename(path)}.${randomUUID()}.tmp`);
   try {
     writeFileSync(temporary, `${JSON.stringify(value, null, 2)}\n`, { encoding: "utf8", flag: "wx" });

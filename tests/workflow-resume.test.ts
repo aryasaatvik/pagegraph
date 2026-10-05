@@ -226,10 +226,8 @@ describe("workflow resume", () => {
 
   it("refuses ignored context drift after a completed action while allowing that action's recorded edits", async () => {
     const f = fixture("improve.metadata", false);
-    f.act.mockImplementationOnce(async () => {
-      writeFileSync(join(f.input.root, "context.md"), "Recorded action edit\n");
-      return { ...f.researchResult, state: { summary: "Applied", outcome: "applied", files: ["context.md"] } };
-    });
+    f.act.mockImplementationOnce(async () => ({ ...f.researchResult, state: { summary: "Applied", reviewItems: [],
+      edits: [{ path: "context.md", oldText: "Original source", newText: "Recorded action edit", reason: "r", evidence: [] }] } }));
     const first = await runWorkflow(f.input, { acquireRunner: f.acquireRunner, decide: async () => decisionReport });
     rmSync(join(first.directory, "run.json"));
     const result = await runWorkflow({ ...f.input, from: first.directory }, { decide: async () => { throw new Error("must not decide"); } });

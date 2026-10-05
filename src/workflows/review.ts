@@ -6,6 +6,7 @@ import * as Schema from "effect/Schema";
 
 import type { DecisionBatchReport } from "../decide/record";
 import type { WorkflowId } from "./model";
+import { writeJsonArtifact } from "./artifact";
 import { insideRoot, resolveWorkflowWritePath, type RepositoryWriteOptions } from "./repository-paths";
 
 /**
@@ -168,7 +169,7 @@ export const renderReview = (edits: WorkflowEditsV1, runDirectory: string): stri
 export const writeWorkflowEdits = (runDirectory: string, edits: WorkflowEditsV1): string => {
   mkdirSync(runDirectory, { recursive: true });
   const path = resolve(runDirectory, "edits.json");
-  writeFileSync(path, `${JSON.stringify(edits, null, 2)}\n`, "utf8");
+  writeJsonArtifact(path, edits);
   writeFileSync(resolve(runDirectory, "review.md"), renderReview(edits, runDirectory), "utf8");
   return path;
 };

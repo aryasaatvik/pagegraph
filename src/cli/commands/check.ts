@@ -13,9 +13,10 @@ import {
 } from "../../core/content";
 import type { SeoGraph } from "../../core/graph";
 import { normalizePath } from "../../core/links";
-import { acquireLoadedGraph, loadSeoConfig } from "../load-config";
+import { acquireLoadedGraph, loadSeoProjectConfig } from "../load-config";
 import { jsonFlag, printJson, printText, SeoCliError } from "../output";
 import { replayConfiguredClaims, renderClaimsReport } from "./claims";
+import { checkLocalOgImages } from "../og-images";
 import { renderViolations } from "../render";
 
 const requireInboundFlag = Flag.String("require-inbound").pipe(
@@ -178,7 +179,8 @@ export const checkCommand = Command.make("check", {
   ]),
   Command.withHandler(
     Effect.fnUntraced(function* (flags) {
-      const config = yield* loadSeoConfig;
+      const project = yield* loadSeoProjectConfig;
+      const config = project.config;
       const flagRules = yield* Effect.forEach(flags.requireInbound, parseCoverageRule);
       // Flags are a per-invocation override, mirroring `--origin`: when any are
       // given they replace the config's durable policy rather than merging.
@@ -194,9 +196,12 @@ export const checkCommand = Command.make("check", {
       const violations = checkGraph(
         graph,
         config.freshness === undefined
-          ? { coverage }
-          : { coverage, freshness: config.freshness, now: new Date() },
+          ? { coverage, ogImage: config.ogImage }
+          : { coverage, ogImage: config.ogImage, freshness: config.freshness, now: new Date() },
       );
+      violations.push(...yield* Effect.promise(() =>
+        checkLocalOgImages(graph, loaded.site.origin, project.root, config.ogImage),
+      ));
       let rendered: { readonly site: string; readonly pages: number } | undefined;
       if (Option.isSome(flags.site)) {
         const documents = yield* renderSite(graph, flags.site.value, renderOptions);

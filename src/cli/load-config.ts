@@ -91,6 +91,14 @@ const isContentPolicy = (value: unknown): boolean =>
           isPositiveInteger(rule["minWords"]),
       )));
 
+const isOgImagePolicy = (value: unknown): boolean =>
+  Predicate.isObject(value) &&
+  Object.keys(value).every((key) => key === "severity" || key === "publicDirectory") &&
+  (value["severity"] === undefined ||
+    value["severity"] === "structural" || value["severity"] === "editorial" || value["severity"] === "off") &&
+  (value["publicDirectory"] === undefined ||
+    (Predicate.isString(value["publicDirectory"]) && value["publicDirectory"].trim().length > 0));
+
 const isFreshnessPolicy = (value: unknown): boolean =>
   Predicate.isObject(value) && isPositiveInteger(value["maxAgeDays"]);
 
@@ -128,6 +136,7 @@ const CLI_CONFIG_FIELDS = new Set([
   "loadGraph",
   "transform",
   "coverage",
+  "ogImage",
   "content",
   "freshness",
   "workflows",
@@ -144,6 +153,7 @@ const isSeoCliConfig = (value: unknown): value is SeoCliConfig =>
   (value["transform"] === undefined || Predicate.isFunction(value["transform"])) &&
   (value["coverage"] === undefined || isCoverageRules(value["coverage"])) &&
   (value["content"] === undefined || isContentPolicy(value["content"])) &&
+  (value["ogImage"] === undefined || isOgImagePolicy(value["ogImage"])) &&
   (value["freshness"] === undefined || isFreshnessPolicy(value["freshness"])) &&
   (value["workflows"] === undefined || isWorkflowConfig(value["workflows"]));
 

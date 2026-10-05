@@ -25,6 +25,14 @@ import { isSitemapEligible, parseDeclaredDate } from "./projections";
 
 export type Severity = "structural" | "editorial";
 
+/** OG image requirements use the same severity and exit contract as other checks. */
+export interface OgImagePolicy {
+  /** Defaults to structural (error); editorial warns, off disables image checks. */
+  readonly severity?: Severity | "off" | undefined;
+  /** Static asset directory, relative to the CLI config directory; defaults to public. */
+  readonly publicDirectory?: string | undefined;
+}
+
 export interface Violation {
   severity: Severity;
   rule: string;
@@ -359,6 +367,7 @@ const CHECK_RULES: ReadonlyArray<CheckRule> = [
  */
 export type CheckGraphOptions = {
   readonly coverage?: ReadonlyArray<CoverageRule> | undefined;
+  readonly ogImage?: OgImagePolicy | undefined;
 } & (
   | { readonly freshness: FreshnessPolicy; readonly now: Date }
   | { readonly freshness?: undefined; readonly now?: undefined }
@@ -379,6 +388,19 @@ export function checkGraph(graph: SeoGraph, options: CheckGraphOptions = {}): Ar
       fix: raw.fix,
     })),
   );
+  const imageSeverity = options.ogImage?.severity ?? "structural";
+  if (imageSeverity !== "off") {
+    for (const node of graph.nodes.values()) {
+      if (!isSitemapEligible(node) || node.head?.image?.url.trim()) continue;
+      violations.push({
+        rule: "missing-og-image",
+        severity: imageSeverity,
+        path: node.path,
+        message: `Sitemap page "${node.path}" has no resolved OG image.`,
+        fix: "Declare staticData.seo.head.image (or a collection image), or supply an ogImage resolver to pagegraph().",
+      });
+    }
+  }
   const coverage = options.coverage;
   if (coverage !== undefined && coverage.length > 0) {
     violations.push(...checkCoverage(graph, coverage));

@@ -2,6 +2,8 @@ import { defineConfig } from "vite";
 
 import { pagegraph } from "../../../src/tanstack-start/index";
 
+import { ogImage } from "./src/og-image";
+
 export default defineConfig(({ command }) => ({
   // A build constant the route modules read, as an app's env config would be.
   define: { "import.meta.env.VITE_BRAND": JSON.stringify("Example") },
@@ -12,6 +14,7 @@ export default defineConfig(({ command }) => ({
       origin: command === "build" ? "https://example.com" : "http://localhost:5173",
       indexable: command === "build",
       robots: { disallow: ["/app"], contentSignal: "search=yes" },
+      ogImage,
       collections: "src/collections.ts",
       exclude: ["app-only.tsx"],
     }),

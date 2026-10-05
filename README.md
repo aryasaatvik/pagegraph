@@ -352,6 +352,71 @@ route tree — in a Node environment named `pagegraph`. A route that imports a m
 only the server runtime provides (`cloudflare:workers`) fails with its file name; add an
 app-only route to `exclude` (route-file globs).
 
+### Per-page Open Graph images
+
+Declare an image alongside a static page's title and description:
+
+```ts
+head: {
+  title: "Pricing — Example",
+  description: "Simple volume pricing.",
+  image: { url: "/og/pricing.png", width: 1200, height: 630, alt: "Example pricing" },
+}
+```
+
+For collection pages, return `image` from `contentCollection`'s `entry` mapping and pass the
+same value to `seoHead(ctx, { ...head, image })` at render time. Existing `article.image` strings
+remain supported. Precedence is `head.image`, then `article.image`, then the resolver.
+
+Share a resolver between the build plugin and the render API so every graph consumer and the
+rendered head use the same image:
+
+```ts
+// src/lib/seo/og-image.ts
+import type { OgImageResolver } from "pagegraph";
+
+export const ogImage: OgImageResolver = (node) => ({
+  url: `/og/${node.kind}/${node.path === "/" ? "index" : node.path.slice(1)}.png`,
+  width: 1200,
+  height: 630,
+  alt: node.head?.title ?? node.path,
+});
+
+// vite.config.ts
+pagegraph({ origin: "https://example.com", ogImage, /* other plugin options */ });
+
+// src/lib/seo.ts
+createSeo({ origin: "https://example.com", ogImage, site, organization, website });
+```
+
+The resolver is synchronous and returns an image or `undefined`. It receives a concrete node
+with its path, kind, and head metadata (the shared `OgImageNode` shape). The resolver path
+honors `head.canonicalPath` while graph path ownership stays unchanged. Keep it
+deterministic and safe to import in the server/browser runtime. The consumer renders the PNGs
+at build time; pagegraph only resolves metadata. The graph stores the absolute URL in
+`node.head.image`, preserved by graph serialization and exposed by `pageHeads` for downstream
+head, llms, and Markdown tooling. A generic `buildSeoGraph` caller supplies `origin` and
+`ogImage` to resolve images in the same way.
+
+An image emits `og:image`, optional `og:image:width`, `og:image:height`, and `og:image:alt`, plus
+`twitter:image` and `twitter:card=summary_large_image`. Without an image, the card is `summary`.
+`site.defaultImage` remains the Article JSON-LD default; it does not satisfy social-image coverage.
+
+`pagegraph check` fails sitemap-eligible pages without a resolved image. Same-origin images
+must name files under the app's `public/` directory, including absolute URLs resolved from
+local paths; external URLs are not fetched. Generate the files before running the check.
+Configure the policy in `pagegraph.config.ts`:
+
+```ts
+export default defineSeoConfig({
+  loadGraph: tanstackStartGraph({ root: import.meta.dirname }),
+  ogImage: {
+    severity: "structural", // default: error; "editorial" warns, "off" skips both checks
+    publicDirectory: "public", // relative to the config directory; default: public
+  },
+});
+```
+
 **4. Serve robots.txt and sitemap.xml.** One line each; the output depends on the
 deployment's origin and indexability, so they stay routes.
 

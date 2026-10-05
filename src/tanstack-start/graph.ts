@@ -12,7 +12,7 @@ import type { ClaimsOptions } from "../decide/families/claims";
 import type { RouteNode } from "@tanstack/router-generator";
 
 import { globToRegExp } from "../core/checks";
-import { buildSeoGraph, type SeoCollection, type SeoGraph, type SeoRouteNode } from "../core/graph";
+import { buildSeoGraph, type OgImageResolver, type SeoCollection, type SeoGraph, type SeoRouteNode } from "../core/graph";
 import type { RobotsConfig } from "../core/projections";
 import type { SiteRuntime } from "../config/vite-graph-loader";
 import { deriveRouteConfig, resolveOptions, type SeoRouteConfigOptions } from "../vite/route-config";
@@ -35,6 +35,8 @@ export type { SiteRuntime };
 export interface PagegraphOptions {
   /** This build's canonical origin, no trailing slash, e.g. `https://example.com`. */
   readonly origin: string;
+  /** Fallback social image; use the same resolver in createSeo. */
+  readonly ogImage?: OgImageResolver | undefined;
   /**
    * Whether this build's host may be indexed. A non-indexable build serves a
    * disallow-all robots.txt with no Sitemap line. Defaults to `true`.
@@ -178,7 +180,7 @@ export async function evaluateGraph(runner: GraphModuleRunner, plan: GraphPlan):
 
   const collections =
     plan.collectionsFile === undefined ? [] : await loadCollections(runner, root, plan.collectionsFile);
-  const graph = buildSeoGraph({ routeTree, collections });
+  const graph = buildSeoGraph({ routeTree, collections, origin: options.origin, ogImage: options.ogImage });
 
   const exclusions =
     options.routeConfig === undefined

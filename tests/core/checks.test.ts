@@ -18,6 +18,7 @@ const routeNode = (path: string, policy: Partial<RouteSeo> & { kind: SeoKind }):
   path,
   kind: policy.kind,
   source: "route",
+  head: { title: path, image: { url: "https://images.example.com/og.png" } },
   policy,
 });
 
@@ -216,5 +217,30 @@ describe("checkGraph — exit classification", () => {
       [{ from: "/old", to: "/new", type: "redirect" }],
     );
     expect(hasStructuralViolations(checkGraph(graph))).toBe(true);
+  });
+});
+
+
+describe("checkGraph — OG image requirements", () => {
+  const sitemap = { priority: 0.5, changeFrequency: "monthly" } as const;
+  it("fails only sitemap-eligible pages without a resolved image", () => {
+    const eligible = routeNode("/pricing", { kind: "page", sitemap });
+    const noindex = routeNode("/private", { kind: "page", sitemap, robots: "noindex" });
+    const dynamic = routeNode("/blog/$slug", { kind: "article", sitemap });
+    for (const node of [eligible, noindex, dynamic]) delete node.head;
+    const findings = checkGraph(graphOf([eligible, noindex, dynamic])).filter((v) => v.rule === "missing-og-image");
+    expect(findings).toHaveLength(1);
+    expect(findings[0]).toMatchObject({ path: "/pricing", severity: "structural" });
+    expect(findings[0]?.fix).toContain("ogImage resolver");
+  });
+  it("allows warning and off policies, and accepts a resolved image", () => {
+    const node = routeNode("/pricing", { kind: "page", sitemap });
+    expect(checkGraph(graphOf([node]))).toEqual([]);
+    delete node.head;
+    const graph = graphOf([node]);
+    expect(checkGraph(graph, { ogImage: { severity: "editorial" } })).toEqual([
+      expect.objectContaining({ rule: "missing-og-image", severity: "editorial" }),
+    ]);
+    expect(checkGraph(graph, { ogImage: { severity: "off" } })).toEqual([]);
   });
 });

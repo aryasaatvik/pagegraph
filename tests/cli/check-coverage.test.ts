@@ -13,6 +13,7 @@ const SITEMAP = `{ priority: 0.5, changeFrequency: "monthly" }`;
 const config = (edges: string, coverage: string): string => `const node = (path) => ({
   path,
   kind: "page",
+  head: { title: path, image: { url: "https://images.example.com/og.png" } },
   source: "route",
   policy: {
     kind: "page",

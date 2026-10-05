@@ -1,7 +1,7 @@
 import type { AnyRouteMatch } from "@tanstack/react-router";
 import { describe, expect, it } from "vitest";
 
-import type { RouteSeo } from "../../src/core";
+import { buildSeoGraph, type OgImageNode, type RouteSeo } from "../../src/core";
 import { createSeo, defineJsonLd } from "../../src/react";
 
 const routeMatch = (pathname: string): AnyRouteMatch =>
@@ -182,5 +182,69 @@ describe("declared heads", () => {
     const match = matchWith("/page", { kind: "page" });
     const head = seo.seoHead({ match, matches: [match] }, { title: "Page", description: "A page." });
     expect(head.meta.at(-1)).toEqual({ name: "x-test", content: "1" });
+  });
+});
+
+describe("social images", () => {
+  const config = {
+    origin: "https://example.com",
+    site: { name: "Example", logo: "/logo.png", publisherLogo: "/logo.png", defaultImage: "/schema-only.png", defaultAuthor: { name: "Team" } },
+    organization: { description: "Example", sameAs: [], contactPoint: { contactType: "Support", email: "hi@example.com" } },
+    website: { searchPath: "/search?q={search_term_string}" },
+  };
+  const match = routeMatch("/post/");
+  const context = { match, matches: [match] };
+
+  it("emits resolver image details using the canonical node and site origin", () => {
+    const seo = createSeo({ ...config, ogImage: (node) => {
+      expect(node.path).toBe("/canonical");
+      expect(node.head?.title).toBe("Post");
+      return { url: "cards/post.png", width: 1200, height: 630, alt: "A post" };
+    } });
+    const head = seo.seoHead(context, { title: "Post", description: "About it", canonicalPath: "/canonical" });
+    expect(head.meta).toEqual(expect.arrayContaining([
+      { property: "og:image", content: "https://example.com/cards/post.png" },
+      { property: "og:image:width", content: "1200" },
+      { property: "og:image:height", content: "630" },
+      { property: "og:image:alt", content: "A post" },
+      { name: "twitter:image", content: "https://example.com/cards/post.png" },
+      { name: "twitter:card", content: "summary_large_image" },
+    ]));
+  });
+
+  it("passes the same declared metadata to the graph and render resolver", () => {
+    const seen: Array<OgImageNode> = [];
+    const resolver = (node: OgImageNode) => {
+      seen.push(node);
+      return { url: "/default.png" };
+    };
+    const declaration: RouteSeo = {
+      kind: "page", titleTemplate: "%s | Example",
+      head: { title: "Post", description: "About it", canonicalPath: "/canonical", faqs: [{ question: "Why?", answer: "Because.", category: "extra", isHighlighted: true }] },
+    };
+    buildSeoGraph({ origin: config.origin, ogImage: resolver, routeTree: {
+      options: {}, children: [{ options: { path: "post", staticData: { seo: declaration } } }],
+    } });
+    const declaredMatch = { ...match, staticData: { seo: declaration } };
+    createSeo({ ...config, ogImage: resolver }).head({ match: declaredMatch, matches: [declaredMatch] });
+    expect(seen).toHaveLength(2);
+    expect(seen[0]).toEqual(seen[1]);
+    expect(seen[0]?.path).toBe("/canonical");
+    expect(seen[1]?.head?.faqs).toEqual([{ question: "Why?", answer: "Because." }]);
+    expect(Object.keys(seen[1]!)).toEqual(["path", "kind", "head"]);
+  });
+
+  it("prefers the page image, then the article image, and never calls the fallback for either", () => {
+    const seo = createSeo({ ...config, ogImage: () => { throw new Error("Fallback must not run"); } });
+    const article = { publishedAt: "2026-10-05", image: "/article.png" };
+    const page = { title: "Post", description: "About it", article, image: { url: "https://cdn.example.com/page.png" } };
+    expect(seo.seoHead(context, page).meta).toContainEqual({ property: "og:image", content: "https://cdn.example.com/page.png" });
+    expect(seo.seoHead(context, { ...page, image: undefined }).meta).toContainEqual({ property: "og:image", content: "https://example.com/article.png" });
+  });
+
+  it("uses a summary card without inventing an image from the JSON-LD default", () => {
+    const head = createSeo({ ...config, ogImage: () => undefined }).seoHead(context, { title: "Post", description: "About it" });
+    expect(head.meta).toContainEqual({ name: "twitter:card", content: "summary" });
+    expect(head.meta).not.toEqual(expect.arrayContaining([expect.objectContaining({ property: "og:image" })]));
   });
 });

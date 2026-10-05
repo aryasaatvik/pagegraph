@@ -56,6 +56,8 @@ export interface SeoWorkflowContextConfig {
 export interface SeoWorkflowConfig {
   readonly agent: SeoWorkflowAgentConfig;
   readonly context?: SeoWorkflowContextConfig | undefined;
+  /** Read root, relative to the config directory; defaults to its Git top level, or the config directory outside Git. Writes remain within the config directory. */
+  readonly repositoryRoot?: string | undefined;
   /** Ignored run-artifact directory, relative to the project root. */
   readonly runsDirectory?: string | undefined;
 }

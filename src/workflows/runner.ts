@@ -15,4 +15,5 @@ export interface RunnerResult {
   readonly messages: ReadonlyArray<AgentMessage>;
   readonly usage: Usage;
   readonly executor: ExecutorEvidence;
+  readonly rejectedItems?: ReadonlyArray<{ readonly index: number; readonly reason: string }>;
 }

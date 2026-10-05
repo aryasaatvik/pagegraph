@@ -5,11 +5,12 @@ import { builtinModels } from "@earendil-works/pi-ai/providers/all";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import type { SeoWorkflowAgentConfig } from "../config";
-import { createExecutorToolset, executorEvidence, type ExecutorToolset } from "./executor";
+import { createExecutorToolset, executorEvidence, persistExecutorToolResults, type ExecutorToolset } from "./executor";
+import type { ExecutorEvidence, WorkflowAgentArtifact } from "./model";
 import { createRepositoryTools, createRepositoryWriteTools, guardRepositoryToolCall } from "./repository-tools";
 import type { RunnerResult, WorkflowRunner } from "./runner";
 import type { AnyWorkflowSpec } from "./specs/types";
-import { actionStateJsonSchema, decodeActionState, decodeResearchState, normalizeResearchState } from "./state";
+import { actionStateJsonSchema, decodeActionState, decodeResearchState, normalizeResearchState, salvageResearchState } from "./state";
 
 const MAX_REJECTED_SUBMISSIONS = 3;
 
@@ -43,45 +44,91 @@ export class WorkflowRunnerError extends Error {
 
 export interface PiRunnerOptions {
   readonly root: string;
+  readonly repositoryRoot?: string;
   readonly presetDirectory: string;
   readonly model: Model<string>;
   readonly limit: number;
   readonly executor: ExecutorToolset;
   readonly streamFn?: AgentOptions["streamFn"];
   readonly runsDirectory?: string;
+  readonly runDirectory?: string;
   readonly additionalTools?: ReadonlyArray<AgentTool>;
+  readonly resume?: WorkflowRunnerResume;
+}
+
+export interface WorkflowRunnerResume {
+  readonly agent: WorkflowAgentArtifact;
+  readonly executor: ExecutorEvidence;
+  readonly phase: "research" | "action";
 }
 
 export const createPiRunner = (options: PiRunnerOptions): WorkflowRunner => {
   let agent: Agent | undefined;
-  let researched = false;
+  let researched = options.resume?.phase === "action";
+  let resume = options.resume;
+  const priorEvidence = options.resume?.executor;
+  const evidence = (): ExecutorEvidence => {
+    const current = executorEvidence(options.executor.trace);
+    return priorEvidence === undefined ? current : {
+      searches: [...priorEvidence.searches, ...current.searches], calls: [...priorEvidence.calls, ...current.calls],
+    };
+  };
+  const replayTools = options.executor.tools.map((tool): AgentTool => ({
+    ...tool,
+    execute: async (id, params, signal, onUpdate) => {
+      if (priorEvidence !== undefined && typeof params === "object" && params !== null) {
+        // Exact code/query signatures reuse the latest recorded snapshot; changed inputs are new calls.
+        const recorded = tool.name === "executor_execute" && "code" in params
+          ? priorEvidence.calls.findLast((call) => typeof call.input === "object" && call.input !== null && "code" in call.input && call.input.code === params.code)
+          : tool.name === "executor_search" && "query" in params
+            ? priorEvidence.searches.findLast((call) => typeof call.input === "object" && call.input !== null && "query" in call.input && call.input.query === params.query)
+            : undefined;
+        if (recorded !== undefined) {
+          const text = JSON.stringify(recorded.output) ?? "null";
+          return {
+            content: [{ type: "text", text: `Recorded completed Executor result (reused without a provider call):\n${text.length > 30_000 ? `${text.slice(0, 30_000)}... [truncated ${text.length - 30_000} chars]` : text}` }],
+            details: recorded.output,
+          };
+        }
+      }
+      return tool.execute(id, params, signal, onUpdate);
+    },
+  }));
+  const executor = options.runDirectory === undefined ? { ...options.executor, tools: replayTools }
+    : persistExecutorToolResults({ ...options.executor, tools: replayTools }, options.runDirectory);
   const phase = async (spec: AnyWorkflowSpec, prompt: string, signal: AbortSignal, mode?: "write" | "dry-run"): Promise<RunnerResult> => {
     const assertDeadline = (messages: ReadonlyArray<AgentMessage> = []): void => {
       if (signal.aborted) throw new WorkflowRunnerError(`Workflow deadline exceeded or run aborted: ${String(signal.reason)}`, {
-        messages, usage: totalUsage(messages), executor: executorEvidence(options.executor.trace),
+        messages, usage: totalUsage(messages), executor: evidence(),
       }, { cause: signal.reason });
     };
     assertDeadline(agent?.state.messages);
     if (mode !== undefined && !researched) throw new Error("Workflow action requires a completed research conversation");
-    const systemPrompt = mode === undefined ? await composeSystemPrompt(options.presetDirectory, spec) : undefined;
+    const systemPrompt = mode === undefined || agent === undefined ? await composeSystemPrompt(options.presetDirectory, spec) : undefined;
     assertDeadline();
     let state: unknown;
     let submitted = false;
     let rejected = 0;
     let lastIssues = "No structured result was submitted.";
+    let lastSubmission: unknown;
+    let rejectedItems: RunnerResult["rejectedItems"];
     const rawSubmissions = new Map<string, unknown>();
     const submit: AgentTool = {
       name: "submit_result", label: "Submit workflow result", description: "Validate and submit the final workflow state after collecting Executor evidence.",
       parameters: Type.Unsafe(mode === undefined ? spec.stateJsonSchema : actionStateJsonSchema),
-      prepareArguments: (args) => mode === undefined ? normalizeResearchState(args, options.limit) : args,
+      prepareArguments: (args) => {
+        // Pi validates parameters before beforeToolCall, so retain raw values at this boundary.
+        lastSubmission = args;
+        return mode === undefined ? normalizeResearchState(args, options.limit) : args;
+      },
       execute: async (_id, params) => {
         try {
-          const decoded = mode === undefined ? decodeResearchState(spec, rawSubmissions.get(_id) ?? params, options.limit)
-            : decodeActionState(rawSubmissions.get(_id) ?? params);
-          const evidence = executorEvidence(options.executor.trace);
-          if (mode === undefined && (evidence.searches.length === 0 || evidence.calls.length === 0)) {
+          const decoded = mode === undefined ? decodeResearchState(spec, rawSubmissions.get(_id) ?? lastSubmission ?? params, options.limit)
+            : decodeActionState(rawSubmissions.get(_id) ?? lastSubmission ?? params);
+          const collected = evidence();
+          if (mode === undefined && (collected.searches.length === 0 || collected.calls.length === 0)) {
             throw new Error([
-              `Your research returned without completed Executor provider evidence (searches: ${evidence.searches.length}, calls: ${evidence.calls.length}).`,
+              `Your research returned without completed Executor provider evidence (searches: ${collected.searches.length}, calls: ${collected.calls.length}).`,
               "Catalog searches and schema discovery alone do not satisfy this workflow.",
               "Use the catalog results already collected, inspect the exact discovered tool schema, and complete at least one relevant read-only provider call before submitting the original workflow state.",
               "Preserve provider errors and empty datasets honestly; do not invent evidence or mutate provider state.",
@@ -98,23 +145,25 @@ export const createPiRunner = (options: PiRunnerOptions): WorkflowRunner => {
       },
     };
     const writeOptions = { presetDirectory: options.presetDirectory, runsDirectory: options.runsDirectory ?? resolve(options.root, ".pagegraph/runs") };
-    const tools = [...options.executor.tools, ...createRepositoryTools(options.root), ...(options.additionalTools ?? []),
+    const readOptions = { repositoryRoot: options.repositoryRoot ?? options.root, runsDirectory: options.runsDirectory ?? resolve(options.root, ".pagegraph/runs") };
+    const tools = [...executor.tools, ...createRepositoryTools(readOptions.repositoryRoot, readOptions), ...(options.additionalTools ?? []),
       ...(mode === "write" ? createRepositoryWriteTools(options.root, writeOptions) : []), submit];
     if (systemPrompt !== undefined) {
-      researched = false;
+      if (mode === undefined) researched = false;
       agent = new Agent({
-        initialState: { systemPrompt, model: options.model, tools },
+        initialState: { systemPrompt, model: options.model, tools, ...(resume === undefined ? {} : { messages: [...resume.agent.messages] }) },
         streamFn: options.streamFn ?? streamSimple,
         getApiKey: getEnvApiKey,
         toolExecution: "sequential",
       });
+      resume = undefined;
     }
     if (!agent) throw new Error("Workflow action requires a research conversation");
     agent.state.tools = tools;
     agent.beforeToolCall = async (context, signal) => {
       if (submitted || rejected >= MAX_REJECTED_SUBMISSIONS) return { block: true, reason: "Workflow submission is closed.", terminate: true };
       if (context.toolCall.name === "submit_result") rawSubmissions.set(context.toolCall.id, context.toolCall.arguments);
-      return guardRepositoryToolCall(options.root, mode === "write" ? writeOptions : undefined)?.(context, signal);
+      return guardRepositoryToolCall(options.root, mode === "write" ? writeOptions : undefined, readOptions)?.(context, signal);
     };
     agent.finishTurn = () => submitted || rejected >= MAX_REJECTED_SUBMISSIONS ? { action: "end" } : undefined;
     const current = agent;
@@ -130,11 +179,25 @@ export const createPiRunner = (options: PiRunnerOptions): WorkflowRunner => {
     try {
       assertDeadline(current.state.messages);
       await current.prompt(prompt);
-      const result = { messages: current.state.messages, usage: totalUsage(current.state.messages), executor: executorEvidence(options.executor.trace) };
+      const result = { messages: current.state.messages, usage: totalUsage(current.state.messages), executor: evidence() };
       if (signal.aborted) throw new WorkflowRunnerError(`Workflow deadline exceeded or run aborted: ${String(signal.reason)}`, result, { cause: signal.reason });
+      if (!submitted && mode === undefined && rejected >= MAX_REJECTED_SUBMISSIONS && result.executor.searches.length > 0 && result.executor.calls.length > 0) {
+        try {
+          const salvaged = salvageResearchState(spec, lastSubmission, options.limit);
+          state = salvaged.state;
+          rejectedItems = salvaged.rejectedItems;
+          submitted = true;
+        } catch { /* Keep the original submission diagnostics when no recommendations survive. */ }
+      }
       if (!submitted) throw new WorkflowRunnerError(`Workflow result rejected: ${lastIssues}${current.state.errorMessage ? `\n${current.state.errorMessage}` : ""}`, result);
       if (mode === undefined) researched = true;
-      return { ...result, state };
+      return { ...result, state, ...(rejectedItems === undefined ? {} : { rejectedItems }) };
+    } catch (cause) {
+      if (cause instanceof WorkflowRunnerError) throw cause;
+      const messages = current.state.messages;
+      throw new WorkflowRunnerError(`Workflow agent turn failed: ${cause instanceof Error ? cause.message : String(cause)}`, {
+        messages, usage: totalUsage(messages), executor: evidence(),
+      }, { cause });
     } finally { signal.removeEventListener("abort", abort); unsubscribe(); }
   };
   return {
@@ -147,12 +210,15 @@ export const createPiRunner = (options: PiRunnerOptions): WorkflowRunner => {
 
 export const acquireWorkflowRunner = async (options: {
   readonly root: string;
+  readonly repositoryRoot?: string;
   readonly config: SeoWorkflowAgentConfig;
   readonly model?: string | undefined;
   readonly limit: number;
   readonly executor?: ExecutorToolset;
   readonly runsDirectory?: string;
+  readonly runDirectory?: string;
   readonly additionalTools?: ReadonlyArray<AgentTool>;
+  readonly resume?: WorkflowRunnerResume;
 }): Promise<WorkflowRunner> => {
   const id = options.model ?? options.config.defaultModel;
   const slash = id.indexOf("/");
@@ -160,11 +226,26 @@ export const acquireWorkflowRunner = async (options: {
   const provider = id.slice(0, slash);
   const model = builtinModels().getModel(provider, id.slice(slash + 1));
   if (!model) throw new Error(`Unknown Pi model: ${id}`);
-  if (!getEnvApiKey(provider)) {
+  if (!getEnvApiKey(provider)?.trim()) {
     const names = findEnvKeys(provider, new Proxy<Record<string, string>>({}, { get: (_target, key) => typeof key === "string" ? "configured" : undefined }));
     throw new Error(`Missing Pi credentials for ${provider}; set ${names?.join(" or ") ?? `${provider} provider credentials`}.`);
   }
+  let executor = options.executor;
+  if (executor === undefined) {
+    const baseUrl = process.env["EXECUTOR_BASE_URL"]?.trim();
+    if (!baseUrl) throw new Error("Missing Executor configuration; set EXECUTOR_BASE_URL before starting a workflow.");
+    try {
+      const url = new URL(baseUrl);
+      if (url.protocol !== "http:" && url.protocol !== "https:") throw new Error("expected http: or https:");
+      executor = await createExecutorToolset({ policy: "decline" });
+    } catch (cause) {
+      throw new Error(`Invalid workflow Executor configuration: ${cause instanceof Error ? cause.message : String(cause)}`, { cause });
+    }
+  }
   return createPiRunner({ root: options.root, presetDirectory: resolve(options.root, options.config.presetDirectory),
     model, limit: options.limit, ...(options.runsDirectory === undefined ? {} : { runsDirectory: options.runsDirectory }),
-    ...(options.additionalTools === undefined ? {} : { additionalTools: options.additionalTools }), executor: options.executor ?? await createExecutorToolset({ policy: "decline" }) });
+    ...(options.repositoryRoot === undefined ? {} : { repositoryRoot: options.repositoryRoot }),
+    ...(options.runDirectory === undefined ? {} : { runDirectory: options.runDirectory }),
+    ...(options.resume === undefined ? {} : { resume: options.resume }),
+    ...(options.additionalTools === undefined ? {} : { additionalTools: options.additionalTools }), executor });
 };

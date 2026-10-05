@@ -435,6 +435,9 @@ export default defineSeoConfig({
         "research.keywords": ["docs/seo/measurement.md"],
       },
     },
+    // Optional read root for repository tools and context.files, relative to this config file.
+    // Defaults to the config directory's Git top level, or the config directory outside Git.
+    repositoryRoot: ".",
     runsDirectory: ".pagegraph/runs",
   },
 });
@@ -449,10 +452,55 @@ pagegraph research keywords \
   --language en
 ```
 
+Pass `--from <run-dir|run-id>` to a workflow command to resume a prior run. Resume restores its
+recorded targets and completed stages, along with the agent session and Executor evidence. Completed
+runs return their recorded output without provider calls. An incomplete run resumes from its recorded
+checkpoint and skips recorded completed calls; PageGraph checks that repository HEAD and files still
+match that checkpoint. If an action started without recording completion, resume is refused because
+replaying it could repeat edits; inspect the run artifacts and repository before starting a new run.
+Earlier unfinished runs without `progress.json` cannot be resumed.
+Completed-run reuse does not load the current app graph. Incomplete resume also compares saved
+context contents independently of Git, including ignored files and projects outside Git. Checkpoint
+updates replace the previous JSON atomically, preserving the last usable checkpoint if a write fails.
+Executor replay matches the exact script or catalog query and reuses its most recent recorded
+completed result. A changed script or query is a new call.
+
+```bash
+pagegraph research keywords --from .pagegraph/runs/2026-10-05T04-52-23-891Z-research-keywords
+```
+
 Every workflow starts from the selected graph and context files, asks the SEO agent to search
 Executor's live catalog and inspect the discovered tools' argument schemas, then evaluates its
 structured observations with Jev. Tool paths are discovered at runtime; the generated skills contain
 editable starter recipes, not a fixed integration list.
+
+`workflows.repositoryRoot` sets the read boundary for `read_file`, `list_files`, `search_text`, and
+`context.files`. Its optional path is relative to `pagegraph.config.ts`; by default PageGraph uses
+the config directory's Git top level, falling back to the config directory when it is outside Git.
+Context file paths are now relative to this read root, so adjust existing app-relative paths when the
+default Git root is above the app (for example, `apps/web/AGENTS.md`). Run artifacts under
+`runsDirectory` are readable. `edit_file` and `write_file` remain bounded to
+the app root containing `pagegraph.config.ts`.
+
+Before Pi makes a paid model request, PageGraph checks that the selected model's provider key,
+`TYPESAFE_API_KEY`, and required Executor configuration are present. Missing configuration fails
+before a model turn begins.
+
+Executor limits preview text for large tool results. In `executor_execute` code, return only the
+fields and rows the workflow needs, for example:
+
+```ts
+return rows.slice(0, 50).map(({ keyword, searchVolume, keywordDifficulty }) => ({
+  keyword, searchVolume, keywordDifficulty,
+}));
+```
+
+When PageGraph says a result was truncated, read the named JSON file under
+`<run>/tool-results/` with `read_file`. Use its `offset` and `maxBytes` options to read large files
+in chunks.
+
+After the submission retry budget is exhausted, PageGraph retains valid items and records rejected
+items with their indices and validation reasons in `research.json` and `run.json`.
 
 `workflows.agent.timeoutMs` sets the positive integer deadline in milliseconds for each Pi research or action turn
 (maximum `2147483647`, default `180000`). Research and action share the same agent conversation,

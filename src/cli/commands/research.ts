@@ -8,6 +8,7 @@ import type { SiteRuntime } from "../../config";
 import type { SeoGraph } from "../../core/graph";
 import type { WorkflowId, WorkflowRunV2, WorkflowTargetOptions } from "../../workflows/model";
 import { runWorkflow } from "../../workflows/run";
+import { loadCompletedWorkflowRun } from "../../workflows/resume";
 import { acquireLoadedGraph, loadSeoProjectConfig } from "../load-config";
 import { jsonFlag, printJson, printText, SeoCliError } from "../output";
 
@@ -20,6 +21,7 @@ export interface WorkflowCommandInput {
   readonly options: WorkflowTargetOptions;
   readonly model?: string | undefined;
   readonly out?: string | undefined;
+  readonly from?: string | undefined;
 }
 
 export interface WorkflowCommandResult {
@@ -77,6 +79,10 @@ const presetDirectoryFlag = Flag.String("preset-directory").pipe(
   Flag.withDescription("Agent preset-directory override"),
   Flag.optional,
 );
+const fromFlag = Flag.String("from").pipe(
+  Flag.withDescription("Resume a recorded run directory or run ID, retaining its targets and completed stages"),
+  Flag.optional,
+);
 const outFlag = Flag.String("out").pipe(
   Flag.withDescription("Run-artifact directory override"),
   Flag.optional,
@@ -104,6 +110,7 @@ const baseFlags = {
   model: modelFlag,
   presetDirectory: presetDirectoryFlag,
   out: outFlag,
+  from: fromFlag,
   json: jsonFlag,
 } as const;
 
@@ -165,7 +172,7 @@ const resultSummary = (result: WorkflowCommandResult): string => {
   return `${result.run.workflow} completed.`;
 };
 
-/** Run one workflow command after loading the consumer's graph and config. */
+/** Reuse a completed run, or load the consumer's graph for remaining workflow stages. */
 export const runWorkflowCommand = async (
   workflow: WorkflowCommandId,
   flags: Record<string, unknown>,
@@ -174,6 +181,15 @@ export const runWorkflowCommand = async (
   const project = await Effect.runPromise(loadSeoProjectConfig);
   if (project.config.workflows === undefined) {
     throw new Error("pagegraph.config.ts has no workflows configuration; run `pagegraph init` and add it.");
+  }
+
+  const from = optionalString(flags.from);
+  const out = optionalString(flags.out);
+  if (from !== undefined) {
+    const completed = loadCompletedWorkflowRun(
+      project.root, out ?? project.config.workflows.runsDirectory ?? ".pagegraph/runs", from, workflow,
+    );
+    if (completed !== undefined) return completed;
   }
 
   const configured = optionalString(flags.presetDirectory);
@@ -202,7 +218,8 @@ export const runWorkflowCommand = async (
           workflow,
           options: optionsFrom(flags, extra),
           model: optionalString(flags.model),
-          out: optionalString(flags.out),
+          out,
+          from,
         };
         return yield* Effect.promise(() => runWorkflow(input));
       }),

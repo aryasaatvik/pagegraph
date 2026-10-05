@@ -21,7 +21,7 @@ const node = (path: string, kind: "page" | "article") => ({
 });
 
 describe("workflow evidence", () => {
-  it("keeps bounded targets while preserving direct inbound and outbound neighbor evidence", () => {
+  it("keeps bounded targets while preserving direct inbound and outbound neighbor evidence", async () => {
     const root = mkdtempSync(join(tmpdir(), "pagegraph-evidence-"));
     directories.push(root);
     mkdirSync(join(root, "docs"));
@@ -40,7 +40,7 @@ describe("workflow evidence", () => {
       ],
     };
 
-    const evidence = collectWorkflowEvidence(
+    const evidence = await collectWorkflowEvidence(
       graph,
       {
         pages: ["/blog/one"],

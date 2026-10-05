@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, 
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { SeoCliConfig } from "../../src/config";
 import type { SeoGraph } from "../../src/core/graph";
@@ -192,6 +192,8 @@ const mutationCases: ReadonlyArray<{
     },
   },
 ];
+
+beforeEach(() => { vi.stubEnv("TYPESAFE_API_KEY", "offline-test-key"); });
 
 afterEach(() => {
   vi.unstubAllGlobals();

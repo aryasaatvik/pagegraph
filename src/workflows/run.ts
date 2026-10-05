@@ -6,7 +6,7 @@ import * as Config from "effect/Config";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 import * as FetchHttpClient from "effect/http/FetchHttpClient";
 
 import type { SeoCliConfig, SiteRuntime } from "../config";
@@ -15,10 +15,10 @@ import { probeHttp } from "../audit/scanners/http";
 import type { SeoGraph } from "../core/graph";
 import { decodeLinksSuggestionReport, extractPageSentences } from "../core/link-suggestions";
 import type { DecisionBatchReport } from "../decide/record";
-import { serializeCause, createRunId, writeResearchCheckpoint, writeWorkflowFailure, writeRunBundle } from "./artifact";
+import { serializeCause, createRunId, writeResearchCheckpoint, writeWorkflowFailure, writeRunBundle, writeWorkflowProgress } from "./artifact";
 import { getWorkflowSpec } from "./catalog";
 import { collectWorkflowEvidence, selectGraph } from "./evidence";
-import { changedFiles, inspectGit } from "./git";
+import { changedFiles } from "./git";
 import type { WorkflowMutationPolicy } from "./mutation";
 import { createWorkflowMutationPolicy } from "./mutation";
 import type { WorkflowId, WorkflowResearchCheckpointV2, WorkflowRunV2, WorkflowTargetOptions } from "./model";
@@ -29,6 +29,8 @@ import { decodeResearchState } from "./state";
 import type { WorkflowRunner, RunnerResult } from "./runner";
 import type { ExecutorToolset } from "./executor";
 import type { WorkflowAgentArtifact } from "./model";
+import { inspectWorkflowGit, loadWorkflowResume, readRecordedWorkflowSources } from "./resume";
+import { resolveWorkflowRepositoryRoot } from "./repository-paths";
 import { TextTemplate } from "./template";
 
 export { dropNulls } from "./state";
@@ -42,6 +44,7 @@ export interface WorkflowInput {
   readonly options: WorkflowTargetOptions;
   readonly model?: string | undefined;
   readonly out?: string | undefined;
+  readonly from?: string | undefined;
 }
 
 export interface WorkflowDependencies {
@@ -120,7 +123,7 @@ const defaultDecide = async (
 
 const researchPrompt = (
   spec: AnyWorkflowSpec,
-  evidence: ReturnType<typeof collectWorkflowEvidence>,
+  evidence: Awaited<ReturnType<typeof collectWorkflowEvidence>>,
   options: WorkflowTargetOptions,
 ): string =>
   TextTemplate.from(researchPromptSource)
@@ -168,6 +171,13 @@ const decisionArtifact = (
   report: DecisionBatchReport,
 ) => ({ family: spec.familyName, questions: spec.decisionQuestions(inputs), report });
 
+const failureRecovery = (stage: string, runDirectory: string): string => {
+  if (stage === "acquire") return "inspect that file; check the agent preset and Executor tools configuration";
+  if (stage === "decide") return `inspect that file and research.json; check the decision provider configuration and resume with --from ${runDirectory}`;
+  if (stage === "action") return "inspect the agent messages and repository edits; interrupted actions cannot be resumed safely";
+  return `inspect the agent messages in that file; resume with --from ${runDirectory}, optionally --model <id>, or raise workflows.agent.timeoutMs`;
+};
+
 export const runWorkflow = async (
   input: WorkflowInput,
   dependencies: WorkflowDependencies = {},
@@ -178,15 +188,24 @@ export const runWorkflow = async (
   }
   const spec = getWorkflowSpec(input.workflow);
   const now = dependencies.now ?? (() => new Date());
-  const started = now();
-  const id = createRunId(started, spec.id);
-  const runsDirectory = input.out ?? workflows.runsDirectory ?? ".pagegraph/runs";
+  let runsDirectory = input.out ?? workflows.runsDirectory ?? ".pagegraph/runs";
+  const resumed = input.from === undefined ? undefined : await loadWorkflowResume(input.root, runsDirectory, input.from, spec.id);
+  if (resumed?.run !== undefined) return { run: resumed.run, directory: resumed.directory };
+  if (resumed !== undefined) {
+    runsDirectory = dirname(resumed.directory);
+    input = { ...input, options: { ...resumed.progress!.options, dryRun: resumed.progress!.options.dryRun || (resumed.progress!.action === undefined && input.options.dryRun) } };
+  }
+  const started = resumed?.progress === undefined ? now() : new Date(resumed.progress.startedAt);
+  const id = resumed?.progress?.id ?? createRunId(started, spec.id);
+  const runDirectory = resolve(input.root, runsDirectory, id);
+  let progress = resumed?.progress;
+  let executorEvidence: RunnerResult["executor"] | undefined;
   let stage: "acquire" | "research" | "decide" | "action" = "acquire";
   let agentArtifact: WorkflowAgentArtifact | undefined;
   let pi: typeof import("./pi") | undefined;
   let selectedModel: WorkflowRunner["model"] | undefined;
   try {
-    const gitAtStart = inspectGit(input.root);
+    const gitAtStart = progress?.git ?? inspectWorkflowGit(input.root, runDirectory);
     const mutation = createWorkflowMutationPolicy({
       dirtyAtStart: gitAtStart.dirty,
       dryRun: spec.mutatesFiles ? input.options.dryRun : true,
@@ -194,14 +213,16 @@ export const runWorkflow = async (
     });
     if (spec.mutatesFiles) mutation.assertStartAllowed();
 
-    const evidence = collectWorkflowEvidence(
+    const repositoryRoot = progress?.repositoryRoot ?? await resolveWorkflowRepositoryRoot(input.root, workflows.repositoryRoot);
+    const evidence = progress?.evidence ?? await collectWorkflowEvidence(
       input.graph,
       input.options,
-      input.root,
+      repositoryRoot,
       spec.id,
       workflows.context,
+      { runsDirectory: resolve(input.root, runsDirectory) },
     );
-    const suggestionReport = input.options.suggestions === undefined ? undefined : (() => {
+    const suggestionReport = progress?.evidence.suggestions ?? (input.options.suggestions === undefined ? undefined : (() => {
       if (spec.id !== "improve.links") throw new Error("--suggestions is only valid for improve links");
       const report = decodeLinksSuggestionReport(JSON.parse(readFileSync(resolve(input.root, input.options.suggestions), "utf8")), new URL(input.site.origin).origin);
       const selectedSources = selectGraph(input.graph, input.options).nodes;
@@ -214,13 +235,32 @@ export const runWorkflow = async (
         }
       }
       return report;
-    })();
+    })());
     const suppliedEvidence = suggestionReport === undefined ? evidence : { ...evidence, suggestions: suggestionReport };
+    progress ??= {
+      kind: "pagegraph-workflow-progress", schemaVersion: 2, id, workflow: spec.id,
+      startedAt: started.toISOString(),
+      project: { root: input.root, head: gitAtStart.head, dirtyAtStart: gitAtStart.dirty, filesAtStart: gitAtStart.files },
+      options: input.options, evidence: { ...suppliedEvidence, executor: { searches: [], calls: [] } }, repositoryRoot, git: gitAtStart,
+    };
+    const restoredAgent = progress.research?.agent ?? resumed?.failure?.agent;
+    const restoredExecutor = progress.research?.evidence.executor ?? resumed?.failure?.executor;
+    if (!dependencies.decide && progress?.decisions === undefined && !process.env.TYPESAFE_API_KEY?.trim()) {
+      throw new Error("Missing decision provider credentials; set TYPESAFE_API_KEY before starting this workflow.");
+    }
     // Loading Pi at acquisition keeps unrelated CLI commands lightweight.
     pi = await import("./pi");
-    const runner = await (dependencies.acquireRunner ?? pi.acquireWorkflowRunner)({
-      root: input.root, config: workflows.agent, model: input.model ?? workflows.agent.models?.[spec.id],
+    const runner: WorkflowRunner = progress.research !== undefined && (!spec.mutatesFiles || progress.action !== undefined)
+      ? {
+          model: progress.research.agent.model,
+          research: async () => { throw new Error("Recorded research must not be repeated."); },
+          act: async () => { throw new Error("Recorded action must not be repeated."); },
+          close: async () => {},
+        }
+      : await (dependencies.acquireRunner ?? pi.acquireWorkflowRunner)({
+      root: input.root, repositoryRoot, runDirectory, config: workflows.agent, model: input.model ?? (restoredAgent === undefined ? workflows.agent.models?.[spec.id] : `${restoredAgent.model.provider}/${restoredAgent.model.id}`),
       limit: input.options.limit, executor: dependencies.executor, runsDirectory: resolve(input.root, runsDirectory),
+      ...(restoredAgent === undefined || restoredExecutor === undefined ? {} : { resume: { agent: restoredAgent, executor: restoredExecutor, phase: progress.research === undefined ? "research" as const : "action" as const } }),
       additionalTools: spec.id === "improve.links" && suggestionReport !== undefined
         ? [await createFetchPageTool(suggestionReport, input.options.allowPrivate === true, dependencies.readSuggestionSentences)] : [],
     });
@@ -228,19 +268,23 @@ export const runWorkflow = async (
     selectedModel = model;
     const retainRunnerResult = (result: Omit<RunnerResult, "state">): void => {
       agentArtifact = { runtime: "pi", model, messages: result.messages, usage: result.usage };
+      executorEvidence = result.executor;
     };
     retainRunnerResult({ messages: [], usage: pi.totalUsage([]), executor: { searches: [], calls: [] } });
     let turnFailed = false;
     try {
       stage = "research";
-      const researched = await runner.research(spec, researchPrompt(spec, suppliedEvidence, input.options),
-        { signal: AbortSignal.timeout(workflows.agent.timeoutMs ?? 180_000) });
+      const researched: RunnerResult = progress.research === undefined
+        ? await runner.research(spec, `${resumed === undefined ? "" : "Resume the recorded research conversation. Reuse completed Executor calls and their evidence; finish only the remaining research and submission.\n\n"}${researchPrompt(spec, suppliedEvidence, input.options)}`,
+          { signal: AbortSignal.timeout(workflows.agent.timeoutMs ?? 180_000) })
+        : { state: progress.research.state, messages: progress.research.agent.messages, usage: progress.research.agent.usage,
+            executor: progress.research.evidence.executor, rejectedItems: progress.research.rejectedItems };
       retainRunnerResult(researched);
       const assertResearchReadOnly = (): void => {
-        const researchFiles = changedFiles(gitAtStart, inspectGit(input.root));
+        const researchFiles = changedFiles(gitAtStart, inspectWorkflowGit(input.root, runDirectory));
         if (researchFiles.length > 0) throw new Error(`${spec.id} changed repository files during its read-only research turn: ${researchFiles.join(", ")}`);
       };
-      assertResearchReadOnly();
+      if (progress.action === undefined) assertResearchReadOnly();
       const state = decodeResearchState(spec, researched.state, input.options.limit);
       const decisionInputs = spec.decisionInputs(state);
       if (suggestionReport !== undefined) {
@@ -271,13 +315,19 @@ export const runWorkflow = async (
         state,
         decisionInputs,
         agent: agentArtifact!,
+        ...(researched.rejectedItems === undefined ? {} : { rejectedItems: researched.rejectedItems }),
       };
       const checkpointPath = writeResearchCheckpoint(input.root, runsDirectory, checkpoint);
-      const gitAtCheckpoint = inspectGit(input.root);
+      const checkpointContents = readFileSync(checkpointPath, "utf8");
+      progress = { ...progress, research: checkpoint };
+      writeWorkflowProgress(input.root, runsDirectory, progress);
+      const gitAtCheckpoint = progress.git;
 
       stage = "decide";
       try {
-        const decisionReport = await (dependencies.decide ?? defaultDecide)(decisionInputs, spec);
+        const decisionReport = progress.decisions ?? await (dependencies.decide ?? defaultDecide)(decisionInputs, spec);
+        progress = { ...progress, decisions: decisionReport };
+        writeWorkflowProgress(input.root, runsDirectory, progress);
         const accepted = spec.id === "improve.links"
           ? decisionReport.resolved.filter((record) => record.verdict === "add" || record.verdict === "update")
           : undefined;
@@ -319,17 +369,31 @@ export const runWorkflow = async (
             update: accepted.filter((record) => record.verdict === "update").length },
         };
         const mayAct = spec.mutatesFiles && (actionItems === undefined || actionItems.length > 0);
-        if (mayAct) stage = "action";
-        const acted = mayAct
+        if (mayAct) {
+          stage = "action";
+          if (progress.action === undefined) {
+            progress = { ...progress, actionStarted: true };
+            writeWorkflowProgress(input.root, runsDirectory, progress);
+          }
+        }
+        const acted = progress.action ?? (mayAct
           ? await runner.act(spec, actionPrompt(spec, actionState, actionDecisions, mutation), {
               mode: mutation.mode, signal: AbortSignal.timeout(workflows.agent.timeoutMs ?? 180_000),
             })
-          : researched;
+          : researched);
         retainRunnerResult(acted);
-        const gitAfter = inspectGit(input.root);
+        if (readFileSync(checkpointPath, "utf8") !== checkpointContents) {
+          throw new Error(`${spec.id} changed repository files while running in read-only mode: ${checkpointPath}`);
+        }
+        const gitAfter = inspectWorkflowGit(input.root, runDirectory);
         const files = changedFiles(gitAtCheckpoint, gitAfter);
         if ((!spec.mutatesFiles || input.options.dryRun) && files.length > 0) {
           throw new Error(`${spec.id} changed repository files while running in read-only mode: ${files.join(", ")}`);
+        }
+        if (mayAct) {
+          progress = { ...progress, action: acted, actionGit: gitAfter,
+            actionSources: await readRecordedWorkflowSources(repositoryRoot, progress.evidence.sources, resolve(input.root, runsDirectory)) };
+          writeWorkflowProgress(input.root, runsDirectory, progress);
         }
         const run: WorkflowRunV2 = {
           kind: "pagegraph-workflow-run",
@@ -354,6 +418,7 @@ export const runWorkflow = async (
           },
           result: mayAct ? acted.state : accepted !== undefined ? { summary: "No link suggestions accepted.", outcome: "no-change", files: [] } : state,
           agent: agentArtifact!,
+          ...(researched.rejectedItems === undefined ? {} : { rejectedItems: researched.rejectedItems }),
         };
         return { run, directory: writeRunBundle(input.root, runsDirectory, run) };
       } catch (cause) {
@@ -377,6 +442,7 @@ export const runWorkflow = async (
       seen.add(current);
       if (pi !== undefined && current instanceof pi.WorkflowRunnerError && selectedModel) {
         agentArtifact = { runtime: "pi", model: selectedModel, messages: current.result.messages, usage: current.result.usage };
+        executorEvidence = current.result.executor;
         break;
       }
       current = current.cause;
@@ -384,9 +450,11 @@ export const runWorkflow = async (
     const message = cause instanceof Error ? cause.message : String(cause);
     let path: string;
     try {
+      if (progress !== undefined) writeWorkflowProgress(input.root, runsDirectory, progress);
       path = writeWorkflowFailure(input.root, runsDirectory, id, {
         kind: "pagegraph-workflow-failure", schemaVersion: 2, id, workflow: spec.id,
-        stage, ...(agentArtifact === undefined ? {} : { agent: agentArtifact }), cause: serializeCause(cause),
+        stage, ...(agentArtifact === undefined ? {} : { agent: agentArtifact }),
+        ...(executorEvidence === undefined ? {} : { executor: executorEvidence }), cause: serializeCause(cause),
       });
     } catch (writeError) {
       if (cause instanceof Error) {
@@ -395,11 +463,7 @@ export const runWorkflow = async (
       }
       throw new Error(`${message}\nCould not write failure artifact: ${String(writeError)}`, { cause });
     }
-    const next = stage === "acquire"
-      ? "inspect that file; check the agent preset and Executor tools configuration"
-      : stage === "decide"
-        ? "inspect that file and research.json; check the decision provider configuration and retry"
-        : "inspect the agent messages in that file; rerun with --model <id> or raise workflows.agent.timeoutMs";
+    const next = failureRecovery(stage, runDirectory);
     throw new Error(`${message}\nFailure artifact: ${path}\nNext: ${next}`, { cause });
   }
 };

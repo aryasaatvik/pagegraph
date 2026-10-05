@@ -37,6 +37,39 @@ export const decodeResearchState = (spec: AnyWorkflowSpec, value: unknown, limit
   return decoded;
 };
 
+/** Recover independently valid recommendations while retaining their original item indexes. */
+export const salvageResearchState = (spec: AnyWorkflowSpec, value: unknown, limit: number): {
+  readonly state: unknown;
+  readonly rejectedItems: ReadonlyArray<{ readonly index: number; readonly reason: string }>;
+} => {
+  const normalized = normalizeResearchState(value, limit);
+  if (normalized === null || typeof normalized !== "object" || Array.isArray(normalized)) {
+    throw new Error("Workflow result must contain a valid summary and an items or opportunities array.");
+  }
+  const record = normalized as Record<string, unknown>;
+  const key = Array.isArray(record["opportunities"]) ? "opportunities" : "items";
+  const items = record[key];
+  if (!Array.isArray(items)) throw new Error(`Workflow result requires an ${key} array.`);
+  const sourceItems = (value as Record<string, unknown>)[key];
+  const sourceIndexes = Array.isArray(sourceItems)
+    ? sourceItems.flatMap((item, index) => item === null ? [] : [index]).slice(0, limit) : [];
+  // Invalid envelope fields cannot be repaired by dropping recommendations.
+  decodeResearchState(spec, { ...record, [key]: [] }, limit);
+  const valid: unknown[] = [];
+  const rejectedItems: Array<{ readonly index: number; readonly reason: string }> = [];
+  for (const [position, item] of items.entries()) {
+    const index = sourceIndexes[position] ?? position;
+    try {
+      decodeResearchState(spec, { ...record, [key]: [item] }, limit);
+      valid.push(item);
+    } catch (cause) {
+      rejectedItems.push({ index, reason: cause instanceof Error ? cause.message : String(cause) });
+    }
+  }
+  if (valid.length === 0) throw new Error(rejectedItems.map(({ index, reason }) => `${key}[${index}]: ${reason}`).join("\n") || "No valid workflow items were submitted.");
+  return { state: decodeResearchState(spec, { ...record, [key]: valid }, limit), rejectedItems };
+};
+
 export const ActionState = Schema.Struct({
   summary: Schema.String,
   files: Schema.Array(Schema.String),

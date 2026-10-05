@@ -33,3 +33,10 @@ After the host evaluates the research, a write-mode action turn exposes `edit_fi
 read tools.
 
 Use `fetch_page` to read sentences from served pages on origins in the suggestion report.
+
+Keep `executor_execute` results small: project to only the fields and rows needed in the TypeScript
+snippet. For example, use `rows.slice(0, 50).map(({ keyword, searchVolume, keywordDifficulty }) => ({
+  keyword, searchVolume, keywordDifficulty,
+}))`.
+If PageGraph reports that a result was truncated, read the named JSON artifact with `read_file`.
+Use `offset` and `maxBytes` to read large files in chunks.

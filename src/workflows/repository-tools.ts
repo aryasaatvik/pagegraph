@@ -1,8 +1,10 @@
 import { lstat, mkdir, open, readFile, readdir, realpath, writeFile } from "node:fs/promises";
-import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
+import { dirname, relative, resolve, sep } from "node:path";
 
 import type { AgentOptions, AgentTool } from "@earendil-works/pi-agent-core";
 import { Type } from "@earendil-works/pi-ai";
+
+import { insideRoot, resolveRepositoryReadPath, resolveWritablePath, type RepositoryReadOptions } from "./repository-paths";
 
 const MAX_FILE_BYTES = 64 * 1024;
 const MAX_ENTRIES = 500;
@@ -15,27 +17,6 @@ export interface RepositoryWriteOptions {
   readonly presetDirectory: string;
   readonly runsDirectory: string;
 }
-
-const missingPath = (cause: unknown): boolean => cause instanceof Error && "code" in cause && cause.code === "ENOENT";
-
-// Missing leaves retain the real target of their existing ancestor; dangling symlinks are rejected.
-const resolveWritablePath = async (path: string): Promise<string> => {
-  let ancestor = path;
-  const suffix: string[] = [];
-  while (true) {
-    try { return resolve(await realpath(ancestor), ...suffix); }
-    catch (cause) {
-      if (!missingPath(cause)) throw cause;
-      try {
-        if ((await lstat(ancestor)).isSymbolicLink()) throw new Error(`Repository path has a dangling symlink: ${path}`);
-      } catch (statCause) { if (!missingPath(statCause)) throw statCause; }
-      const parent = dirname(ancestor);
-      if (parent === ancestor) throw cause;
-      suffix.unshift(relative(parent, ancestor));
-      ancestor = parent;
-    }
-  }
-};
 
 const writableRepositoryPath = async (root: string, path: string, options: RepositoryWriteOptions): Promise<string> => {
   const projectRoot = await realpath(root);
@@ -61,22 +42,6 @@ const writableRepositoryPath = async (root: string, path: string, options: Repos
   return resolved;
 };
 
-const insideRoot = (root: string, path: string): boolean => {
-  const pathFromRoot = relative(root, path);
-  return pathFromRoot !== ".." && !pathFromRoot.startsWith(`..${sep}`) && !isAbsolute(pathFromRoot);
-};
-
-const repositoryPath = async (root: string, path: string): Promise<string> => {
-  const projectRoot = await realpath(root);
-  const requested = resolve(projectRoot, path);
-  if (!insideRoot(projectRoot, requested) && !insideRoot(resolve(root), requested)) {
-    throw new Error(`Repository path escapes project root: ${path}`);
-  }
-  const resolved = await realpath(requested);
-  if (!insideRoot(projectRoot, resolved)) throw new Error(`Repository path escapes project root through a symlink: ${path}`);
-  return resolved;
-};
-
 const pathArgument = (args: unknown): string => {
   if (typeof args !== "object" || args === null || !("path" in args) || typeof args.path !== "string") {
     throw new Error("Repository tools require a string path");
@@ -84,30 +49,40 @@ const pathArgument = (args: unknown): string => {
   return args.path;
 };
 
-export const guardRepositoryToolCall = (root: string, writeOptions?: RepositoryWriteOptions): AgentOptions["beforeToolCall"] => async ({ toolCall, args }, signal) => {
+export const guardRepositoryToolCall = (
+  root: string,
+  writeOptions?: RepositoryWriteOptions,
+  readOptions?: RepositoryReadOptions & { readonly repositoryRoot: string },
+): AgentOptions["beforeToolCall"] => async ({ toolCall, args }, signal) => {
   if (!repositoryToolNames.has(toolCall.name) && !writeToolNames.has(toolCall.name)) return undefined;
   try {
     signal?.throwIfAborted();
     if (writeToolNames.has(toolCall.name)) {
       if (!writeOptions) throw new Error("Repository writes are unavailable in this workflow phase");
       await writableRepositoryPath(root, pathArgument(args), writeOptions);
-    } else await repositoryPath(root, pathArgument(args));
+    } else await resolveRepositoryReadPath(readOptions?.repositoryRoot ?? root, pathArgument(args), readOptions);
     return undefined;
   } catch (error) {
     return { block: true, reason: error instanceof Error ? error.message : String(error) };
   }
 };
 
-const readBoundedFile = async (path: string, signal?: AbortSignal): Promise<string> => {
+const readBoundedFile = async (path: string, signal?: AbortSignal, offset = 0, maxBytes = MAX_FILE_BYTES): Promise<string> => {
   signal?.throwIfAborted();
   const file = await open(path, "r");
   try {
     if (!(await file.stat()).isFile()) throw new Error(`Repository path is not a regular file: ${path}`);
-    const buffer = Buffer.alloc(MAX_FILE_BYTES + 1);
-    const { bytesRead } = await file.read(buffer, 0, buffer.length, 0);
+    const buffer = Buffer.alloc(maxBytes + 1);
+    const { bytesRead } = await file.read(buffer, 0, buffer.length, offset);
     signal?.throwIfAborted();
-    return buffer.subarray(0, Math.min(bytesRead, MAX_FILE_BYTES)).toString("utf8") +
-      (bytesRead > MAX_FILE_BYTES ? "\n[File truncated at 64 KiB]" : "");
+    let consumed = Math.min(bytesRead, maxBytes);
+    // Keep a UTF-8 character together so concatenating byte pages reproduces the original text.
+    if (bytesRead > maxBytes) {
+      while (consumed > 0 && (buffer[consumed] & 0xc0) === 0x80) consumed--;
+      if (consumed === 0) throw new Error("read_file maxBytes cannot fit the next UTF-8 character; increase maxBytes");
+    }
+    return buffer.subarray(0, consumed).toString("utf8") +
+      (bytesRead > maxBytes ? `\n[File truncated; continue with read_file offset=${offset + consumed}]` : "");
   } finally {
     await file.close();
   }
@@ -116,14 +91,14 @@ const readBoundedFile = async (path: string, signal?: AbortSignal): Promise<stri
 const result = (text: string) => ({ content: [{ type: "text" as const, text }], details: undefined });
 
 // Symlinks are never traversed during discovery; explicit reads still validate their real target.
-const discoverFiles = async (root: string, directory: string, recursive: boolean, signal?: AbortSignal): Promise<Array<string>> => {
+const discoverFiles = async (root: string, directory: string, recursive: boolean, signal?: AbortSignal, options?: RepositoryReadOptions): Promise<Array<string>> => {
   const files: Array<string> = [];
   const pending = [directory];
   let inspected = 0;
   while (pending.length > 0 && inspected < MAX_ENTRIES) {
     signal?.throwIfAborted();
     const next = pending.shift()!;
-    const entries = (await readdir(await repositoryPath(root, next), { withFileTypes: true })).sort((a, b) => a.name.localeCompare(b.name));
+    const entries = (await readdir(await resolveRepositoryReadPath(root, next, options), { withFileTypes: true })).sort((a, b) => a.name.localeCompare(b.name));
     for (const entry of entries) {
       if (++inspected > MAX_ENTRIES) break;
       const path = resolve(next, entry.name);
@@ -134,13 +109,26 @@ const discoverFiles = async (root: string, directory: string, recursive: boolean
   return files;
 };
 
-export const createRepositoryTools = (root: string): AgentTool[] => [
+const byteArgument = (args: unknown, key: string, fallback: number, minimum: number, maximum: number): number => {
+  const value = typeof args === "object" && args !== null ? Reflect.get(args, key) : undefined;
+  if (value === undefined) return fallback;
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || value < minimum || value > maximum) {
+    throw new Error(`read_file ${key} must be an integer between ${minimum} and ${maximum}`);
+  }
+  return value;
+};
+
+export const createRepositoryTools = (root: string, options: RepositoryReadOptions = {}): AgentTool[] => [
   {
     name: "read_file",
     label: "Read repository file",
-    description: "Read a UTF-8 file within the project root, limited to 64 KiB.",
-    parameters: Type.Object({ path: Type.String() }),
-    execute: async (_id, args, signal) => result(await readBoundedFile(await repositoryPath(root, pathArgument(args)), signal)),
+    description: "Read a UTF-8 repository or run-artifact file. offset is a byte offset (default 0); maxBytes is at most 65536. A truncated page tells you the next offset.",
+    parameters: Type.Object({ path: Type.String(), offset: Type.Optional(Type.Integer({ minimum: 0 })),
+      maxBytes: Type.Optional(Type.Integer({ minimum: 1, maximum: MAX_FILE_BYTES })) }),
+    execute: async (_id, args, signal) => result(await readBoundedFile(
+      await resolveRepositoryReadPath(root, pathArgument(args), options), signal,
+      byteArgument(args, "offset", 0, 0, Number.MAX_SAFE_INTEGER), byteArgument(args, "maxBytes", MAX_FILE_BYTES, 1, MAX_FILE_BYTES),
+    )),
   },
   {
     name: "list_files",
@@ -152,8 +140,8 @@ export const createRepositoryTools = (root: string): AgentTool[] => [
       const recursive = typeof args === "object" && args !== null && "recursive" in args ? args.recursive : false;
       if (typeof recursive !== "boolean") throw new Error("list_files recursive must be a boolean");
       const projectRoot = await realpath(root);
-      const directory = await repositoryPath(root, path);
-      const files = await discoverFiles(root, directory, recursive, signal);
+      const directory = await resolveRepositoryReadPath(root, path, options);
+      const files = await discoverFiles(root, directory, recursive, signal, options);
       return result(files.map((file) => relative(projectRoot, file)).join("\n").slice(0, MAX_OUTPUT_CHARACTERS));
     },
   },
@@ -167,11 +155,11 @@ export const createRepositoryTools = (root: string): AgentTool[] => [
       const text = typeof args === "object" && args !== null && "text" in args ? args.text : undefined;
       if (typeof text !== "string" || text.length === 0) throw new Error("search_text requires nonempty literal text");
       const projectRoot = await realpath(root);
-      const directory = await repositoryPath(root, path);
-      const files = await discoverFiles(root, directory, true, signal);
+      const directory = await resolveRepositoryReadPath(root, path, options);
+      const files = await discoverFiles(root, directory, true, signal, options);
       const matches: Array<string> = [];
       for (const file of files) {
-        const content = await readBoundedFile(await repositoryPath(root, file), signal);
+        const content = await readBoundedFile(await resolveRepositoryReadPath(root, file, options), signal);
         if (content.includes("\0")) continue;
         for (const [index, line] of content.split("\n").entries()) {
           if (line.includes(text)) matches.push(`${relative(projectRoot, file)}:${index + 1}:${line}`);

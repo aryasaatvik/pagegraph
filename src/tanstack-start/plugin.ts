@@ -46,8 +46,19 @@ const RUNTIME_ID = "virtual:pagegraph/runtime";
 const RESOLVED_RUNTIME_ID = `\0${RUNTIME_ID}`;
 const ENTRY_ID = "virtual:pagegraph/entry";
 const RESOLVED_ENTRY_ID = `\0${ENTRY_ID}`;
-/** The runtime entry imports the virtual module, so dep pre-bundling must leave it to this plugin. */
-const RUNTIME_ENTRIES = ["pagegraph/tanstack-start/server", "pagegraph/tanstack-start/markdown", "pagegraph/tanstack-start/react"];
+/**
+ * Entries dep pre-bundling must leave to this plugin. The runtime entries import the virtual
+ * module. `pagegraph` and `pagegraph/react` share module state with them (the capture context
+ * and the `defineFacts` registry): a pre-bundled copy gives pages a second instance, and a
+ * capture then records no sections or resolves no facts.
+ */
+const RUNTIME_ENTRIES = [
+  "pagegraph",
+  "pagegraph/react",
+  "pagegraph/tanstack-start/server",
+  "pagegraph/tanstack-start/markdown",
+  "pagegraph/tanstack-start/react",
+];
 /** Where a build writes the graph environment's output, relative to the Vite root. */
 const BUILD_DIRECTORY = "node_modules/.cache/pagegraph/build";
 /**

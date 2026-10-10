@@ -162,6 +162,12 @@ describe("pagegraph() in dev", async () => {
     const robots = await (runtime["robotsTxt"] as () => Response)().text();
     expect(robots).toBe("User-agent: *\nDisallow: /\n");
   });
+
+  it("keeps pages and the markdown capture on one copy of pagegraph's module state", () => {
+    expect(ssr.config.optimizeDeps.exclude).toEqual(
+      expect.arrayContaining(["pagegraph", "pagegraph/react", "pagegraph/tanstack-start/markdown"]),
+    );
+  });
 });
 
 describe("pagegraph() dev refresh", () => {

@@ -259,11 +259,17 @@ try {
       {
         private: true,
         type: "module",
-        // A consumer of the build entries installs their optional peers.
+        // A consumer of the build entries installs their optional peers. The Effect peers are
+        // pinned to the tested versions: npm resolves optional peers too, so a newer upstream
+        // release with an unpublished peer would otherwise fail this install.
         dependencies: {
           [packageName]: `file:${tarball}`,
           vite: manifest.devDependencies["vite"],
           "@tanstack/router-generator": manifest.devDependencies["@tanstack/router-generator"],
+          effect: manifest.devDependencies.effect,
+          "@effect/platform-bun": manifest.devDependencies["@effect/platform-bun"],
+          "@effect/ai-typesafe": manifest.devDependencies["@effect/ai-typesafe"],
+          "@effect/platform-node-shared": manifest.devDependencies["@effect/platform-bun"],
         },
       },
       null,

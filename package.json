@@ -110,18 +110,20 @@
     "registry": "https://registry.npmjs.org"
   },
   "scripts": {
-    "build": "bunx tsdown",
+    "build": "tsdown",
     "prepare": "bun run build",
     "prepack": "bun run build",
-    "test": "bun --bun vitest run",
+    "test": "bun test scripts && bun --bun vitest run",
     "typecheck": "tsc --noEmit",
     "tegami": "bun tegami.config.mts",
-    "version:packages": "bun run tegami version",
-    "release:check": "bun run typecheck && bun run test && bun run release:validate",
-    "release:validate": "bun run scripts/validate-release.ts",
-    "release": "bun run release:check && bun run tegami publish",
+    "release:check": "bun run check && bun run test:artifact",
+    "check": "bun run format:check && bun run lint && bun run typecheck && bun run test",
     "format": "oxfmt --write .",
-    "format:check": "oxfmt --check ."
+    "format:check": "oxfmt --check .",
+    "lint": "oxlint --deny-warnings .",
+    "test:artifact": "bun run scripts/validate-release.ts",
+    "release:version": "bun run tegami version",
+    "release:publish": "bun run tegami ci"
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "^1.62.5",
@@ -136,6 +138,7 @@
     "@tanstack/react-router": "^1.170.26",
     "@tanstack/react-start": "^1.168.56",
     "@tanstack/router-generator": "^1.167.21",
+    "@types/bun": "1.4.3",
     "@types/node": "^24.0.0",
     "@types/react": "19.2.18",
     "@types/react-dom": "19.2.3",
@@ -193,5 +196,6 @@
     "react-dom": {
       "optional": true
     }
-  }
+  },
+  "packageManager": "bun@1.4.3"
 }

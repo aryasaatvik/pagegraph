@@ -5,7 +5,6 @@ import { describe, expect, it } from "vitest";
 import {
   classifyMetaVerdict,
   MAX_LABEL_LENGTH,
-  MetaInput,
   metaFamily,
   validateMetaInput,
 } from "../../src/decide/families/meta";

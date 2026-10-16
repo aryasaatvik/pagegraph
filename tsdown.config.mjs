@@ -1,3 +1,4 @@
+// @ts-check
 import { defineConfig } from "tsdown";
 import { libraryAlwaysBundle } from "./scripts/bundle-policy.mjs";
 
@@ -17,6 +18,7 @@ import { libraryAlwaysBundle } from "./scripts/bundle-policy.mjs";
 // consumer's Effect version. Bundling makes the binary
 // self-contained. `vite` and `lighthouse` stay external — the CLI loads the app
 // graph through Vite and spawns Lighthouse, both optional peers.
+/** @satisfies {import("tsdown").UserConfig} */
 const base = {
   format: ["esm"],
   outDir: "dist",

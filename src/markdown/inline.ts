@@ -1,5 +1,6 @@
 import type { InlineNode } from "./document";
 
+// oxlint-disable-next-line eslint/no-control-regex -- Encode control characters in authored links.
 const unsafeMarkdownChars = /[()\\<> \u0000-\u001f\u007f]/g;
 export function documentLinkHref(value: string, base?: URL): string {
   const scheme = /^([a-z][a-z\d+.-]*):/i.exec(value.trim())?.[1]?.toLowerCase();

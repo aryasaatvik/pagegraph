@@ -15,7 +15,7 @@ import { applyTitleTemplate, type SeoPageHead } from "../core/declare";
 import { resolveOgImage } from "../core/graph";
 
 import { resolveCrumbTrail } from "./breadcrumbs";
-import type { JsonLdDocument, JsonLdEntry } from "./json-ld-composition";
+import type { JsonLdEntry } from "./json-ld-composition";
 import type { SeoConfig } from "./site";
 import { createJsonLd, type JsonLd } from "./json-ld";
 

@@ -437,6 +437,7 @@ export const globToRegExp = (glob: string): RegExp => {
     .replace(/\*\*/g, "\u0000")
     .replace(/\*/g, "[^/]*")
     .replace(/\?/g, "[^/]")
+    // oxlint-disable-next-line eslint/no-control-regex -- Replace the internal glob placeholder.
     .replace(/\u0000/g, ".*");
   return new RegExp(`^${source}$`);
 };

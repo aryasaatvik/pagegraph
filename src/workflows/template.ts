@@ -19,6 +19,7 @@ export class TextTemplate {
   }
 
   values(values: Readonly<Record<string, string | number | boolean>>): TextTemplate {
+    // oxlint-disable-next-line typescript/no-this-alias -- Fold immutable templates from the current instance.
     let template: TextTemplate = this;
     for (const [name, value] of Object.entries(values)) template = template.value(name, value);
     return template;

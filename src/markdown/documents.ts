@@ -14,6 +14,7 @@ function verifyPath(path: string): void {
   if (
     !path.startsWith("/") ||
     path.startsWith("//") ||
+    // oxlint-disable-next-line eslint/no-control-regex -- Reject control characters in capture paths.
     /[?#\\$\u0000-\u001f\u007f]/.test(path) ||
     (path !== "/" && path.endsWith("/")) ||
     path

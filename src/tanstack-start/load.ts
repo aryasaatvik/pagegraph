@@ -36,26 +36,43 @@ export interface EvaluateAppGraphOptions {
 
 /** Locate the config without overriding its authored root with an inline root. */
 const appConfig = (options: EvaluateAppGraphOptions): InlineConfig => ({
-  configFile: options.configFile ?? ["js", "mjs", "ts", "cjs", "mts", "cts"]
-    .map((extension) => resolve(options.root, `vite.config.${extension}`)).find(existsSync) ?? false,
+  configFile:
+    options.configFile ??
+    ["js", "mjs", "ts", "cjs", "mts", "cts"]
+      .map((extension) => resolve(options.root, `vite.config.${extension}`))
+      .find(existsSync) ??
+    false,
   logLevel: "error",
-  plugins: [{
-    name: "pagegraph:loader-root",
-    enforce: "pre",
-    config(config) { config.root ??= options.root; },
-  }],
+  plugins: [
+    {
+      name: "pagegraph:loader-root",
+      enforce: "pre",
+      config(config) {
+        config.root ??= options.root;
+      },
+    },
+  ],
 });
 
-const pluginApi = (plugins: ReadonlyArray<Plugin>, configFile: string | undefined): PagegraphPluginApi => {
-  const plugin = plugins.find((candidate) => candidate.name === "pagegraph") as (Plugin & { api?: PagegraphPluginApi }) | undefined;
+const pluginApi = (
+  plugins: ReadonlyArray<Plugin>,
+  configFile: string | undefined,
+): PagegraphPluginApi => {
+  const plugin = plugins.find((candidate) => candidate.name === "pagegraph") as
+    | (Plugin & { api?: PagegraphPluginApi })
+    | undefined;
   if (plugin?.api === undefined) {
-    throw new Error(`${configFile ?? "The Vite config"} does not register pagegraph() from "pagegraph/tanstack-start".`);
+    throw new Error(
+      `${configFile ?? "The Vite config"} does not register pagegraph() from "pagegraph/tanstack-start".`,
+    );
   }
   return plugin.api;
 };
 
 /** Resolve settings, artifact root and facts together without route discovery. */
-export async function loadPagegraphSettings(options: EvaluateAppGraphOptions): Promise<NonNullable<LoadedSeoGraph["pagegraph"]>> {
+export async function loadPagegraphSettings(
+  options: EvaluateAppGraphOptions,
+): Promise<NonNullable<LoadedSeoGraph["pagegraph"]>> {
   const command = options.command ?? "build";
   return withCleanStdout(async () => {
     const config = await resolveConfig(
@@ -75,7 +92,9 @@ export async function loadPagegraphSettings(options: EvaluateAppGraphOptions): P
         await environment.pluginContainer.buildStart({});
         const module = await environment.runner.import(resolve(config.root, settings.facts));
         facts = decodeFacts(module["facts"]);
-      } finally { await environment.close(); }
+      } finally {
+        await environment.close();
+      }
     }
     return { root: config.root, options: settings, facts };
   });
@@ -86,7 +105,9 @@ export async function loadPagegraphSettings(options: EvaluateAppGraphOptions): P
  * environment, and release it. The command defaults to `serve`; callers can
  * request `build` to match the deployed site configuration.
  */
-export async function evaluateAppGraph(options: EvaluateAppGraphOptions): Promise<AppGraph & { readonly pagegraph: NonNullable<LoadedSeoGraph["pagegraph"]> }> {
+export async function evaluateAppGraph(
+  options: EvaluateAppGraphOptions,
+): Promise<AppGraph & { readonly pagegraph: NonNullable<LoadedSeoGraph["pagegraph"]> }> {
   const command = options.command ?? "serve";
   const config = await resolveConfig(
     {
@@ -103,7 +124,10 @@ export async function evaluateAppGraph(options: EvaluateAppGraphOptions): Promis
     // Content plugins (Fumadocs, MDX) generate their virtual sources at buildStart.
     await environment.pluginContainer.buildStart({});
     const app = await evaluateGraph(environment.runner, await planGraph(config.root, api.options));
-    return { ...app, pagegraph: { root: config.root, options: api.options, facts: app.facts ?? {} } };
+    return {
+      ...app,
+      pagegraph: { root: config.root, options: api.options, facts: app.facts ?? {} },
+    };
   } finally {
     await environment.close();
   }

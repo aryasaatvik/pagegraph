@@ -7,7 +7,11 @@ import * as Schema from "effect/Schema";
 import type { DecisionBatchReport } from "../decide/record";
 import type { WorkflowId } from "./model";
 import { writeJsonArtifact } from "./artifact";
-import { insideRoot, resolveWorkflowWritePath, type RepositoryWriteOptions } from "./repository-paths";
+import {
+  insideRoot,
+  resolveWorkflowWritePath,
+  type RepositoryWriteOptions,
+} from "./repository-paths";
 
 /**
  * One source change. `oldText` is copied exactly from the current file and must match once;
@@ -39,10 +43,16 @@ export const ActionState = Schema.Struct({
 export type ActionState = Schema.Schema.Type<typeof ActionState>;
 export const decodeActionState = Schema.decodeUnknownSync(ActionState, { errors: "all" });
 const actionDocument = Schema.toJsonSchemaDocument(ActionState);
-export const actionStateJsonSchema = { ...actionDocument.schema, $defs: actionDocument.definitions };
+export const actionStateJsonSchema = {
+  ...actionDocument.schema,
+  $defs: actionDocument.definitions,
+};
 
 const RecordedEdit = Schema.Struct({ id: Schema.String, ...WorkflowEdit.fields });
-const RecordedReviewItem = Schema.Struct({ source: Schema.Literals(["agent", "decision"]), ...WorkflowReviewItem.fields });
+const RecordedReviewItem = Schema.Struct({
+  source: Schema.Literals(["agent", "decision"]),
+  ...WorkflowReviewItem.fields,
+});
 
 /** `<run>/edits.json`: the reviewable, applicable record of an improve workflow's action. */
 export const WorkflowEditsV1 = Schema.Struct({
@@ -66,27 +76,42 @@ const decodeWorkflowEdits = Schema.decodeUnknownSync(WorkflowEditsV1, { errors: 
  * Re-express agent edit paths relative to the app root. Agents read through the repository read
  * root, so they submit paths in that frame; edits.json and `pagegraph apply` use the app root.
  */
-export const normalizeEditPaths = (state: ActionState, readRoot: string, root: string): ActionState => {
+export const normalizeEditPaths = (
+  state: ActionState,
+  readRoot: string,
+  root: string,
+): ActionState => {
   const repositoryRoot = realpathSync(readRoot);
   const appRoot = realpathSync(root);
-  return { ...state, edits: state.edits.map((edit) => {
-    const absolute = resolve(repositoryRoot, edit.path);
-    if (!insideRoot(appRoot, absolute)) {
-      throw new Error(`Edit path is outside the app root ${relative(repositoryRoot, appRoot) || "."}: ${edit.path}`);
-    }
-    return { ...edit, path: relative(appRoot, absolute) };
-  }) };
+  return {
+    ...state,
+    edits: state.edits.map((edit) => {
+      const absolute = resolve(repositoryRoot, edit.path);
+      if (!insideRoot(appRoot, absolute)) {
+        throw new Error(
+          `Edit path is outside the app root ${relative(repositoryRoot, appRoot) || "."}: ${edit.path}`,
+        );
+      }
+      return { ...edit, path: relative(appRoot, absolute) };
+    }),
+  };
 };
 
 const answerSummary = (answers: unknown): ReadonlyArray<string> => {
   if (answers === null || typeof answers !== "object") return [];
   return Object.entries(answers).map(([name, answer]) => {
     if (answer !== null && typeof answer === "object") {
-      const value = answer as { readonly probability?: unknown; readonly label?: unknown; readonly probabilities?: unknown };
+      const value = answer as {
+        readonly probability?: unknown;
+        readonly label?: unknown;
+        readonly probabilities?: unknown;
+      };
       if (typeof value.probability === "number") return `${name}: ${value.probability.toFixed(2)}`;
       if (typeof value.label === "string") {
-        const probability = value.probabilities !== null && typeof value.probabilities === "object"
-          ? (value.probabilities as Record<string, unknown>)[value.label] : undefined;
+        const probability =
+          value.probabilities !== null && typeof value.probabilities === "object"
+            ? (value.probabilities as Record<string, unknown>)[value.label]
+            : undefined;
         return `${name}: ${value.label}${typeof probability === "number" ? ` (${probability.toFixed(2)})` : ""}`;
       }
     }
@@ -95,7 +120,10 @@ const answerSummary = (answers: unknown): ReadonlyArray<string> => {
 };
 
 /** The researched proposal a review decision judged, so a reviewer can act without opening research.json. */
-const decisionProposal = (decisionId: string, inputs: ReadonlyArray<unknown>): ReadonlyArray<string> => {
+const decisionProposal = (
+  decisionId: string,
+  inputs: ReadonlyArray<unknown>,
+): ReadonlyArray<string> => {
   const match = /:(\d+)$/.exec(decisionId);
   const proposal = match === null ? undefined : inputs[Number(match[1])];
   return proposal === undefined ? [] : [`proposal: ${JSON.stringify(proposal)}`];
@@ -125,7 +153,10 @@ export const workflowEditsArtifact = (input: {
       source: "decision" as const,
       path: record.inputRef,
       reason: `Jev returned ${record.verdict} for ${record.decisionId} at threshold ${record.threshold}; a human decides whether to change it.`,
-      evidence: [...decisionProposal(record.decisionId, input.decisionInputs), ...answerSummary(record.answers)],
+      evidence: [
+        ...decisionProposal(record.decisionId, input.decisionInputs),
+        ...answerSummary(record.answers),
+      ],
     })),
   ],
 });
@@ -136,14 +167,22 @@ const fenceFor = (text: string): string => {
 };
 
 const prefixed = (prefix: string, text: string): string =>
-  text.split("\n").map((line) => `${prefix}${line}`).join("\n");
+  text
+    .split("\n")
+    .map((line) => `${prefix}${line}`)
+    .join("\n");
 
 const evidenceList = (evidence: ReadonlyArray<string>): string =>
-  evidence.length === 0 ? "Evidence: none recorded." : `Evidence:\n\n${evidence.map((item) => `- ${item}`).join("\n")}`;
+  evidence.length === 0
+    ? "Evidence: none recorded."
+    : `Evidence:\n\n${evidence.map((item) => `- ${item}`).join("\n")}`;
 
 export const renderReview = (edits: WorkflowEditsV1, runDirectory: string): string => {
   const body = edits.edits.map((edit) => {
-    const diff = edit.oldText === undefined ? prefixed("+ ", edit.newText) : `${prefixed("- ", edit.oldText)}\n${prefixed("+ ", edit.newText)}`;
+    const diff =
+      edit.oldText === undefined
+        ? prefixed("+ ", edit.newText)
+        : `${prefixed("- ", edit.oldText)}\n${prefixed("+ ", edit.newText)}`;
     const fence = fenceFor(diff);
     return [
       `### ${edit.id} · \`${edit.path}\`${edit.oldText === undefined ? " (new file)" : ""}`,
@@ -152,26 +191,40 @@ export const renderReview = (edits: WorkflowEditsV1, runDirectory: string): stri
       `${fence}diff\n${diff}\n${fence}`,
     ].join("\n\n");
   });
-  const review = edits.reviewItems.map((item) => [
-    `### \`${item.path}\` (${item.source})`, item.reason, evidenceList(item.evidence),
-  ].join("\n\n"));
-  return [
-    `# PageGraph ${edits.workflow} review`,
+  const review = edits.reviewItems.map((item) =>
+    [`### \`${item.path}\` (${item.source})`, item.reason, evidenceList(item.evidence)].join(
+      "\n\n",
+    ),
+  );
+  return (
     [
-      `- Run: \`${edits.id}\``,
-      `- Mode: ${edits.mode === "write" ? "write (PageGraph applies these edits during the run)" : "dry-run (source files are unchanged)"}`,
-      `- Edits: ${edits.edits.length}`,
-      `- Review items: ${edits.reviewItems.length}`,
-    ].join("\n"),
-    edits.summary,
-    `## Edits\n\n${body.length === 0 ? "No edits." : body.join("\n\n")}`,
-    `## Review items\n\n${review.length === 0 ? "No review items." : review.join("\n\n")}`,
-    ...(edits.mode === "dry-run" && edits.edits.length > 0 ? [[
-      "## Apply",
-      "Check and apply from the directory containing `pagegraph.config.ts`. Edits whose target text changed are refused as stale.",
-      ["```sh", `pagegraph apply ${runDirectory} --check`, `pagegraph apply ${runDirectory}`, `pagegraph apply ${runDirectory} --only e1`, "```"].join("\n"),
-    ].join("\n\n")] : []),
-  ].join("\n\n") + "\n";
+      `# PageGraph ${edits.workflow} review`,
+      [
+        `- Run: \`${edits.id}\``,
+        `- Mode: ${edits.mode === "write" ? "write (PageGraph applies these edits during the run)" : "dry-run (source files are unchanged)"}`,
+        `- Edits: ${edits.edits.length}`,
+        `- Review items: ${edits.reviewItems.length}`,
+      ].join("\n"),
+      edits.summary,
+      `## Edits\n\n${body.length === 0 ? "No edits." : body.join("\n\n")}`,
+      `## Review items\n\n${review.length === 0 ? "No review items." : review.join("\n\n")}`,
+      ...(edits.mode === "dry-run" && edits.edits.length > 0
+        ? [
+            [
+              "## Apply",
+              "Check and apply from the directory containing `pagegraph.config.ts`. Edits whose target text changed are refused as stale.",
+              [
+                "```sh",
+                `pagegraph apply ${runDirectory} --check`,
+                `pagegraph apply ${runDirectory}`,
+                `pagegraph apply ${runDirectory} --only e1`,
+                "```",
+              ].join("\n"),
+            ].join("\n\n"),
+          ]
+        : []),
+    ].join("\n\n") + "\n"
+  );
 };
 
 /** Write `edits.json` and `review.md` into the run directory. */
@@ -184,14 +237,27 @@ export const writeWorkflowEdits = (runDirectory: string, edits: WorkflowEditsV1)
 };
 
 /** Resolve `<run-dir|run-id>` the same way `--from` does and decode its `edits.json`. */
-export const readWorkflowEdits = (root: string, runsDirectory: string, run: string): { readonly directory: string; readonly edits: WorkflowEditsV1 } => {
-  const directory = isAbsolute(run) || run.includes("/") || run.includes("\\") ? resolve(root, run) : resolve(root, runsDirectory, run);
+export const readWorkflowEdits = (
+  root: string,
+  runsDirectory: string,
+  run: string,
+): { readonly directory: string; readonly edits: WorkflowEditsV1 } => {
+  const directory =
+    isAbsolute(run) || run.includes("/") || run.includes("\\")
+      ? resolve(root, run)
+      : resolve(root, runsDirectory, run);
   const path = resolve(directory, "edits.json");
-  if (!existsSync(path)) throw new Error(`No edits.json in ${directory}; only completed improve workflow runs record edits.`);
+  if (!existsSync(path))
+    throw new Error(
+      `No edits.json in ${directory}; only completed improve workflow runs record edits.`,
+    );
   try {
     return { directory, edits: decodeWorkflowEdits(JSON.parse(readFileSync(path, "utf8"))) };
   } catch (cause) {
-    throw new Error(`Invalid edits artifact ${path}: ${cause instanceof Error ? cause.message : String(cause)}`, { cause });
+    throw new Error(
+      `Invalid edits artifact ${path}: ${cause instanceof Error ? cause.message : String(cause)}`,
+      { cause },
+    );
   }
 };
 
@@ -207,13 +273,15 @@ export interface EditOutcome {
 const occurrences = (content: string, text: string): number => {
   let count = 0;
   // Overlapping matches count: "---" occurs twice in "----", so that target is ambiguous.
-  for (let index = content.indexOf(text); index >= 0; index = content.indexOf(text, index + 1)) count++;
+  for (let index = content.indexOf(text); index >= 0; index = content.indexOf(text, index + 1))
+    count++;
   return count;
 };
 
 const readOptional = async (path: string): Promise<string | undefined> => {
-  try { return await readFile(path, "utf8"); }
-  catch (cause) {
+  try {
+    return await readFile(path, "utf8");
+  } catch (cause) {
     if (cause instanceof Error && "code" in cause && cause.code === "ENOENT") return undefined;
     throw cause;
   }
@@ -231,31 +299,53 @@ export const applyWorkflowEdits = async (
 ): Promise<ReadonlyArray<EditOutcome>> => {
   const outcomes = new Map<string, EditOutcome>();
   const fail = (edit: (typeof edits)[number], cause: unknown) =>
-    outcomes.set(edit.id, { id: edit.id, path: edit.path, status: "failed", reason: cause instanceof Error ? cause.message : String(cause) });
+    outcomes.set(edit.id, {
+      id: edit.id,
+      path: edit.path,
+      status: "failed",
+      reason: cause instanceof Error ? cause.message : String(cause),
+    });
   // Group by resolved file so every name of one file (for example an allowed symlink) shares one simulation.
   const byTarget = new Map<string, Array<(typeof edits)[number]>>();
   for (const edit of edits) {
     try {
       const target = await resolveWorkflowWritePath(root, edit.path, options);
       byTarget.set(target, [...(byTarget.get(target) ?? []), edit]);
-    } catch (cause) { fail(edit, cause); }
+    } catch (cause) {
+      fail(edit, cause);
+    }
   }
   for (const [target, targetEdits] of byTarget) {
     let content: string | undefined;
-    try { content = await readOptional(target); }
-    catch (cause) { for (const edit of targetEdits) fail(edit, cause); continue; }
+    try {
+      content = await readOptional(target);
+    } catch (cause) {
+      for (const edit of targetEdits) fail(edit, cause);
+      continue;
+    }
     const matched: Array<(typeof edits)[number]> = [];
     for (const edit of targetEdits) {
-      const stale = (reason: string) => outcomes.set(edit.id, { id: edit.id, path: edit.path, status: "stale", reason });
+      const stale = (reason: string) =>
+        outcomes.set(edit.id, { id: edit.id, path: edit.path, status: "stale", reason });
       if (edit.oldText === undefined) {
-        if (content !== undefined) { stale("file already exists"); continue; }
+        if (content !== undefined) {
+          stale("file already exists");
+          continue;
+        }
         content = edit.newText;
       } else {
-        if (content === undefined) { stale("file not found"); continue; }
+        if (content === undefined) {
+          stale("file not found");
+          continue;
+        }
         const count = occurrences(content, edit.oldText);
-        if (count !== 1) { stale(count === 0 ? "target text not found" : `target text matches ${count} times`); continue; }
+        if (count !== 1) {
+          stale(count === 0 ? "target text not found" : `target text matches ${count} times`);
+          continue;
+        }
         const index = content.indexOf(edit.oldText);
-        content = content.slice(0, index) + edit.newText + content.slice(index + edit.oldText.length);
+        content =
+          content.slice(0, index) + edit.newText + content.slice(index + edit.oldText.length);
       }
       matched.push(edit);
     }
@@ -265,14 +355,20 @@ export const applyWorkflowEdits = async (
         await mkdir(dirname(target), { recursive: true });
         // Re-resolve after creating parents so a directory swapped for a symlink is still refused.
         const writable = await resolveWorkflowWritePath(root, matched[0]!.path, options);
-        if (writable !== target) throw new Error(`Repository path changed while applying: ${matched[0]!.path}`);
+        if (writable !== target)
+          throw new Error(`Repository path changed while applying: ${matched[0]!.path}`);
         await writeFile(writable, content!, "utf8");
       } catch (cause) {
         for (const edit of matched) fail(edit, cause);
         continue;
       }
     }
-    for (const edit of matched) outcomes.set(edit.id, { id: edit.id, path: edit.path, status: options.check ? "applicable" : "applied" });
+    for (const edit of matched)
+      outcomes.set(edit.id, {
+        id: edit.id,
+        path: edit.path,
+        status: options.check ? "applicable" : "applied",
+      });
   }
   return edits.map((edit) => outcomes.get(edit.id)!);
 };

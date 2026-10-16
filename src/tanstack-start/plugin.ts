@@ -35,7 +35,14 @@ import {
 
 import { graphToJson } from "../core/wire";
 import { seoRouteConfig } from "../vite/route-config";
-import { evaluateGraph, planGraph, type AppGraph, type GraphModuleRunner, type GraphPlan, type PagegraphOptions } from "./graph";
+import {
+  evaluateGraph,
+  planGraph,
+  type AppGraph,
+  type GraphModuleRunner,
+  type GraphPlan,
+  type PagegraphOptions,
+} from "./graph";
 import { MARKDOWN_CAPTURE_PATH } from "./markdown-path";
 import { persistMarkdownCapture } from "./persist-markdown";
 import { transformDocumentSource } from "./source";
@@ -89,15 +96,28 @@ const runtimeModule = ({ graph, site, markdown, facts }: AppGraph): string =>
 
 /** The graph environment's build entry: a loader per module the plan evaluates. */
 const entryModule = (plan: GraphPlan): string => {
-  const files = [...plan.routeFiles, ...(plan.collectionsFile === undefined ? [] : [plan.collectionsFile]), ...(plan.factsFile === undefined ? [] : [plan.factsFile])];
-  const loaders = files.map((file) => `  ${JSON.stringify(file)}: () => import(${JSON.stringify(file)}),`);
+  const files = [
+    ...plan.routeFiles,
+    ...(plan.collectionsFile === undefined ? [] : [plan.collectionsFile]),
+    ...(plan.factsFile === undefined ? [] : [plan.factsFile]),
+  ];
+  const loaders = files.map(
+    (file) => `  ${JSON.stringify(file)}: () => import(${JSON.stringify(file)}),`,
+  );
   return `export const modules = {\n${loaders.join("\n")}\n};\n`;
 };
 
 /** Build the graph environment with the build's config, import its output, and evaluate. */
-const buildGraph = async (builder: ViteBuilder, environment: BuildEnvironment, plan: GraphPlan): Promise<AppGraph> => {
+const buildGraph = async (
+  builder: ViteBuilder,
+  environment: BuildEnvironment,
+  plan: GraphPlan,
+): Promise<AppGraph> => {
   await builder.build(environment);
-  const entry = join(resolve(environment.config.root, environment.config.build.outDir), "entry.mjs");
+  const entry = join(
+    resolve(environment.config.root, environment.config.build.outDir),
+    "entry.mjs",
+  );
   const { modules } = (await import(pathToFileURL(entry).href)) as {
     modules: Record<string, () => Promise<Record<string, unknown>>>;
   };
@@ -117,11 +137,15 @@ export interface MarkdownPrerenderPage {
   readonly sitemap: { readonly exclude: true };
   readonly prerender: { readonly onSuccess: (result: { html: string }) => Promise<void> };
 }
-export type PagegraphPlugins = Array<Plugin> & { readonly prerenderPages: Array<MarkdownPrerenderPage> };
+export type PagegraphPlugins = Array<Plugin> & {
+  readonly prerenderPages: Array<MarkdownPrerenderPage>;
+};
 
 export function pagegraph(options: PagegraphOptions): PagegraphPlugins {
   if (options.claims !== undefined && options.markdown === undefined)
-    throw new Error("Claims require pagegraph({ markdown: { origin }, claims: { rules, model } }) so the build captures documents.");
+    throw new Error(
+      "Claims require pagegraph({ markdown: { origin }, claims: { rules, model } }) so the build captures documents.",
+    );
   const api: PagegraphPluginApi = { options };
   let root = process.cwd();
   let clientOutDir = resolve(root, "dist/client");
@@ -155,7 +179,8 @@ export function pagegraph(options: PagegraphOptions): PagegraphPlugins {
           [GRAPH_ENVIRONMENT]: {
             consumer: "server",
             dev: {
-              createEnvironment: (name, environmentConfig) => createRunnableDevEnvironment(name, environmentConfig),
+              createEnvironment: (name, environmentConfig) =>
+                createRunnableDevEnvironment(name, environmentConfig),
             },
             build: {
               outDir: BUILD_DIRECTORY,
@@ -164,7 +189,10 @@ export function pagegraph(options: PagegraphOptions): PagegraphPlugins {
               minify: false,
               rolldownOptions: {
                 input: { entry: ENTRY_ID },
-                output: { entryFileNames: "[name].mjs", chunkFileNames: "chunks/[name]-[hash].mjs" },
+                output: {
+                  entryFileNames: "[name].mjs",
+                  chunkFileNames: "chunks/[name]-[hash].mjs",
+                },
               },
             },
           },
@@ -178,7 +206,10 @@ export function pagegraph(options: PagegraphOptions): PagegraphPlugins {
         return;
       }
       environmentConfig.optimizeDeps ??= {};
-      environmentConfig.optimizeDeps.exclude = [...(environmentConfig.optimizeDeps.exclude ?? []), ...RUNTIME_ENTRIES];
+      environmentConfig.optimizeDeps.exclude = [
+        ...(environmentConfig.optimizeDeps.exclude ?? []),
+        ...RUNTIME_ENTRIES,
+      ];
     },
     configResolved(resolved) {
       root = resolved.root;
@@ -189,7 +220,9 @@ export function pagegraph(options: PagegraphOptions): PagegraphPlugins {
       order: "pre",
       handler(devServer) {
         server = devServer;
-        devEnvironment = devServer.environments[GRAPH_ENVIRONMENT] as RunnableDevEnvironment | undefined;
+        devEnvironment = devServer.environments[GRAPH_ENVIRONMENT] as
+          | RunnableDevEnvironment
+          | undefined;
       },
     },
     // Runs after Vite invalidates the changed file in each environment, so the
@@ -228,11 +261,15 @@ export function pagegraph(options: PagegraphOptions): PagegraphPlugins {
       filter: { id: /^\0virtual:pagegraph\/(runtime|entry)$/ },
       async handler(id) {
         if (id === RESOLVED_ENTRY_ID) {
-          if (buildPlan === undefined) throw new Error(`[${PLUGIN_NAME}] ${ENTRY_ID} is only built by the pagegraph buildApp hook`);
+          if (buildPlan === undefined)
+            throw new Error(
+              `[${PLUGIN_NAME}] ${ENTRY_ID} is only built by the pagegraph buildApp hook`,
+            );
           return entryModule(buildPlan);
         }
         // A page evaluated for the graph may import the runtime; it never serves from it.
-        if (this.environment.name === GRAPH_ENVIRONMENT) return "export const graph = null;\nexport const site = null;\nexport const markdown = null;\nexport const facts = undefined;\n";
+        if (this.environment.name === GRAPH_ENVIRONMENT)
+          return "export const graph = null;\nexport const site = null;\nexport const markdown = null;\nexport const facts = undefined;\n";
         if (current === undefined) {
           if (devEnvironment === undefined) {
             throw new Error(
@@ -256,13 +293,20 @@ export function pagegraph(options: PagegraphOptions): PagegraphPlugins {
     },
     load: {
       filter: { id: /^\0virtual:pagegraph\/prerender-server$/ },
-      handler: () => `export { default } from ${JSON.stringify(resolve(root, options.markdown?.serverEntry ?? "dist/server/index.js"))};`,
+      handler: () =>
+        `export { default } from ${JSON.stringify(resolve(root, options.markdown?.serverEntry ?? "dist/server/index.js"))};`,
     },
     transform: {
       filter: { id: /\.[jt]sx?(\?|$)/, code: /pagegraph\/react/ },
       handler(code, id) {
         const file = id.split("?")[0];
-        if (file === undefined || file.includes("/node_modules/") || file.endsWith(".gen.ts") || !file.startsWith(`${root}/`)) return;
+        if (
+          file === undefined ||
+          file.includes("/node_modules/") ||
+          file.endsWith(".gen.ts") ||
+          !file.startsWith(`${root}/`)
+        )
+          return;
         return transformDocumentSource(code, file, root);
       },
     },
@@ -271,29 +315,49 @@ export function pagegraph(options: PagegraphOptions): PagegraphPlugins {
       previewServer.middlewares.use((_request, response, next) => {
         response.on("finish", () => {
           const error = response.getHeader("x-pagegraph-error");
-          if (typeof error === "string") previewServer.config.logger.error(decodeURIComponent(error));
+          if (typeof error === "string")
+            previewServer.config.logger.error(decodeURIComponent(error));
         });
         next();
       });
     },
   };
 
-  return Object.assign([
-    graphPlugin,
-    markdownPlugin,
-    runtimeModulesPlugin,
-    ...(options.routeConfig === undefined
-      ? []
-      : [seoRouteConfig({ ...options.routeConfig, routesDirectory: options.routesDirectory })]),
-  ], {
-    prerenderPages: options.markdown === undefined ? [] : [{
-      path: MARKDOWN_CAPTURE_PATH,
-      sitemap: { exclude: true as const },
-      prerender: { onSuccess: async ({ html }: { html: string }) => {
-        if (current === undefined) throw new Error("The pagegraph graph must be evaluated before Markdown persistence.");
-        const app = await current;
-        await persistMarkdownCapture(html, root, clientOutDir, options.claims, app.facts);
-      } },
-    }],
-  });
+  return Object.assign(
+    [
+      graphPlugin,
+      markdownPlugin,
+      runtimeModulesPlugin,
+      ...(options.routeConfig === undefined
+        ? []
+        : [seoRouteConfig({ ...options.routeConfig, routesDirectory: options.routesDirectory })]),
+    ],
+    {
+      prerenderPages:
+        options.markdown === undefined
+          ? []
+          : [
+              {
+                path: MARKDOWN_CAPTURE_PATH,
+                sitemap: { exclude: true as const },
+                prerender: {
+                  onSuccess: async ({ html }: { html: string }) => {
+                    if (current === undefined)
+                      throw new Error(
+                        "The pagegraph graph must be evaluated before Markdown persistence.",
+                      );
+                    const app = await current;
+                    await persistMarkdownCapture(
+                      html,
+                      root,
+                      clientOutDir,
+                      options.claims,
+                      app.facts,
+                    );
+                  },
+                },
+              },
+            ],
+    },
+  );
 }

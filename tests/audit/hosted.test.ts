@@ -30,9 +30,7 @@ describe("opt-in hosted SEO scanners", () => {
       events: [],
       rest: 'data: {"ty',
     });
-    expect(
-      parseSseDataFrames('data: {"type":"scan_complete"}\r\n\r\n'),
-    ).toEqual({
+    expect(parseSseDataFrames('data: {"type":"scan_complete"}\r\n\r\n')).toEqual({
       events: [{ type: "scan_complete" }],
       rest: "",
     });
@@ -75,8 +73,7 @@ describe("opt-in hosted SEO scanners", () => {
       server.listen(0, "127.0.0.1", resolve);
     });
     const address = server.address();
-    if (address === null || typeof address === "string")
-      throw new Error("fixture did not bind");
+    if (address === null || typeof address === "string") throw new Error("fixture did not bind");
     const origin = `http://127.0.0.1:${address.port}`;
     const origins: HostedScannerOrigins = {
       ...defaultHostedScannerOrigins,
@@ -97,9 +94,7 @@ describe("opt-in hosted SEO scanners", () => {
         scanner: "is-agentic",
         score: 95,
         scoreLabel: "Strong",
-        findings: [
-          expect.objectContaining({ result: "partial", name: "404 guidance" }),
-        ],
+        findings: [expect.objectContaining({ result: "partial", name: "404 guidance" })],
         error: null,
       }),
     ]);

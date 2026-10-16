@@ -1,19 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  AuditComparisonResult,
-  compareAuditReports,
-} from "../../src/audit/diff";
-import type {
-  AuditFinding,
-  AuditReport,
-  ScannerResult,
-} from "../../src/audit/model";
+import { AuditComparisonResult, compareAuditReports } from "../../src/audit/diff";
+import type { AuditFinding, AuditReport, ScannerResult } from "../../src/audit/model";
 
-const finding = (
-  severity: AuditFinding["severity"],
-  rule = "fixture-rule",
-): AuditFinding => ({
+const finding = (severity: AuditFinding["severity"], rule = "fixture-rule"): AuditFinding => ({
   scanner: "rules",
   target: "https://example.test/",
   severity,
@@ -21,14 +11,16 @@ const finding = (
   message: `${severity} fixture finding`,
 });
 
-const report = (options: {
-  readonly generatedAt?: string;
-  readonly targets?: ReadonlyArray<string>;
-  readonly status?: ScannerResult["status"];
-  readonly findings?: ReadonlyArray<AuditFinding>;
-  readonly evidence?: unknown;
-  readonly warnings?: ReadonlyArray<string>;
-} = {}): AuditReport => {
+const report = (
+  options: {
+    readonly generatedAt?: string;
+    readonly targets?: ReadonlyArray<string>;
+    readonly status?: ScannerResult["status"];
+    readonly findings?: ReadonlyArray<AuditFinding>;
+    readonly evidence?: unknown;
+    readonly warnings?: ReadonlyArray<string>;
+  } = {},
+): AuditReport => {
   const findings = [...(options.findings ?? [])];
   const targets = [...(options.targets ?? ["https://example.test/"])];
   return {
@@ -81,19 +73,13 @@ describe("audit report diff", () => {
   });
 
   it("fails only structural finding additions", () => {
-    const editorial = success(
-      report(),
-      report({ findings: [finding("editorial")] }),
-    );
+    const editorial = success(report(), report({ findings: [finding("editorial")] }));
     expect(editorial).toMatchObject({
       outcome: "changed",
       summary: { editorialRegressions: 1, structuralRegressions: 0 },
     });
 
-    const structural = success(
-      report(),
-      report({ findings: [finding("structural")] }),
-    );
+    const structural = success(report(), report({ findings: [finding("structural")] }));
     expect(structural).toMatchObject({
       outcome: "regressed",
       summary: { structuralRegressions: 1 },
@@ -117,10 +103,7 @@ describe("audit report diff", () => {
       ],
     });
 
-    const recovered = success(
-      report({ status: "error" }),
-      report({ status: "ok" }),
-    );
+    const recovered = success(report({ status: "error" }), report({ status: "ok" }));
     expect(recovered).toMatchObject({
       outcome: "changed",
       summary: { improvements: 1 },
@@ -190,9 +173,7 @@ describe("audit report diff", () => {
       observed: { length: 9 },
     };
 
-    expect(
-      success(report({ findings: [before] }), report({ findings: [after] })),
-    ).toMatchObject({
+    expect(success(report({ findings: [before] }), report({ findings: [after] }))).toMatchObject({
       outcome: "changed",
       summary: { informationalChanges: 1 },
       changes: [expect.objectContaining({ _tag: "FindingChanged" })],

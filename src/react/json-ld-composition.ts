@@ -87,22 +87,18 @@ export function jsonLdRef(id: string): IdReference {
 }
 
 /** Extend a generated or custom document without rebuilding its existing properties. */
-export function extendJsonLd<
-  const Document extends JsonLdDocument,
-  const Extension extends object,
->(document: Document, extension: Extension): Document & Extension {
-  return { ...(document as unknown as object), ...extension } as Document &
-    Extension;
+export function extendJsonLd<const Document extends JsonLdDocument, const Extension extends object>(
+  document: Document,
+  extension: Extension,
+): Document & Extension {
+  return { ...(document as unknown as object), ...extension } as Document & Extension;
 }
 
 const documentNodes = (document: JsonLdDocument): ReadonlyArray<JsonLdNode> => {
   if ("@graph" in document) {
     return document["@graph"] as ReadonlyArray<JsonLdNode>;
   }
-  const { "@context": _context, ...node } = document as unknown as Record<
-    string,
-    unknown
-  >;
+  const { "@context": _context, ...node } = document as unknown as Record<string, unknown>;
   return [node as JsonLdNode];
 };
 

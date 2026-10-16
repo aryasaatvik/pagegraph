@@ -5,10 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import { Audit, InvalidTarget } from "../../src/audit/audit";
 import { AuditLayer } from "../../src/audit/layers";
-import {
-  ScannerRegistry,
-  ScannerRegistryLive,
-} from "../../src/audit/scanner-registry";
+import { ScannerRegistry, ScannerRegistryLive } from "../../src/audit/scanner-registry";
 import { ScannerFailure, scanner, type Scanner } from "../../src/audit/scanner";
 
 const runAudit = (scanners: readonly Scanner[], targets: readonly string[]) =>
@@ -68,9 +65,7 @@ describe("Audit and Scanner services", () => {
     const report = await runAudit([first, second], targets);
 
     expect(report.targets).toEqual(targets);
-    expect(
-      report.results.map((result) => `${result.scanner}:${result.target}`),
-    ).toEqual([
+    expect(report.results.map((result) => `${result.scanner}:${result.target}`)).toEqual([
       "first:https://one.test/",
       "second:https://one.test/",
       "first:https://two.test/",
@@ -125,9 +120,7 @@ describe("Audit and Scanner services", () => {
       },
     });
 
-    await expect(
-      runAudit([custom], ["file:///tmp/private"]),
-    ).rejects.toMatchObject({
+    await expect(runAudit([custom], ["file:///tmp/private"])).rejects.toMatchObject({
       _tag: "InvalidTarget",
       target: "file:///tmp/private",
     } satisfies Partial<InvalidTarget>);
@@ -149,25 +142,17 @@ describe("Audit and Scanner services", () => {
       Effect.gen(function* () {
         const audit = yield* Audit.Service;
         yield* audit.run({ targets: ["https://example.test/"] });
-      }).pipe(
-        Effect.provide(AuditLayer([custom])),
-        Effect.withSpan("test-root"),
-      ),
+      }).pipe(Effect.provide(AuditLayer([custom])), Effect.withSpan("test-root")),
     );
 
     expect(observed?.name).toBe("Audit.runScanner");
-    const auditSpan =
-      observed === undefined
-        ? undefined
-        : Option.getOrUndefined(observed.parent);
+    const auditSpan = observed === undefined ? undefined : Option.getOrUndefined(observed.parent);
     expect(auditSpan?._tag).toBe("Span");
-    if (auditSpan?._tag !== "Span")
-      throw new Error("Expected an internal audit span");
+    if (auditSpan?._tag !== "Span") throw new Error("Expected an internal audit span");
     expect(auditSpan.name).toBe("Audit.run");
     const rootSpan = Option.getOrUndefined(auditSpan.parent);
     expect(rootSpan?._tag).toBe("Span");
-    if (rootSpan?._tag !== "Span")
-      throw new Error("Expected an internal root span");
+    if (rootSpan?._tag !== "Span") throw new Error("Expected an internal root span");
     expect(rootSpan.name).toBe("test-root");
   });
 });

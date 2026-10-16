@@ -26,8 +26,15 @@ function metadata(router: AnyRouter, path: string): { title: string; description
   if (match?.status !== "success")
     throw new Error(`Markdown page ${path}: route did not load successfully`);
   const title = match.meta?.find((entry) => entry !== undefined && "title" in entry)?.title;
-  const description = match.meta?.find((entry) => entry !== undefined && "name" in entry && entry.name === "description");
-  if (typeof title !== "string" || description === undefined || !("content" in description) || typeof description.content !== "string")
+  const description = match.meta?.find(
+    (entry) => entry !== undefined && "name" in entry && entry.name === "description",
+  );
+  if (
+    typeof title !== "string" ||
+    description === undefined ||
+    !("content" in description) ||
+    typeof description.content !== "string"
+  )
     throw new Error(`Markdown page ${path}: head() must declare title and description`);
   return { title, description: description.content };
 }
@@ -48,13 +55,22 @@ async function capturePage(
   const render = defineHandlerCallback(async ({ router }) => {
     try {
       const head = metadata(router, path);
-      const collector = createCollector({ path, site: origin, ...(facts === undefined ? {} : { facts }) });
+      const collector = createCollector({
+        path,
+        site: origin,
+        ...(facts === undefined ? {} : { facts }),
+      });
       const errors: Array<unknown> = [];
       const stream = await renderToReadableStream(
         <CaptureRequest.Provider value={collector}>
           <StartServer router={router} />
         </CaptureRequest.Provider>,
-        { signal: request.signal, onError: (cause) => { errors.push(cause); } },
+        {
+          signal: request.signal,
+          onError: (cause) => {
+            errors.push(cause);
+          },
+        },
       );
       // Only completed HTML determines record order and discards abandoned Suspense fallbacks.
       await stream.allReady;
@@ -79,7 +95,9 @@ async function capturePage(
   // App-wired request context is retained; requester headers are not.
   const response = await createStartHandler(render)(htmlRequest, options);
   if (document === undefined)
-    throw failure ?? new Error(`Markdown page ${path}: ${response.status} ${await response.text()}`);
+    throw (
+      failure ?? new Error(`Markdown page ${path}: ${response.status} ${await response.text()}`)
+    );
   return document;
 }
 
@@ -102,14 +120,27 @@ export async function markdownRequest(
   let path: string;
   try {
     path = decodeURIComponent(new URL(request.url).pathname).replace(/\/$/, "");
-  } catch { return null; }
-  const privatePath = path === "/__pagegraph" || path.startsWith("/__pagegraph/") || path.endsWith(".document.json");
-  const enabled = import.meta.env?.DEV || (typeof process !== "undefined" && process.env.TSS_PRERENDERING === "true");
-  if (!enabled) return privatePath ? new Response(request.method === "HEAD" ? null : "Not found", { status: 404 }) : null;
+  } catch {
+    return null;
+  }
+  const privatePath =
+    path === "/__pagegraph" || path.startsWith("/__pagegraph/") || path.endsWith(".document.json");
+  const enabled =
+    import.meta.env?.DEV ||
+    (typeof process !== "undefined" && process.env.TSS_PRERENDERING === "true");
+  if (!enabled)
+    return privatePath
+      ? new Response(request.method === "HEAD" ? null : "Not found", { status: 404 })
+      : null;
   if (!privatePath && !path.endsWith(".md")) return null;
   if (!["GET", "HEAD"].includes(request.method))
-    return privatePath ? new Response(request.method === "HEAD" ? null : "Not found", { status: 404 }) : null;
-  if (markdown === null) return privatePath ? new Response(request.method === "HEAD" ? null : "Not found", { status: 404 }) : null;
+    return privatePath
+      ? new Response(request.method === "HEAD" ? null : "Not found", { status: 404 })
+      : null;
+  if (markdown === null)
+    return privatePath
+      ? new Response(request.method === "HEAD" ? null : "Not found", { status: 404 })
+      : null;
   try {
     const pages = markdownPagePaths();
     let response: Response;
@@ -117,28 +148,40 @@ export async function markdownRequest(
       // Validate the graph metadata that production llms.txt serves before persisting captures.
       llmsSection();
       const documents: Array<PageDocument> = [];
-      for (const page of pages) documents.push(await capturePage(page, markdown.origin, request, options));
+      for (const page of pages)
+        documents.push(await capturePage(page, markdown.origin, request, options));
       const captured = new Set(pages);
       const heads = [...seoGraph().nodes.values()]
         .flatMap((node) => {
           const head = node.head;
-          return captured.has(node.path) || node.path.includes("$") || head?.description === undefined
+          return captured.has(node.path) ||
+            node.path.includes("$") ||
+            head?.description === undefined
             ? []
             : [{ path: node.path, title: head.title, description: head.description }];
         })
         .sort((a, b) => a.path.localeCompare(b.path));
-      response = Response.json({ origin: markdown.origin, documents, heads }, { headers: { "cache-control": "no-store" } });
+      response = Response.json(
+        { origin: markdown.origin, documents, heads },
+        { headers: { "cache-control": "no-store" } },
+      );
     } else {
       const page = pages.find((candidate) => {
         const base = candidate === "/" ? "/index" : candidate;
         return `${base}.md` === path || `${base}.document.json` === path;
       });
-      if (page === undefined) return privatePath ? new Response(request.method === "HEAD" ? null : "Not found", { status: 404 }) : null;
+      if (page === undefined)
+        return privatePath
+          ? new Response(request.method === "HEAD" ? null : "Not found", { status: 404 })
+          : null;
       const document = await capturePage(page, markdown.origin, request, options);
       response = path.endsWith(".document.json")
         ? Response.json(document, { headers: { "cache-control": "no-store" } })
         : new Response(documentMarkdown(document, markdown.origin), {
-            headers: { "content-type": "text/markdown; charset=utf-8", "cache-control": "no-store" },
+            headers: {
+              "content-type": "text/markdown; charset=utf-8",
+              "cache-control": "no-store",
+            },
           });
     }
     return request.method === "HEAD" ? new Response(null, response) : response;

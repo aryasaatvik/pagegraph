@@ -73,12 +73,7 @@ describe("scanner failure regressions", () => {
       }),
     );
 
-    expect(calls).toEqual([
-      "mobile:1",
-      "mobile:2",
-      "desktop:1",
-      "desktop:2",
-    ]);
+    expect(calls).toEqual(["mobile:1", "mobile:2", "desktop:1", "desktop:2"]);
     expect(observation.evidence).toHaveLength(4);
   });
 
@@ -105,14 +100,12 @@ describe("scanner failure regressions", () => {
   });
 
   it("escalates a Lighthouse timeout from SIGTERM to SIGKILL", async () => {
-    const fixture = fileURLToPath(
-      new URL("../fixtures/ignore-term.mjs", import.meta.url),
-    );
+    const fixture = fileURLToPath(new URL("../fixtures/ignore-term.mjs", import.meta.url));
     const startedAt = performance.now();
 
-    await expect(
-      runLighthouseProcess(fixture, [], 25, 25),
-    ).rejects.toThrow("Lighthouse timed out after 25ms");
+    await expect(runLighthouseProcess(fixture, [], 25, 25)).rejects.toThrow(
+      "Lighthouse timed out after 25ms",
+    );
     expect(performance.now() - startedAt).toBeLessThan(1_000);
   });
 

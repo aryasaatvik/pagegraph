@@ -37,7 +37,11 @@ export interface CrawlResult {
   readonly pages: ReadonlyArray<RenderedPage>;
   readonly failures: ReadonlyArray<CrawlFailure>;
   /** Successfully fetched non-HTML URLs discovered only through page anchors. */
-  readonly nonHtml: ReadonlyArray<{ readonly url: string; readonly finalUrl: string; readonly contentType: string }>;
+  readonly nonHtml: ReadonlyArray<{
+    readonly url: string;
+    readonly finalUrl: string;
+    readonly contentType: string;
+  }>;
   /** URLs whose captured body hit `maxBodyBytes`; anchors past the cutoff are missing. */
   readonly truncatedBodies: ReadonlyArray<string>;
   /** True when discovery outran `limit` and pages were left unvisited. */
@@ -69,7 +73,11 @@ interface ProbedPage {
   readonly item: QueueItem;
   readonly page: RenderedPage | null;
   readonly failure: CrawlFailure | null;
-  readonly nonHtml?: { readonly url: string; readonly finalUrl: string; readonly contentType: string };
+  readonly nonHtml?: {
+    readonly url: string;
+    readonly finalUrl: string;
+    readonly contentType: string;
+  };
   readonly links: ReadonlyArray<URL>;
   /** Whether the captured body was cut at `maxBodyBytes`. */
   readonly bodyTruncated: boolean;
@@ -81,9 +89,10 @@ const xmlText = (value: string): string =>
   value.trim().replace(/&(amp|lt|gt|quot|apos|#x[0-9a-f]+|#[0-9]+);/gi, (entity, code: string) => {
     const named: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'" };
     if (named[code.toLowerCase()] !== undefined) return named[code.toLowerCase()]!;
-    const numeric = code.startsWith("#x") || code.startsWith("#X")
-      ? Number.parseInt(code.slice(2), 16)
-      : Number.parseInt(code.slice(1), 10);
+    const numeric =
+      code.startsWith("#x") || code.startsWith("#X")
+        ? Number.parseInt(code.slice(2), 16)
+        : Number.parseInt(code.slice(1), 10);
     if (
       !Number.isInteger(numeric) ||
       numeric === 0 ||
@@ -96,8 +105,14 @@ const xmlText = (value: string): string =>
     return String.fromCodePoint(numeric);
   });
 
-export const robotsRules = (body: string): { readonly rules: ReadonlyArray<{ path: string; allow: boolean }>; readonly sitemaps: ReadonlyArray<string> } => {
-  const groups: Array<{ agents: Array<string>; rules: Array<{ path: string; allow: boolean }> }> = [];
+export const robotsRules = (
+  body: string,
+): {
+  readonly rules: ReadonlyArray<{ path: string; allow: boolean }>;
+  readonly sitemaps: ReadonlyArray<string>;
+} => {
+  const groups: Array<{ agents: Array<string>; rules: Array<{ path: string; allow: boolean }> }> =
+    [];
   const sitemaps: Array<string> = [];
   let group: { agents: Array<string>; rules: Array<{ path: string; allow: boolean }> } | undefined;
   let hasDirective = false;
@@ -107,7 +122,10 @@ export const robotsRules = (body: string): { readonly rules: ReadonlyArray<{ pat
     if (!match) continue;
     const name = match[1]!.trim().toLowerCase();
     const value = match[2]!.trim();
-    if (name === "sitemap") { sitemaps.push(value); continue; }
+    if (name === "sitemap") {
+      sitemaps.push(value);
+      continue;
+    }
     if (name === "user-agent") {
       if (group === undefined || hasDirective) {
         group = { agents: [], rules: [] };
@@ -119,17 +137,23 @@ export const robotsRules = (body: string): { readonly rules: ReadonlyArray<{ pat
     }
     if (name === "allow" || name === "disallow") {
       hasDirective = true;
-      if (group !== undefined && value.startsWith("/")) group.rules.push({ path: value, allow: name === "allow" });
+      if (group !== undefined && value.startsWith("/"))
+        group.rules.push({ path: value, allow: name === "allow" });
     }
   }
-  const score = (agent: string): number => agent === "*" ? 0 : "pagegraph/0.4".startsWith(agent) ? agent.length : -1;
+  const score = (agent: string): number =>
+    agent === "*" ? 0 : "pagegraph/0.4".startsWith(agent) ? agent.length : -1;
   const best = Math.max(-1, ...groups.flatMap((entry) => entry.agents.map(score)));
-  const rules = groups.filter((entry) => best >= 0 && entry.agents.some((agent) => score(agent) === best))
+  const rules = groups
+    .filter((entry) => best >= 0 && entry.agents.some((agent) => score(agent) === best))
     .flatMap((entry) => entry.rules);
   return { rules, sitemaps };
 };
 
-export const allowedByRobots = (path: string, rules: ReadonlyArray<{ path: string; allow: boolean }>): boolean => {
+export const allowedByRobots = (
+  path: string,
+  rules: ReadonlyArray<{ path: string; allow: boolean }>,
+): boolean => {
   let chosen: { path: string; allow: boolean } | undefined;
   let bestLength = -1;
   for (const rule of rules) {
@@ -144,10 +168,17 @@ export const allowedByRobots = (path: string, rules: ReadonlyArray<{ path: strin
     for (let at = 1; at < parts.length; at++) {
       const part = parts[at]!;
       const found = path.indexOf(part, offset);
-      if (found < 0) { matches = false; break; }
+      if (found < 0) {
+        matches = false;
+        break;
+      }
       offset = found + part.length;
     }
-    if (!matches || (anchored && (parts.length === 1 ? path !== parts[0] : !path.endsWith(parts.at(-1)!)))) continue;
+    if (
+      !matches ||
+      (anchored && (parts.length === 1 ? path !== parts[0] : !path.endsWith(parts.at(-1)!)))
+    )
+      continue;
     const length = rule.path.replace(/[\*$]/g, "").length;
     if (length > bestLength || (length === bestLength && rule.allow)) {
       chosen = rule;
@@ -228,47 +259,85 @@ export const crawlRenderedPages = async (
   let root = pageKey(seedUrl);
   let frontier: Array<QueueItem> = [{ url: seedUrl, depth: 0 }];
 
-  const discoveryProbe = async (url: URL, kind: "robots" | "sitemap", allowUrl?: (url: URL) => boolean) =>
-    probeHttp({ kind, method: "GET", accept: "text/plain, application/xml, text/xml", url }, {
-      ...probeOptions, captureAnchors: false, captureBody: true, allowUrl,
-    });
+  const discoveryProbe = async (
+    url: URL,
+    kind: "robots" | "sitemap",
+    allowUrl?: (url: URL) => boolean,
+  ) =>
+    probeHttp(
+      { kind, method: "GET", accept: "text/plain, application/xml, text/xml", url },
+      {
+        ...probeOptions,
+        captureAnchors: false,
+        captureBody: true,
+        allowUrl,
+      },
+    );
   const robots = await discoveryProbe(new URL("/robots.txt", origin), "robots");
   if (!robots.ok && robots.status !== 404) {
-    discoveryFailures.push({ url: new URL("/robots.txt", origin).href, error: robots.error ?? `HTTP ${robots.status}` });
+    discoveryFailures.push({
+      url: new URL("/robots.txt", origin).href,
+      error: robots.error ?? `HTTP ${robots.status}`,
+    });
   }
-  if (robots.bodyTruncated) discoveryFailures.push({ url: robots.requestedUrl, error: "robots.txt body truncated" });
-  const policy = robots.ok && !robots.bodyTruncated ? robotsRules(robots.body ?? "") : { rules: [], sitemaps: [] };
+  if (robots.bodyTruncated)
+    discoveryFailures.push({ url: robots.requestedUrl, error: "robots.txt body truncated" });
+  const policy =
+    robots.ok && !robots.bodyTruncated
+      ? robotsRules(robots.body ?? "")
+      : { rules: [], sitemaps: [] };
   const permitted = (url: URL): boolean => {
     if (allowedByRobots(`${url.pathname}${url.search}`, policy.rules)) return true;
     skipped.push(url.href);
     return false;
   };
   const sitemapUrls: Array<URL> = [];
-  const sitemapQueue = (policy.sitemaps.length > 0 ? policy.sitemaps : [new URL("/sitemap.xml", origin).href])
-    .flatMap((entry) => { try { return [new URL(entry, origin)]; } catch { return []; } });
+  const sitemapQueue = (
+    policy.sitemaps.length > 0 ? policy.sitemaps : [new URL("/sitemap.xml", origin).href]
+  ).flatMap((entry) => {
+    try {
+      return [new URL(entry, origin)];
+    } catch {
+      return [];
+    }
+  });
   const seenSitemaps = new Set<string>();
   const seenSitemapPages = new Set<string>();
   while (sitemapQueue.length > 0) {
     const url = sitemapQueue.shift()!;
     if (url.origin !== origin) {
-      discoveryFailures.push({ url: url.href, error: "Advertised sitemap is off-origin and was not fetched" });
+      discoveryFailures.push({
+        url: url.href,
+        error: "Advertised sitemap is off-origin and was not fetched",
+      });
       continue;
     }
     if (seenSitemaps.has(url.href) || !permitted(url)) continue;
-    if (seenSitemaps.size >= Math.max(1, Math.min(options.limit, 16))) { sitemapTruncated = true; break; }
+    if (seenSitemaps.size >= Math.max(1, Math.min(options.limit, 16))) {
+      sitemapTruncated = true;
+      break;
+    }
     seenSitemaps.add(url.href);
     const probe = await discoveryProbe(url, "sitemap", permitted);
     if (!probe.ok) {
-      if (probe.status !== 404 || policy.sitemaps.length > 0) discoveryFailures.push({ url: url.href, error: probe.error ?? `HTTP ${probe.status}` });
+      if (probe.status !== 404 || policy.sitemaps.length > 0)
+        discoveryFailures.push({ url: url.href, error: probe.error ?? `HTTP ${probe.status}` });
       continue;
     }
     const body = probe.body ?? "";
     if (probe.bodyTruncated || !/<(?:urlset|sitemapindex)\b/i.test(body)) {
-      discoveryFailures.push({ url: url.href, error: probe.bodyTruncated ? "sitemap body truncated" : "malformed sitemap" });
+      discoveryFailures.push({
+        url: url.href,
+        error: probe.bodyTruncated ? "sitemap body truncated" : "malformed sitemap",
+      });
       continue;
     }
     const index = /<sitemapindex\b/i.test(body);
-    const entries = [...body.matchAll(index ? /<sitemap\b[^>]*>([\s\S]*?)<\/sitemap>/gi : /<url\b[^>]*>([\s\S]*?)<\/url>/gi)];
+    const entries = [
+      ...body.matchAll(
+        index ? /<sitemap\b[^>]*>([\s\S]*?)<\/sitemap>/gi : /<url\b[^>]*>([\s\S]*?)<\/url>/gi,
+      ),
+    ];
     for (const entry of entries) {
       XML_LOC.lastIndex = 0;
       const loc = XML_LOC.exec(entry[1] ?? "")?.[1];
@@ -281,15 +350,24 @@ export const crawlRenderedPages = async (
         const decoded = xmlText(loc);
         target = new URL(decoded, url);
       } catch {
-        discoveryFailures.push({ url: url.href, error: `Invalid sitemap <loc>: ${loc.slice(0, 120)}` });
+        discoveryFailures.push({
+          url: url.href,
+          error: `Invalid sitemap <loc>: ${loc.slice(0, 120)}`,
+        });
         continue;
       }
-      if (index) { sitemapQueue.push(target); continue; }
+      if (index) {
+        sitemapQueue.push(target);
+        continue;
+      }
       if (target.origin !== origin || !permitted(target)) continue;
       if (NON_PAGE.test(target.pathname)) continue;
       const key = pageKey(target);
       if (seenSitemapPages.has(key)) continue;
-      if (seenSitemapPages.size >= options.limit * 4) { sitemapTruncated = true; break; }
+      if (seenSitemapPages.size >= options.limit * 4) {
+        sitemapTruncated = true;
+        break;
+      }
       seenSitemapPages.add(key);
       sitemapUrls.push(target);
     }
@@ -320,13 +398,30 @@ export const crawlRenderedPages = async (
         canonical: null,
       };
     }
-    if (probe.responseHeaders["content-type"] !== undefined && !/text\/html|application\/xhtml\+xml/i.test(probe.responseHeaders["content-type"])) {
-      const expectedHtml = item.depth === 0 || sitemapListed.has(pageKey(item.url)) || sitemapListed.has(pageKey(new URL(probe.finalUrl)));
+    if (
+      probe.responseHeaders["content-type"] !== undefined &&
+      !/text\/html|application\/xhtml\+xml/i.test(probe.responseHeaders["content-type"])
+    ) {
+      const expectedHtml =
+        item.depth === 0 ||
+        sitemapListed.has(pageKey(item.url)) ||
+        sitemapListed.has(pageKey(new URL(probe.finalUrl)));
       return {
-        item, page: null,
+        item,
+        page: null,
         failure: expectedHtml ? { url: item.url.href, error: "Response is not HTML" } : null,
-        ...(expectedHtml ? {} : { nonHtml: { url: item.url.href, finalUrl: probe.finalUrl, contentType: probe.responseHeaders["content-type"] } }),
-        links: [], bodyTruncated: false, canonical: null,
+        ...(expectedHtml
+          ? {}
+          : {
+              nonHtml: {
+                url: item.url.href,
+                finalUrl: probe.finalUrl,
+                contentType: probe.responseHeaders["content-type"],
+              },
+            }),
+        links: [],
+        bodyTruncated: false,
+        canonical: null,
       };
     }
     const finalUrl = new URL(probe.finalUrl);
@@ -387,7 +482,9 @@ export const crawlRenderedPages = async (
           const canonical = new URL(result.canonical, page.url);
           if (canonical.origin === origin && pageKey(canonical) !== finalKey)
             canonicalByPath.set(finalKey, pageKey(canonical));
-        } catch { /* Invalid canonical does not hide fetched HTML. */ }
+        } catch {
+          /* Invalid canonical does not hide fetched HTML. */
+        }
       }
       // The seed's final path is the BFS root, even when the homepage redirected.
       if (result.item.depth === 0) root = finalKey;
@@ -422,10 +519,17 @@ export const crawlRenderedPages = async (
     const canonicalPage = canonical === undefined ? undefined : renderedByPath.get(canonical);
     // Different served anchors are distinct evidence even if the page declares
     // another canonical URL; collapsing them would lose real inbound links.
-    return canonicalPage === undefined || JSON.stringify(page.anchors) !== JSON.stringify(canonicalPage.anchors);
+    return (
+      canonicalPage === undefined ||
+      JSON.stringify(page.anchors) !== JSON.stringify(canonicalPage.anchors)
+    );
   });
   const canonicalRoot = canonicalByPath.get(root);
-  if (canonicalRoot !== undefined && !retainedPages.some((page) => pageKey(new URL(page.url)) === root)) root = canonicalRoot;
+  if (
+    canonicalRoot !== undefined &&
+    !retainedPages.some((page) => pageKey(new URL(page.url)) === root)
+  )
+    root = canonicalRoot;
   return {
     origin,
     seed: seedUrl.href,

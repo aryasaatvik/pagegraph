@@ -13,7 +13,15 @@
  *   Writes are atomic, so an interrupted refresh cannot leave a partial file.
  */
 
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { join } from "node:path";
 
 import * as Data from "effect/Data";
@@ -35,7 +43,8 @@ export class DecisionCacheInvalid extends Data.TaggedError("DecisionCacheInvalid
   readonly message: string;
 }> {}
 
-const answerFile = (cache: DecisionCache, key: string): string => join(cache.directory, `${key}.json`);
+const answerFile = (cache: DecisionCache, key: string): string =>
+  join(cache.directory, `${key}.json`);
 
 /**
  * Cached answers for `key` when they match `decisions`, `undefined` on a miss.
@@ -63,12 +72,17 @@ export const readAnswers = (
       catch: () => file,
     }).pipe(Effect.option);
     if (parsed._tag === "None") return yield* invalid("are not readable JSON");
-    if (!validCachedAnswers(decisions, parsed.value)) return yield* invalid("do not match the decision definition");
+    if (!validCachedAnswers(decisions, parsed.value))
+      return yield* invalid("do not match the decision definition");
     return parsed.value;
   });
 
 /** Persist answers for `key`, creating the directory on first write. */
-export const writeAnswers = (cache: DecisionCache, key: string, answers: unknown): Effect.Effect<void> =>
+export const writeAnswers = (
+  cache: DecisionCache,
+  key: string,
+  answers: unknown,
+): Effect.Effect<void> =>
   Effect.sync(() => {
     mkdirSync(cache.directory, { recursive: true });
     const contents = `${JSON.stringify(answers, null, 2)}\n`;

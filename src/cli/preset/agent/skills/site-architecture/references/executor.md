@@ -14,9 +14,9 @@ Inspect a selected tool's TypeScript shape with `executor_search` before executi
 Pass a TypeScript snippet to `executor_execute`, replacing `discovered_namespace`, `discovered_tool`, and
 arguments with the returned names and required fields:
 
-~~~ts
+```ts
 return await tools.discovered_namespace.discovered_tool(input);
-~~~
+```
 
 In a later turn, call that discovered tool with the required fields from its returned signature. Property,
 project, URL, date, and dimension arguments differ between integrations. Do not copy guessed fields

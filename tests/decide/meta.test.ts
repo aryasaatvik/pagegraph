@@ -58,13 +58,15 @@ const bestAnswer = (label: string, confidence = 0.9) => {
   return { label: answer.label, probabilities: answer.probabilities };
 };
 
-const answers = (overrides: {
-  bestConfidence?: number;
-  intentFit?: number;
-  lengthOk?: number;
-  categoryDrift?: number;
-  clickbait?: number;
-} = {}) => ({
+const answers = (
+  overrides: {
+    bestConfidence?: number;
+    intentFit?: number;
+    lengthOk?: number;
+    categoryDrift?: number;
+    clickbait?: number;
+  } = {},
+) => ({
   best: bestAnswer("a", overrides.bestConfidence ?? 0.9),
   intentFit: { probability: overrides.intentFit ?? 0.9 },
   lengthOk: { probability: overrides.lengthOk ?? 0.9 },

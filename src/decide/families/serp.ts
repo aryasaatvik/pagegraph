@@ -115,7 +115,8 @@ export const classifySerpVerdict = (
     answers.titlePatternMatch.probability,
   ];
   if (anyInReviewBand(probabilities, threshold)) return "review";
-  return answers.intentMatch.probability >= threshold && answers.ourFormatFit.probability >= threshold
+  return answers.intentMatch.probability >= threshold &&
+    answers.ourFormatFit.probability >= threshold
     ? "aligned"
     : "mismatch";
 };

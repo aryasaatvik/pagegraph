@@ -85,7 +85,11 @@ export const DECISION_ANSWER_SCHEMA_VERSION = 1;
 const canonicalJson = (value: unknown): string =>
   JSON.stringify(value, (_key, entry: unknown) =>
     entry !== null && typeof entry === "object" && !Array.isArray(entry)
-      ? Object.fromEntries(Object.entries(entry).sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0)))
+      ? Object.fromEntries(
+          Object.entries(entry).sort(([left], [right]) =>
+            left < right ? -1 : left > right ? 1 : 0,
+          ),
+        )
       : entry,
   );
 
@@ -100,7 +104,11 @@ export const definitionFingerprint = (decisions: Readonly<Record<string, Decisio
         Object.fromEntries(
           Object.entries(decisions).map(([name, decision]) => [
             name,
-            { kind: decision._tag, instructions: decision.instructions, criteria: decision.criteria ?? null },
+            {
+              kind: decision._tag,
+              instructions: decision.instructions,
+              criteria: decision.criteria ?? null,
+            },
           ]),
         ),
       ),

@@ -8,7 +8,17 @@
  */
 
 export { applyTitleTemplate } from "./declare";
-export type { JsonLdDocument, PublicPath, Register, RouteSeo, SeoFaq, SeoKind, SeoImage, SeoPageHead, SitemapPolicy } from "./declare";
+export type {
+  JsonLdDocument,
+  PublicPath,
+  Register,
+  RouteSeo,
+  SeoFaq,
+  SeoKind,
+  SeoImage,
+  SeoPageHead,
+  SitemapPolicy,
+} from "./declare";
 
 export { buildSeoGraph, resolveOgImage } from "./graph";
 export type {

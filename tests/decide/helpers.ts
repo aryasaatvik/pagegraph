@@ -24,7 +24,9 @@ export const classify = (
   return {
     _tag: "Classify",
     label,
-    probabilities: Object.fromEntries(labels.map((level) => [level, level === label ? confidence : rest])),
+    probabilities: Object.fromEntries(
+      labels.map((level) => [level, level === label ? confidence : rest]),
+    ),
   };
 };
 
@@ -38,7 +40,9 @@ export const rate = (
   return {
     _tag: "Rate",
     rating: levels.indexOf(level),
-    probabilities: Object.fromEntries(levels.map((each) => [each, each === level ? confidence : rest])),
+    probabilities: Object.fromEntries(
+      levels.map((each) => [each, each === level ? confidence : rest]),
+    ),
   };
 };
 

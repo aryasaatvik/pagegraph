@@ -80,10 +80,7 @@ const IsitagentreadyPayload = Schema.Struct({
   levelName: Schema.optionalKey(Schema.String),
   level_name: Schema.optionalKey(Schema.String),
   checks: Schema.optionalKey(
-    Schema.Record(
-      Schema.String,
-      Schema.Record(Schema.String, IsitagentreadyCheck),
-    ),
+    Schema.Record(Schema.String, Schema.Record(Schema.String, IsitagentreadyCheck)),
   ),
   nextLevel: Schema.optionalKey(
     Schema.Struct({
@@ -217,16 +214,14 @@ const pinnedResponse = async (request: {
   readonly timeoutMs: number;
 }): Promise<IncomingMessage> => {
   const addresses = await resolveTargetUrl(request.url, request.allowPrivate);
-  const transport =
-    request.url.protocol === "https:" ? requestHttps : requestHttp;
+  const transport = request.url.protocol === "https:" ? requestHttps : requestHttp;
   const hostname = networkHostname(request.url.hostname);
   const headers: Record<string, string | number> = {
     ...request.headers,
     host: request.url.host,
     "user-agent": userAgent,
   };
-  if (request.body !== undefined)
-    headers["content-length"] = Buffer.byteLength(request.body);
+  if (request.body !== undefined) headers["content-length"] = Buffer.byteLength(request.body);
   return new Promise((resolve, reject) => {
     const outgoing = transport({
       hostname,
@@ -253,10 +248,7 @@ const pinnedResponse = async (request: {
   });
 };
 
-const readBody = async (
-  response: IncomingMessage,
-  maxBodyBytes: number,
-): Promise<string> => {
+const readBody = async (response: IncomingMessage, maxBodyBytes: number): Promise<string> => {
   const chunks: Array<Uint8Array> = [];
   let length = 0;
   for await (const chunk of response) {
@@ -275,15 +267,11 @@ const readBody = async (
     offset += chunk.byteLength;
   }
   const body = new TextDecoder().decode(bytes);
-  if (body.trim().length === 0)
-    throw new Error("Hosted scanner returned an empty body");
+  if (body.trim().length === 0) throw new Error("Hosted scanner returned an empty body");
   return body;
 };
 
-const consumeStream = async (
-  response: IncomingMessage,
-  maxBodyBytes: number,
-): Promise<void> => {
+const consumeStream = async (response: IncomingMessage, maxBodyBytes: number): Promise<void> => {
   let buffer = "";
   let length = 0;
   let complete = false;
@@ -292,8 +280,7 @@ const consumeStream = async (
     for await (const chunk of response) {
       const value = new Uint8Array(chunk);
       length += value.byteLength;
-      if (length > maxBodyBytes)
-        throw new Error("Hosted scanner stream exceeded byte limit");
+      if (length > maxBodyBytes) throw new Error("Hosted scanner stream exceeded byte limit");
       // Keep decoder state across chunks: SSE payloads may split a UTF-8
       // codepoint at any byte boundary.
       buffer += decoder.decode(value, { stream: true });
@@ -303,8 +290,7 @@ const consumeStream = async (
         throw new Error("is-agentic scan failed");
       if (
         parsed.events.some(
-          (event) =>
-            event.type === "scan_complete" || event.type === "scan_archived",
+          (event) => event.type === "scan_complete" || event.type === "scan_archived",
         )
       ) {
         complete = true;
@@ -317,8 +303,7 @@ const consumeStream = async (
     throw cause;
   }
   buffer += decoder.decode();
-  if (!complete)
-    throw new Error("is-agentic scan ended before a report was available");
+  if (!complete) throw new Error("is-agentic scan ended before a report was available");
 };
 
 const originHeader = (
@@ -367,14 +352,13 @@ const parseIsitagentready = (
   origin: string,
 ): Omit<HostedScannerReport, "requestedUrl" | "totalMs" | "error"> => {
   const record = decodeIsitagentready(payload);
-  const checks = Object.entries(record.checks ?? {}).flatMap(
-    ([category, group]) =>
-      Object.entries(group).map(([id, check]) => ({
-        id,
-        category,
-        status: check.status,
-        message: check.message ?? null,
-      })),
+  const checks = Object.entries(record.checks ?? {}).flatMap(([category, group]) =>
+    Object.entries(group).map(([id, check]) => ({
+      id,
+      category,
+      status: check.status,
+      message: check.message ?? null,
+    })),
   );
   const passed = checks.filter((check) => check.status === "pass").length;
   const failedCount = checks.filter((check) => check.status === "fail").length;
@@ -426,17 +410,12 @@ const parseIsAgentic = (
     details: issue.details ?? null,
     recommendation: issue.recommendation ?? null,
   }));
-  const failedCount = findings.filter(
-    (finding) => finding.result === "failed",
-  ).length;
-  const partial = findings.filter(
-    (finding) => finding.result === "partial",
-  ).length;
+  const failedCount = findings.filter((finding) => finding.result === "failed").length;
+  const partial = findings.filter((finding) => finding.result === "partial").length;
   const bucket = (
     label: string,
     value: { readonly earned: number; readonly available: number } | undefined,
-  ) =>
-    value === undefined ? null : `${label} ${value.earned}/${value.available}`;
+  ) => (value === undefined ? null : `${label} ${value.earned}/${value.available}`);
   return {
     scanner: "is-agentic",
     target: target.href,
@@ -452,10 +431,7 @@ const parseIsAgentic = (
       bucket("Recommended", record.score_breakdown?.recommended),
       `${failedCount} failed, ${partial} partial`,
     ]
-      .filter(
-        (part): part is string =>
-          part !== null && part !== undefined && part.length > 0,
-      )
+      .filter((part): part is string => part !== null && part !== undefined && part.length > 0)
       .join(", "),
     checks: [],
     findings,
@@ -469,10 +445,7 @@ const scanIsAgentic = Effect.fn("SeoAudit.scanHostedIsAgentic")(function* (
   const requested = new URL("/api/scan/stream", options.origins.isAgentic);
   requested.searchParams.set("target", target.href);
   requested.searchParams.set("force", "1");
-  const headers = originHeader(
-    options.origins.isAgentic,
-    `/scan/${target.hostname}`,
-  );
+  const headers = originHeader(options.origins.isAgentic, `/scan/${target.hostname}`);
   const response = yield* Effect.tryPromise({
     try: () =>
       pinnedResponse({
@@ -487,8 +460,7 @@ const scanIsAgentic = Effect.fn("SeoAudit.scanHostedIsAgentic")(function* (
         allowPrivate: options.allowPrivate,
         timeoutMs: options.timeoutMs,
       }),
-    catch: (cause) =>
-      new HostedScannerError({ message: errorMessage(cause), cause }),
+    catch: (cause) => new HostedScannerError({ message: errorMessage(cause), cause }),
   });
   const status = response.statusCode ?? 0;
   if (status < 200 || status >= 300) {
@@ -500,8 +472,7 @@ const scanIsAgentic = Effect.fn("SeoAudit.scanHostedIsAgentic")(function* (
   }
   yield* Effect.tryPromise({
     try: () => consumeStream(response, options.maxBodyBytes),
-    catch: (cause) =>
-      new HostedScannerError({ message: errorMessage(cause), cause }),
+    catch: (cause) => new HostedScannerError({ message: errorMessage(cause), cause }),
   });
   const report = new URL("/api/v1/report", options.origins.isAgentic);
   report.searchParams.set("url", target.href);
@@ -518,21 +489,16 @@ const scanIsAgentic = Effect.fn("SeoAudit.scanHostedIsAgentic")(function* (
           allowPrivate: options.allowPrivate,
           timeoutMs: options.timeoutMs,
         }),
-      catch: (cause) =>
-        new HostedScannerError({ message: errorMessage(cause), cause }),
+      catch: (cause) => new HostedScannerError({ message: errorMessage(cause), cause }),
     });
     const reportStatus = reportResponse.statusCode ?? 0;
     const body = yield* Effect.tryPromise({
       try: () => readBody(reportResponse, options.maxBodyBytes),
-      catch: (cause) =>
-        new HostedScannerError({ message: errorMessage(cause), cause }),
+      catch: (cause) => new HostedScannerError({ message: errorMessage(cause), cause }),
     });
     if (reportStatus >= 200 && reportStatus < 300) {
       const payload = yield* decodeIsAgenticJson(body).pipe(
-        Effect.mapError(
-          (cause) =>
-            new HostedScannerError({ message: errorMessage(cause), cause }),
-        ),
+        Effect.mapError((cause) => new HostedScannerError({ message: errorMessage(cause), cause })),
       );
       return { requested, parsed: parseIsAgentic(payload, target) };
     }
@@ -544,61 +510,50 @@ const scanIsAgentic = Effect.fn("SeoAudit.scanHostedIsAgentic")(function* (
   return yield* lastError;
 });
 
-const scanIsitagentready = Effect.fn("SeoAudit.scanHostedIsitagentready")(
-  function* (target: URL, options: HostedScannerOptions) {
-    const requested = new URL("/api/scan", options.origins.isitagentready);
-    const headers = originHeader(
-      options.origins.isitagentready,
-      `/${target.hostname}`,
-    );
-    const response = yield* Effect.tryPromise({
-      try: () =>
-        pinnedResponse({
-          method: "POST",
-          url: requested,
-          headers: {
-            accept: "application/json",
-            "content-type": "application/json",
-            ...headers,
-          },
-          body: encodeRequest({
-            url: target.href,
-            enabledChecks: [...enabledChecks],
-          }),
-          allowPrivate: options.allowPrivate,
-          timeoutMs: options.timeoutMs,
+const scanIsitagentready = Effect.fn("SeoAudit.scanHostedIsitagentready")(function* (
+  target: URL,
+  options: HostedScannerOptions,
+) {
+  const requested = new URL("/api/scan", options.origins.isitagentready);
+  const headers = originHeader(options.origins.isitagentready, `/${target.hostname}`);
+  const response = yield* Effect.tryPromise({
+    try: () =>
+      pinnedResponse({
+        method: "POST",
+        url: requested,
+        headers: {
+          accept: "application/json",
+          "content-type": "application/json",
+          ...headers,
+        },
+        body: encodeRequest({
+          url: target.href,
+          enabledChecks: [...enabledChecks],
         }),
-      catch: (cause) =>
-        new HostedScannerError({ message: errorMessage(cause), cause }),
+        allowPrivate: options.allowPrivate,
+        timeoutMs: options.timeoutMs,
+      }),
+    catch: (cause) => new HostedScannerError({ message: errorMessage(cause), cause }),
+  });
+  const status = response.statusCode ?? 0;
+  if (status < 200 || status >= 300) {
+    response.destroy();
+    return yield* new HostedScannerError({
+      message: `isitagentready.com returned HTTP ${status}`,
     });
-    const status = response.statusCode ?? 0;
-    if (status < 200 || status >= 300) {
-      response.destroy();
-      return yield* new HostedScannerError({
-        message: `isitagentready.com returned HTTP ${status}`,
-      });
-    }
-    const body = yield* Effect.tryPromise({
-      try: () => readBody(response, options.maxBodyBytes),
-      catch: (cause) =>
-        new HostedScannerError({ message: errorMessage(cause), cause }),
-    });
-    const payload = yield* decodeIsitagentreadyJson(body).pipe(
-      Effect.mapError(
-        (cause) =>
-          new HostedScannerError({ message: errorMessage(cause), cause }),
-      ),
-    );
-    return {
-      requested,
-      parsed: parseIsitagentready(
-        payload,
-        target,
-        options.origins.isitagentready,
-      ),
-    };
-  },
-);
+  }
+  const body = yield* Effect.tryPromise({
+    try: () => readBody(response, options.maxBodyBytes),
+    catch: (cause) => new HostedScannerError({ message: errorMessage(cause), cause }),
+  });
+  const payload = yield* decodeIsitagentreadyJson(body).pipe(
+    Effect.mapError((cause) => new HostedScannerError({ message: errorMessage(cause), cause })),
+  );
+  return {
+    requested,
+    parsed: parseIsitagentready(payload, target, options.origins.isitagentready),
+  };
+});
 
 /** Opt-in hosted scanners. Results are attributed failures, never fatal audit failures. */
 export const scanHosted = async (
@@ -624,9 +579,7 @@ export const scanHosted = async (
   const agenticStartedAt = performance.now();
   try {
     const result = await Effect.runPromise(scanIsAgentic(target, options));
-    output.push(
-      complete(result.parsed, result.requested.href, agenticStartedAt),
-    );
+    output.push(complete(result.parsed, result.requested.href, agenticStartedAt));
   } catch (error) {
     output.push(
       failed(

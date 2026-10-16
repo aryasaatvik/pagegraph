@@ -12,14 +12,14 @@ TypeScript input and result shapes:
 Pass a TypeScript snippet to `executor_execute`, replacing `discovered_namespace`, `discovered_tool`, and
 arguments with the returned names and required fields:
 
-~~~ts
+```ts
 return await tools.discovered_namespace.discovered_tool({
   siteUrl,
   startDate,
   endDate,
   dimensions: ["PAGE", "QUERY"],
 });
-~~~
+```
 
 Keep Search Console or Bing performance separate from provider estimates and live-page
 observations. Record reporting dates, filters, market, limits, task status, errors, and cost. Do not

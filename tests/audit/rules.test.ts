@@ -41,11 +41,7 @@ describe("SEO audit page rules", () => {
         severity: "structural",
       }),
     ]);
-    expect(
-      findings.every(
-        (finding) => finding.target === "https://example.test/docs",
-      ),
-    ).toBe(true);
+    expect(findings.every((finding) => finding.target === "https://example.test/docs")).toBe(true);
   });
 
   it("reports an HTTP failure without treating it as editorial copy feedback", () => {
@@ -80,8 +76,7 @@ describe("SEO audit page rules", () => {
           finalUrl: "https://example.test/docs",
           document: {
             title: "A descriptive documentation page title",
-            description:
-              "A concise description that is long enough for the configured policy.",
+            description: "A concise description that is long enough for the configured policy.",
             canonicalUrl: "https://example.test/other",
           },
         },
@@ -105,8 +100,7 @@ describe("SEO audit page rules", () => {
         status: 200,
         document: {
           title: "A descriptive documentation page title",
-          description:
-            "A concise description that is long enough for the configured policy.",
+          description: "A concise description that is long enough for the configured policy.",
           canonical: "https://example.test/docs",
         },
       }),
@@ -139,13 +133,19 @@ describe("SEO audit page rules", () => {
   it("reports the rendered document's content findings through the http evidence", () => {
     const html =
       '<!doctype html><html><head><title>Docs home | Example</title><meta name="description" content="A concise description that is long enough for the configured policy."><link rel="canonical" href="https://example.test/docs"></head><body><main><h2>Docs</h2><h4>Start</h4><p>Four words of copy.</p></main></body></html>';
-    const document = extractDocumentSignals(html, "text/html", new URL("https://example.test/docs"));
+    const document = extractDocumentSignals(
+      html,
+      "text/html",
+      new URL("https://example.test/docs"),
+    );
     expect(document.wordCount).toBe(6);
     expect(document.content?.outline.map((heading) => heading.level)).toEqual([2, 4]);
 
     const findings = evaluateRules(
       pageRules,
-      observation([{ kind: "page-html", status: 200, finalUrl: "https://example.test/docs", document }]),
+      observation([
+        { kind: "page-html", status: 200, finalUrl: "https://example.test/docs", document },
+      ]),
       input(),
     );
     expect(findings.map((finding) => [finding.scanner, finding.rule, finding.severity])).toEqual([
@@ -154,7 +154,12 @@ describe("SEO audit page rules", () => {
     ]);
 
     // A truncated body could hide the H1 past the cutoff, so it gets no content verdict.
-    const truncated = extractDocumentSignals(html, "text/html", new URL("https://example.test/docs"), true);
+    const truncated = extractDocumentSignals(
+      html,
+      "text/html",
+      new URL("https://example.test/docs"),
+      true,
+    );
     expect(truncated.content).toBeNull();
   });
 });

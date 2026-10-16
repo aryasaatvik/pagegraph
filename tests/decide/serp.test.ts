@@ -93,7 +93,9 @@ describe("serp family run", () => {
 
     expect(report.family).toBe("serp");
     expect(report.verdicts).toEqual({ aligned: 1 });
-    expect(report.resolved[0]?.inputRef).toBe("https://example.com/email-api · query:best email api");
+    expect(report.resolved[0]?.inputRef).toBe(
+      "https://example.com/email-api · query:best email api",
+    );
     expect(report.resolved[0]?.answers).toMatchObject({
       serpFormat: { label: "comparison" },
       ourFormatFit: { probability: 0.9 },
@@ -103,8 +105,16 @@ describe("serp family run", () => {
   it("routes a confidently wrong format and an uncertain one apart", async () => {
     const inputs = decodeFamilyInputs(serpFamily, [
       sample,
-      { ...sample, query: "wrong", ourPage: { ...sample.ourPage, url: "https://example.com/wrong" } },
-      { ...sample, query: "uncertain", ourPage: { ...sample.ourPage, url: "https://example.com/uncertain" } },
+      {
+        ...sample,
+        query: "wrong",
+        ourPage: { ...sample.ourPage, url: "https://example.com/wrong" },
+      },
+      {
+        ...sample,
+        query: "uncertain",
+        ourPage: { ...sample.ourPage, url: "https://example.com/uncertain" },
+      },
     ]);
 
     const layer = mockDecisionModel((key, state) => {

@@ -11,26 +11,66 @@ describe("Executor toolset", () => {
   it("maps discovery and completed execution records to workflow evidence", () => {
     const trace: Array<ExecutorTraceRecord> = [
       { kind: "search", query: "search analytics", result: [], isError: false, durationMs: 2 },
-      { kind: "execute", code: "await analytics_query()", toolCalls: [call("analytics.query"), call("analytics.events")],
-        result: { visits: 42 }, isError: false, approvals: [], durationMs: 4 },
+      {
+        kind: "execute",
+        code: "await analytics_query()",
+        toolCalls: [call("analytics.query"), call("analytics.events")],
+        result: { visits: 42 },
+        isError: false,
+        approvals: [],
+        durationMs: 4,
+      },
     ];
 
     expect(executorEvidence(trace)).toEqual({
       searches: [{ tool: "executor_search", input: { query: "search analytics" }, output: [] }],
       calls: [
-        { tool: "analytics.query, analytics.events", input: { code: "await analytics_query()" }, output: { visits: 42 } },
+        {
+          tool: "analytics.query, analytics.events",
+          input: { code: "await analytics_query()" },
+          output: { visits: 42 },
+        },
       ],
     });
   });
 
   it("names only successful provider calls and drops executions without a reported success", () => {
     const trace: Array<ExecutorTraceRecord> = [
-      { kind: "execute", code: "partial", toolCalls: [call("github.repos.get"), call("github.repos.get", true)],
-        result: { name: "pagegraph" }, isError: false, approvals: [], durationMs: 2 },
-      { kind: "execute", code: "all failed", toolCalls: [call("github.repos.get", true)],
-        result: null, isError: false, approvals: [], durationMs: 1 },
-      { kind: "execute", code: "return []", toolCalls: [], result: [], isError: false, approvals: [], durationMs: 1 },
-      { kind: "execute", code: "unreported", result: 42, isError: false, approvals: [], durationMs: 1 },
+      {
+        kind: "execute",
+        code: "partial",
+        toolCalls: [call("github.repos.get"), call("github.repos.get", true)],
+        result: { name: "pagegraph" },
+        isError: false,
+        approvals: [],
+        durationMs: 2,
+      },
+      {
+        kind: "execute",
+        code: "all failed",
+        toolCalls: [call("github.repos.get", true)],
+        result: null,
+        isError: false,
+        approvals: [],
+        durationMs: 1,
+      },
+      {
+        kind: "execute",
+        code: "return []",
+        toolCalls: [],
+        result: [],
+        isError: false,
+        approvals: [],
+        durationMs: 1,
+      },
+      {
+        kind: "execute",
+        code: "unreported",
+        result: 42,
+        isError: false,
+        approvals: [],
+        durationMs: 1,
+      },
     ];
 
     expect(executorEvidence(trace).calls).toEqual([
@@ -40,17 +80,32 @@ describe("Executor toolset", () => {
 
   it("retains failed trace records while excluding failed execution from completed evidence", () => {
     const failedSearch: ExecutorTraceRecord = {
-      kind: "search", query: "unavailable service", result: "service unavailable", isError: true, durationMs: 1,
+      kind: "search",
+      query: "unavailable service",
+      result: "service unavailable",
+      isError: true,
+      durationMs: 1,
     };
     const failedExecute: ExecutorTraceRecord = {
-      kind: "execute", code: "await unavailable()", toolCalls: [call("unavailable", true)],
-      result: { error: "execution declined" }, isError: true, approvals: [], durationMs: 1,
+      kind: "execute",
+      code: "await unavailable()",
+      toolCalls: [call("unavailable", true)],
+      result: { error: "execution declined" },
+      isError: true,
+      approvals: [],
+      durationMs: 1,
     };
     const toolset: ExecutorToolset = { tools: [], trace: [failedSearch, failedExecute] };
     const evidence = executorEvidence(toolset.trace);
 
     expect(evidence).toEqual({
-      searches: [{ tool: "executor_search", input: { query: "unavailable service" }, output: "service unavailable" }],
+      searches: [
+        {
+          tool: "executor_search",
+          input: { query: "unavailable service" },
+          output: "service unavailable",
+        },
+      ],
       calls: [],
     });
     expect(toolset.trace).toEqual([failedSearch, failedExecute]);

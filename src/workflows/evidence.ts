@@ -15,7 +15,8 @@ const matches = (value: string, pattern: string): boolean => {
 export const selectGraph = (graph: SeoGraph, options: WorkflowTargetOptions): SeoGraph => {
   const selected = [...graph.nodes.values()].filter(
     (node) =>
-      (options.pages.length === 0 || options.pages.some((pattern) => matches(node.path, pattern))) &&
+      (options.pages.length === 0 ||
+        options.pages.some((pattern) => matches(node.path, pattern))) &&
       (options.kinds.length === 0 || options.kinds.includes(node.kind)),
   );
   const paths = new Set(selected.slice(0, options.limit).map((node) => node.path));
@@ -26,7 +27,10 @@ export const selectGraph = (graph: SeoGraph, options: WorkflowTargetOptions): Se
   };
 };
 
-const selectNeighborhood = (graph: SeoGraph, targetPaths: ReadonlySet<string>): WorkflowGraphNeighborhood => {
+const selectNeighborhood = (
+  graph: SeoGraph,
+  targetPaths: ReadonlySet<string>,
+): WorkflowGraphNeighborhood => {
   const inbound: Array<WorkflowGraphNeighborhood["inbound"][number]> = [];
   const outbound: Array<WorkflowGraphNeighborhood["outbound"][number]> = [];
 
@@ -51,9 +55,12 @@ export const collectContextFiles = async (
   readOptions?: RepositoryReadOptions,
 ): Promise<ReadonlyArray<{ readonly path: string; readonly content: string }>> => {
   const paths = [...(context?.files ?? []), ...(context?.byWorkflow?.[workflow] ?? [])];
-  return Promise.all([...new Set(paths)].map(async (path) => ({
-    path, content: await readFile(await resolveRepositoryReadPath(root, path, readOptions), "utf8"),
-  })));
+  return Promise.all(
+    [...new Set(paths)].map(async (path) => ({
+      path,
+      content: await readFile(await resolveRepositoryReadPath(root, path, readOptions), "utf8"),
+    })),
+  );
 };
 
 export const collectWorkflowEvidence = async (

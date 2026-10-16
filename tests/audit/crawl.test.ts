@@ -34,7 +34,9 @@ beforeAll(async () => {
         response.end(page(`<a href="/target">Target</a>${"x".repeat(5_000)}`));
         return;
       case "/canonical-alias":
-        html('<link rel="canonical" href="/canonical-target"><a href="/canonical-target">Target</a><a href="/leaf">Leaf</a>');
+        html(
+          '<link rel="canonical" href="/canonical-target"><a href="/canonical-target">Target</a><a href="/leaf">Leaf</a>',
+        );
         return;
       case "/canonical-unvisited":
         html('<link rel="canonical" href="/canonical-target">Alias body');
@@ -43,7 +45,9 @@ beforeAll(async () => {
         html('<a href="/canonical-target">Target</a>');
         return;
       case "/canonical-copy":
-        html('<link rel="canonical" href="/canonical-target"><a href="/canonical-target">Target</a>');
+        html(
+          '<link rel="canonical" href="/canonical-target"><a href="/canonical-target">Target</a>',
+        );
         return;
       case "/off-origin":
         response.writeHead(302, { location: offOriginUrl });
@@ -127,10 +131,18 @@ describe("crawlRenderedPages", () => {
       if (address === null || typeof address === "string") throw new Error("Fixture did not bind");
       const site = `http://127.0.0.1:${address.port}`;
       const result = await crawlRenderedPages(`${site}/`, {
-        limit: 10, timeoutMs: 5_000, maxBodyBytes: 10_000, allowPrivate: true,
+        limit: 10,
+        timeoutMs: 5_000,
+        maxBodyBytes: 10_000,
+        allowPrivate: true,
       });
-      expect(result.pages.map((rendered) => new URL(rendered.url).pathname)).toEqual(["/", "/linked"]);
-      expect(result.discoveryFailures).toEqual([{ url: `${site}/sitemap.xml`, error: "malformed sitemap" }]);
+      expect(result.pages.map((rendered) => new URL(rendered.url).pathname)).toEqual([
+        "/",
+        "/linked",
+      ]);
+      expect(result.discoveryFailures).toEqual([
+        { url: `${site}/sitemap.xml`, error: "malformed sitemap" },
+      ]);
       expect(result.sitemapUsed).toBe(false);
     } finally {
       await new Promise<void>((resolve) => fixture.close(() => resolve()));
@@ -140,7 +152,11 @@ describe("crawlRenderedPages", () => {
   it("retains an alias with distinct served links and dedupes identical canonical anchors", async () => {
     const options = { limit: 5, timeoutMs: 5_000, maxBodyBytes: 10_000, allowPrivate: true };
     const fetched = await crawlRenderedPages(`${origin}/canonical-alias`, options);
-    expect(fetched.pages.map((page) => new URL(page.url).pathname)).toEqual(["/canonical-alias", "/canonical-target", "/leaf"]);
+    expect(fetched.pages.map((page) => new URL(page.url).pathname)).toEqual([
+      "/canonical-alias",
+      "/canonical-target",
+      "/leaf",
+    ]);
     expect(fetched.root).toBe("/canonical-alias");
 
     const copy = await crawlRenderedPages(`${origin}/canonical-copy`, options);
@@ -148,7 +164,9 @@ describe("crawlRenderedPages", () => {
     expect(copy.root).toBe("/canonical-target");
 
     const unvisited = await crawlRenderedPages(`${origin}/canonical-unvisited`, options);
-    expect(unvisited.pages.map((page) => new URL(page.url).pathname)).toEqual(["/canonical-unvisited"]);
+    expect(unvisited.pages.map((page) => new URL(page.url).pathname)).toEqual([
+      "/canonical-unvisited",
+    ]);
     expect(unvisited.root).toBe("/canonical-unvisited");
   });
 
@@ -164,7 +182,10 @@ describe("crawlRenderedPages", () => {
       if (address === null || typeof address === "string") throw new Error("Fixture did not bind");
       offOriginUrl = `http://127.0.0.1:${address.port}/remote`;
       const result = await crawlRenderedPages(`${origin}/off-origin`, {
-        limit: 2, timeoutMs: 5_000, maxBodyBytes: 10_000, allowPrivate: true,
+        limit: 2,
+        timeoutMs: 5_000,
+        maxBodyBytes: 10_000,
+        allowPrivate: true,
       });
       expect(result.pages).toEqual([]);
       expect(result.failures[0]?.error).toContain("Redirected off-origin");
@@ -177,11 +198,19 @@ describe("crawlRenderedPages", () => {
 
   it("records a link-only Markdown alternate without failing HTML coverage", async () => {
     const result = await crawlRenderedPages(`${origin}/source-with-markdown`, {
-      limit: 5, timeoutMs: 5_000, maxBodyBytes: 10_000, allowPrivate: true,
+      limit: 5,
+      timeoutMs: 5_000,
+      maxBodyBytes: 10_000,
+      allowPrivate: true,
     });
-    expect(result.pages.map((page) => new URL(page.url).pathname)).toEqual(["/source-with-markdown", "/leaf"]);
+    expect(result.pages.map((page) => new URL(page.url).pathname)).toEqual([
+      "/source-with-markdown",
+      "/leaf",
+    ]);
     expect(result.failures).toEqual([]);
-    expect(result.nonHtml).toEqual([{ url: `${origin}/auth.md`, finalUrl: `${origin}/auth.md`, contentType: "text/markdown" }]);
+    expect(result.nonHtml).toEqual([
+      { url: `${origin}/auth.md`, finalUrl: `${origin}/auth.md`, contentType: "text/markdown" },
+    ]);
     expect(result.truncated).toBe(false);
   });
 
@@ -197,10 +226,14 @@ describe("crawlRenderedPages", () => {
     const fixture = createServer((request, response) => {
       if (request.url === "/robots.txt") {
         response.writeHead(200, { "content-type": "text/plain" });
-        response.end(`User-agent: Pagegraph\nDisallow: /private$\nDisallow: /wild*a*a*a*a*a*a*a*a*a*a*b\nSitemap: ${remoteSite}/map.xml\nSitemap: ${site}/sitemap.xml`);
+        response.end(
+          `User-agent: Pagegraph\nDisallow: /private$\nDisallow: /wild*a*a*a*a*a*a*a*a*a*a*b\nSitemap: ${remoteSite}/map.xml\nSitemap: ${site}/sitemap.xml`,
+        );
       } else if (request.url === "/sitemap.xml") {
         response.writeHead(200, { "content-type": "application/xml" });
-        response.end(`<urlset><url><loc>${site}/numeric?a=1&#38;b=2</loc></url><url><loc>${site}/xhtml</loc></url><url><loc>${site}/document.md</loc></url><url><loc>${site}/bad&#x110000;</loc></url></urlset>`);
+        response.end(
+          `<urlset><url><loc>${site}/numeric?a=1&#38;b=2</loc></url><url><loc>${site}/xhtml</loc></url><url><loc>${site}/document.md</loc></url><url><loc>${site}/bad&#x110000;</loc></url></urlset>`,
+        );
       } else if (request.url === "/") {
         response.writeHead(200, { "content-type": "text/html" });
         response.end(page('<a href="/go">Go</a>'));
@@ -231,23 +264,44 @@ describe("crawlRenderedPages", () => {
     try {
       const localAddress = fixture.address();
       const remoteAddress = remote.address();
-      if (localAddress === null || typeof localAddress === "string" || remoteAddress === null || typeof remoteAddress === "string") throw new Error("Fixture did not bind");
+      if (
+        localAddress === null ||
+        typeof localAddress === "string" ||
+        remoteAddress === null ||
+        typeof remoteAddress === "string"
+      )
+        throw new Error("Fixture did not bind");
       site = `http://127.0.0.1:${localAddress.port}`;
       remoteSite = `http://127.0.0.1:${remoteAddress.port}`;
       const result = await crawlRenderedPages(`${site}/`, {
-        limit: 10, timeoutMs: 5_000, maxBodyBytes: 10_000, allowPrivate: true,
+        limit: 10,
+        timeoutMs: 5_000,
+        maxBodyBytes: 10_000,
+        allowPrivate: true,
       });
-      expect(result.pages.map((page) => new URL(page.url).pathname)).toEqual(["/", "/numeric", "/xhtml"]);
+      expect(result.pages.map((page) => new URL(page.url).pathname)).toEqual([
+        "/",
+        "/numeric",
+        "/xhtml",
+      ]);
       expect(result.failures[0]?.error).toContain("robots-disallowed");
-      expect(result.failures).toContainEqual({ url: `${site}/document.md`, error: "Response is not HTML" });
+      expect(result.failures).toContainEqual({
+        url: `${site}/document.md`,
+        error: "Response is not HTML",
+      });
       expect(result.skipped).toContain(`${site}/private`);
       expect(result.discoveryFailures).toEqual([
-        { url: `${remoteSite}/map.xml`, error: "Advertised sitemap is off-origin and was not fetched" },
+        {
+          url: `${remoteSite}/map.xml`,
+          error: "Advertised sitemap is off-origin and was not fetched",
+        },
         { url: `${site}/sitemap.xml`, error: expect.stringContaining("Invalid sitemap <loc>") },
       ]);
       expect(privateFetches).toBe(0);
       expect(remoteFetches).toBe(0);
-      expect(result.pages.find((page) => new URL(page.url).pathname === "/xhtml")?.anchors).toHaveLength(1);
+      expect(
+        result.pages.find((page) => new URL(page.url).pathname === "/xhtml")?.anchors,
+      ).toHaveLength(1);
     } finally {
       await Promise.all([
         new Promise<void>((resolve) => remote.close(() => resolve())),

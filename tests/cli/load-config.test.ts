@@ -11,7 +11,8 @@ const directories: Array<string> = [];
 const originalCwd = process.cwd();
 afterEach(() => {
   process.chdir(originalCwd);
-  for (const directory of directories.splice(0)) rmSync(directory, { recursive: true, force: true });
+  for (const directory of directories.splice(0))
+    rmSync(directory, { recursive: true, force: true });
 });
 
 const load = (timeoutMs?: string) => {
@@ -78,10 +79,22 @@ const loadFixtureConfig = (source: string) => {
 
 describe("site identity ownership", () => {
   it.each([
-    "origin", "indexable", "site", "robots", "disallow", "contentSignal", "directives",
-    "collections", "exclude", "routeConfig", "markdown", "facts",
+    "origin",
+    "indexable",
+    "site",
+    "robots",
+    "disallow",
+    "contentSignal",
+    "directives",
+    "collections",
+    "exclude",
+    "routeConfig",
+    "markdown",
+    "facts",
   ])("rejects duplicate host setting %s in CLI config", async (field) => {
-    const { project } = loadFixtureConfig(`export default { ${field}: undefined, loadGraph: async () => {} };`);
+    const { project } = loadFixtureConfig(
+      `export default { ${field}: undefined, loadGraph: async () => {} };`,
+    );
     await expect(project).rejects.toThrow(`unsupported field "${field}"`);
   });
 
@@ -102,8 +115,9 @@ describe("site identity ownership", () => {
       }) };
     `);
     const { config } = await project;
-    await expect(Effect.runPromise(Effect.scoped(acquireLoadedGraph(config))))
-      .rejects.toThrow("graph loader must return");
+    await expect(Effect.runPromise(Effect.scoped(acquireLoadedGraph(config)))).rejects.toThrow(
+      "graph loader must return",
+    );
     expect(readFileSync(join(root, "disposed"), "utf8")).toBe("disposed\n");
   });
 
@@ -119,11 +133,17 @@ describe("site identity ownership", () => {
       } };
     `);
     const { config } = await project;
-    await expect(Effect.runPromise(Effect.scoped(Effect.gen(function* () {
-      const loaded = yield* acquireLoadedGraph(config);
-      expect(loaded.site.indexable).toBe(false);
-      return yield* Effect.fail(new Error("command failed"));
-    })))).rejects.toThrow("command failed");
+    await expect(
+      Effect.runPromise(
+        Effect.scoped(
+          Effect.gen(function* () {
+            const loaded = yield* acquireLoadedGraph(config);
+            expect(loaded.site.indexable).toBe(false);
+            return yield* Effect.fail(new Error("command failed"));
+          }),
+        ),
+      ),
+    ).rejects.toThrow("command failed");
     expect(readFileSync(join(root, "loads"), "utf8")).toBe("loaded\n");
     expect(readFileSync(join(root, "disposed"), "utf8")).toBe("disposed\n");
   });

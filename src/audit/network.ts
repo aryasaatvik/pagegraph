@@ -6,9 +6,7 @@ export interface ResolvedAddress {
   readonly family: 4 | 6;
 }
 
-export type HostResolver = (
-  hostname: string,
-) => Promise<ReadonlyArray<ResolvedAddress>>;
+export type HostResolver = (hostname: string) => Promise<ReadonlyArray<ResolvedAddress>>;
 
 const blockedIpv4Addresses = new BlockList();
 blockedIpv4Addresses.addAddress("168.63.129.16", "ipv4");
@@ -53,17 +51,11 @@ const ipv6Value = (address: string): bigint => {
       : side
           .split(":")
           .flatMap((group) =>
-            group.includes(".")
-              ? ipv4Groups(group)
-              : [Number.parseInt(group, 16)],
+            group.includes(".") ? ipv4Groups(group) : [Number.parseInt(group, 16)],
           );
   const left = parseGroups(head);
   const right = parseGroups(tail ?? "");
-  if (
-    left.some(
-      (group) => !Number.isInteger(group) || group < 0 || group > 0xffff,
-    )
-  ) {
+  if (left.some((group) => !Number.isInteger(group) || group < 0 || group > 0xffff)) {
     throw new Error(`Invalid IPv6 address: ${address}`);
   }
   const missing = 8 - left.length - right.length;
@@ -108,9 +100,7 @@ const isBlockedIpv6 = (address: string): boolean => {
 };
 
 export const networkHostname = (hostname: string): string =>
-  hostname.startsWith("[") && hostname.endsWith("]")
-    ? hostname.slice(1, -1)
-    : hostname;
+  hostname.startsWith("[") && hostname.endsWith("]") ? hostname.slice(1, -1) : hostname;
 
 export const isPrivateAddress = (address: string): boolean => {
   const family = isIP(address);
@@ -140,21 +130,16 @@ export const resolveTargetUrl = async (
   if (url.protocol !== "https:" && url.protocol !== "http:") {
     throw new Error(`Unsupported URL protocol: ${url.protocol}`);
   }
-  if (url.username || url.password)
-    throw new Error("Target URLs must not contain credentials");
+  if (url.username || url.password) throw new Error("Target URLs must not contain credentials");
   const hostname = networkHostname(url.hostname).toLowerCase();
-  if (
-    !allowPrivate &&
-    (hostname === "localhost" || hostname.endsWith(".local"))
-  ) {
+  if (!allowPrivate && (hostname === "localhost" || hostname.endsWith(".local"))) {
     throw new Error(`Private target is not allowed: ${hostname}`);
   }
   const addresses = await resolve(hostname);
   if (
     addresses.length === 0 ||
     addresses.some(({ address, family }) => isIP(address) !== family) ||
-    (!allowPrivate &&
-      addresses.some(({ address }) => isPrivateAddress(address)))
+    (!allowPrivate && addresses.some(({ address }) => isPrivateAddress(address)))
   ) {
     throw new Error(`Private target is not allowed: ${hostname}`);
   }
@@ -162,12 +147,9 @@ export const resolveTargetUrl = async (
 };
 
 /** A lookup callback pinned to the already validated DNS answers. */
-export const pinnedLookup = (
-  addresses: ReadonlyArray<ResolvedAddress>,
-): LookupFunction => {
+export const pinnedLookup = (addresses: ReadonlyArray<ResolvedAddress>): LookupFunction => {
   const [first] = addresses;
-  if (first === undefined)
-    throw new Error("Cannot create a pinned lookup without an address");
+  if (first === undefined) throw new Error("Cannot create a pinned lookup without an address");
   return (_hostname, options, callback) => {
     if (options.all) {
       callback(

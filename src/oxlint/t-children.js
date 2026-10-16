@@ -47,7 +47,9 @@ function allowedElement(node, names) {
 export default {
   meta: {
     type: "problem",
-    docs: { description: "Restrict T and Title children to plain text and approved inline content." },
+    docs: {
+      description: "Restrict T and Title children to plain text and approved inline content.",
+    },
   },
   create(context) {
     const stack = [];

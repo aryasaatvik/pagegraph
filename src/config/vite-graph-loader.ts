@@ -42,7 +42,9 @@ export interface LoadedSeoGraph {
   /** The site's identity and policy belong to the graph-producing host. */
   readonly site: SiteRuntime;
   /** Settings and artifacts from the same resolved app that produced the graph. */
-  readonly pagegraph?: { readonly root: string; readonly options: PagegraphOptions; readonly facts: Facts } | undefined;
+  readonly pagegraph?:
+    | { readonly root: string; readonly options: PagegraphOptions; readonly facts: Facts }
+    | undefined;
   /** Called once the command is done with the graph, on success or failure. */
   readonly dispose: () => Promise<void>;
 }
@@ -53,7 +55,13 @@ export interface LoadedSeoGraph {
  * `bin` (an optional peer dependency).
  */
 /** JSON input that can be supplied by config files to an app graph export. */
-export type GraphLoaderInput = null | boolean | number | string | ReadonlyArray<GraphLoaderInput> | { readonly [key: string]: GraphLoaderInput };
+export type GraphLoaderInput =
+  | null
+  | boolean
+  | number
+  | string
+  | ReadonlyArray<GraphLoaderInput>
+  | { readonly [key: string]: GraphLoaderInput };
 
 /** Per-invocation evaluation settings, separate from the graph module's JSON input. */
 export interface GraphLoaderEnvironment {
@@ -61,8 +69,10 @@ export interface GraphLoaderEnvironment {
   readonly mode?: string | undefined;
 }
 
-export type SeoGraphLoader<Input extends GraphLoaderInput | void = void> =
-  (input: Input, environment?: GraphLoaderEnvironment) => Promise<LoadedSeoGraph>;
+export type SeoGraphLoader<Input extends GraphLoaderInput | void = void> = (
+  input: Input,
+  environment?: GraphLoaderEnvironment,
+) => Promise<LoadedSeoGraph>;
 
 export interface ViteGraphLoaderOptions {
   /** The app's Vite root — the directory its aliases and plugins resolve against. */
@@ -137,7 +147,10 @@ const seedEnv = (env: Readonly<Record<string, string>>): void => {
   }
 };
 
-const inlineConfigFor = (options: ViteGraphLoaderOptions, environment?: GraphLoaderEnvironment): InlineConfig => ({
+const inlineConfigFor = (
+  options: ViteGraphLoaderOptions,
+  environment?: GraphLoaderEnvironment,
+): InlineConfig => ({
   configFile: false,
   root: options.root,
   mode: environment?.mode ?? "production",
@@ -157,16 +170,18 @@ const inlineConfigFor = (options: ViteGraphLoaderOptions, environment?: GraphLoa
  * server rooted at `root`, and returns what its `exportName` export resolves to.
  */
 export const viteGraphLoader =
-  <Input extends GraphLoaderInput | void = void>(options: ViteGraphLoaderOptions): SeoGraphLoader<Input> =>
+  <Input extends GraphLoaderInput | void = void>(
+    options: ViteGraphLoaderOptions,
+  ): SeoGraphLoader<Input> =>
   async (input, environment) => {
     const exportName = options.exportName ?? "loadSeoGraph";
     if (options.env) seedEnv(options.env);
 
-    const server = await withCleanStdout(() => createServer(inlineConfigFor(options, environment))).catch(
-      (cause: unknown) => {
-        throw new Error(`Could not start the Vite loader: ${messageOf(cause)}`);
-      },
-    );
+    const server = await withCleanStdout(() =>
+      createServer(inlineConfigFor(options, environment)),
+    ).catch((cause: unknown) => {
+      throw new Error(`Could not start the Vite loader: ${messageOf(cause)}`);
+    });
 
     // The server is a resource from here on: a failed load must still close it,
     // and a successful one hands the close to the caller as `dispose`.

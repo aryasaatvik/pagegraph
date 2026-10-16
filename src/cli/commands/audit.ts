@@ -16,9 +16,7 @@ const urls = Argument.String("url").pipe(
   Argument.variadic({ min: 1 }),
 );
 const allowPrivate = Flag.Boolean("allow-private").pipe(
-  Flag.withDescription(
-    "Allow localhost and private addresses (local development only)",
-  ),
+  Flag.withDescription("Allow localhost and private addresses (local development only)"),
   Flag.withDefault(false),
 );
 const probeOnly = Flag.Boolean("probe-only").pipe(
@@ -29,10 +27,7 @@ const hosted = Flag.Boolean("hosted").pipe(
   Flag.withDescription("Opt in to external agent-readiness scanners"),
   Flag.withDefault(false),
 );
-const formFactor = Flag.Literals("form-factor", [
-  "mobile",
-  "desktop",
-] as const).pipe(
+const formFactor = Flag.Literals("form-factor", ["mobile", "desktop"] as const).pipe(
   Flag.withDescription("Lighthouse form factor"),
   Flag.withDefault("mobile"),
 );
@@ -57,21 +52,14 @@ const maxBodyBytes = Flag.Int("max-body-bytes").pipe(
   Flag.withDefault(2_000_000),
 );
 const outputDir = Flag.String("output-dir").pipe(
-  Flag.withDescription(
-    "Atomically write timestamped JSON and Markdown artifacts",
-  ),
+  Flag.withDescription("Atomically write timestamped JSON and Markdown artifacts"),
   Flag.optional,
 );
 
-const positive = (
-  name: string,
-  value: number,
-): Effect.Effect<number, SeoCliError> =>
+const positive = (name: string, value: number): Effect.Effect<number, SeoCliError> =>
   Number.isSafeInteger(value) && value > 0
     ? Effect.succeed(value)
-    : Effect.fail(
-        new SeoCliError({ message: `--${name} must be a positive integer` }),
-      );
+    : Effect.fail(new SeoCliError({ message: `--${name} must be a positive integer` }));
 
 export const auditCommand = Command.make("audit", {
   urls,
@@ -87,9 +75,7 @@ export const auditCommand = Command.make("audit", {
   maxBodyBytes,
   outputDir,
 }).pipe(
-  Command.withDescription(
-    "Audit any website without a TanStack app or pagegraph.config.ts",
-  ),
+  Command.withDescription("Audit any website without a TanStack app or pagegraph.config.ts"),
   Command.withExamples([
     {
       command: "pagegraph audit https://example.com",
@@ -107,22 +93,10 @@ export const auditCommand = Command.make("audit", {
   Command.withHandler(
     Effect.fn("SeoCli.audit")(function* (options) {
       const checkedRuns = yield* positive("runs", options.runs);
-      const checkedConcurrency = yield* positive(
-        "concurrency",
-        options.concurrency,
-      );
-      const checkedRequestTimeout = yield* positive(
-        "request-timeout-ms",
-        options.requestTimeoutMs,
-      );
-      const checkedScannerTimeout = yield* positive(
-        "scanner-timeout-ms",
-        options.scannerTimeoutMs,
-      );
-      const checkedMaxBody = yield* positive(
-        "max-body-bytes",
-        options.maxBodyBytes,
-      );
+      const checkedConcurrency = yield* positive("concurrency", options.concurrency);
+      const checkedRequestTimeout = yield* positive("request-timeout-ms", options.requestTimeoutMs);
+      const checkedScannerTimeout = yield* positive("scanner-timeout-ms", options.scannerTimeoutMs);
+      const checkedMaxBody = yield* positive("max-body-bytes", options.maxBodyBytes);
 
       const scanners = [
         makeHttpScanner({
@@ -184,19 +158,12 @@ export const auditCommand = Command.make("audit", {
               message: `Could not write audit artifacts: ${cause instanceof Error ? cause.message : String(cause)}`,
             }),
         });
-        yield* Effect.logInfo(
-          `Wrote ${artifacts.json} and ${artifacts.markdown}`,
-        );
+        yield* Effect.logInfo(`Wrote ${artifacts.json} and ${artifacts.markdown}`);
       }
 
-      const structural = report.findings.filter(
-        (finding) => finding.severity === "structural",
-      );
+      const structural = report.findings.filter((finding) => finding.severity === "structural");
       const http = report.results.filter((result) => result.scanner === "http");
-      if (
-        structural.length > 0 ||
-        http.every((result) => result.status === "error")
-      ) {
+      if (structural.length > 0 || http.every((result) => result.status === "error")) {
         return yield* new SeoCliError({
           message: `${structural.length} structural finding(s); see the report above.`,
         });

@@ -12,10 +12,15 @@ const git = (root: string, ...args: ReadonlyArray<string>): void => {
   execFileSync("git", args, { cwd: root, stdio: "ignore" });
 };
 const gitOutput = (root: string, ...args: ReadonlyArray<string>): string =>
-  execFileSync("git", args, { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
+  execFileSync("git", args, {
+    cwd: root,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "ignore"],
+  }).trim();
 
 afterEach(() => {
-  for (const directory of directories.splice(0)) rmSync(directory, { recursive: true, force: true });
+  for (const directory of directories.splice(0))
+    rmSync(directory, { recursive: true, force: true });
 });
 
 describe("workflow Git inspection", () => {

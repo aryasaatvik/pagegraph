@@ -11,7 +11,10 @@ export const robotsCommand = Command.make("robots", {
 }).pipe(
   Command.withDescription("Render robots.txt from the graph (the exact server-route output)"),
   Command.withExamples([
-    { command: "pagegraph robots", description: "The robots.txt, under the origin from the loaded graph" },
+    {
+      command: "pagegraph robots",
+      description: "The robots.txt, under the origin from the loaded graph",
+    },
     {
       command: "pagegraph robots --origin https://preview.example.com --no-indexable",
       description: "Disallow-all with no Sitemap line — the preview posture",

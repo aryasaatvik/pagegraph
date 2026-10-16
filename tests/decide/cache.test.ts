@@ -31,7 +31,9 @@ const gateFamily = (instructions = "The claim is false"): DecisionFamily<Claim> 
   definitionFor: () => definition(instructions),
   inputRef: (input) => input.id,
   evaluate: (_input, answers, cutoff) =>
-    (answers as { falseClaim: { probability: number } }).falseClaim.probability >= cutoff ? "violation" : "pass",
+    (answers as { falseClaim: { probability: number } }).falseClaim.probability >= cutoff
+      ? "violation"
+      : "pass",
 });
 
 const model = (value: number, calls: { count: number }) =>
@@ -43,7 +45,10 @@ const model = (value: number, calls: { count: number }) =>
           calls.count += 1;
           return {
             answers: Object.fromEntries(
-              Object.keys(decisions).map((key) => [key, { _tag: "Probability" as const, probability: value }]),
+              Object.keys(decisions).map((key) => [
+                key,
+                { _tag: "Probability" as const, probability: value },
+              ]),
             ),
             usage: { inputTokens: 1, outputTokens: 1 },
           };
@@ -121,14 +126,18 @@ describe("committed cache", () => {
     const scratch: DecisionCache = { directory: committed().directory, policy: "scratch" };
     writeFileSync(join(scratch.directory, `${key}.json`), "{ not json");
     const asked = { count: 0 };
-    const report = await Effect.runPromise(runDecisions(options(scratch)).pipe(Effect.provide(model(0.1, asked))));
+    const report = await Effect.runPromise(
+      runDecisions(options(scratch)).pipe(Effect.provide(model(0.1, asked))),
+    );
     expect(asked.count).toBe(2);
     expect(report.verdicts).toEqual({ pass: 2 });
   });
 
   it("writes atomically and leaves no staging files", async () => {
     const cache = committed();
-    await Effect.runPromise(runDecisions(options(cache)).pipe(Effect.provide(model(0.9, { count: 0 }))));
+    await Effect.runPromise(
+      runDecisions(options(cache)).pipe(Effect.provide(model(0.9, { count: 0 }))),
+    );
     const files = readdirSync(cache.directory);
     expect(files).toHaveLength(2);
     expect(files.every((file) => file.endsWith(".json"))).toBe(true);
@@ -138,21 +147,27 @@ describe("committed cache", () => {
 
   it("re-asks every input on refresh", async () => {
     const cache = committed();
-    await Effect.runPromise(runDecisions(options(cache)).pipe(Effect.provide(model(0.1, { count: 0 }))));
+    await Effect.runPromise(
+      runDecisions(options(cache)).pipe(Effect.provide(model(0.1, { count: 0 }))),
+    );
     const asked = { count: 0 };
     const report = await Effect.runPromise(
       runDecisions({ ...options(cache), refresh: true }).pipe(Effect.provide(model(0.95, asked))),
     );
     expect(asked.count).toBe(2);
     expect(report.verdicts).toEqual({ violation: 2 });
-    expect((await Effect.runPromise(replayDecisions(options(cache)))).verdicts).toEqual({ violation: 2 });
+    expect((await Effect.runPromise(replayDecisions(options(cache)))).verdicts).toEqual({
+      violation: 2,
+    });
   });
 });
 
 describe("definition fingerprint", () => {
   it("invalidates answers when the instructions change", async () => {
     const cache = committed();
-    await Effect.runPromise(runDecisions(options(cache)).pipe(Effect.provide(model(0.1, { count: 0 }))));
+    await Effect.runPromise(
+      runDecisions(options(cache)).pipe(Effect.provide(model(0.1, { count: 0 }))),
+    );
     const exit = await Effect.runPromiseExit(
       replayDecisions(options(cache, gateFamily("The claim overstates what ships"))),
     );
@@ -161,8 +176,14 @@ describe("definition fingerprint", () => {
   });
 
   it("does not depend on key order", () => {
-    const left = { a: Decision.probability({ instructions: "A" }), b: Decision.probability({ instructions: "B" }) };
-    const right = { b: Decision.probability({ instructions: "B" }), a: Decision.probability({ instructions: "A" }) };
+    const left = {
+      a: Decision.probability({ instructions: "A" }),
+      b: Decision.probability({ instructions: "B" }),
+    };
+    const right = {
+      b: Decision.probability({ instructions: "B" }),
+      a: Decision.probability({ instructions: "A" }),
+    };
     expect(definitionFingerprint(left)).toBe(definitionFingerprint(right));
   });
 

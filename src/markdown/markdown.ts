@@ -53,14 +53,18 @@ function linkedItemTitle(item: SectionItem, section: SectionDocument, href: stri
     tree.flatMap((node): Array<InlineNode> => {
       if (typeof node === "string" || "fact" in node) return [node];
       if (node.tag === "a" && node.href !== href)
-        throw new Error(`Linked item in section "${section.id}" at ${item.source} targets "${href}" but its title links to "${node.href}"`);
+        throw new Error(
+          `Linked item in section "${section.id}" at ${item.source} targets "${href}" but its title links to "${node.href}"`,
+        );
       const children = labelTree(node.children);
       return node.tag === "a" ? children : [{ ...node, children }];
     });
   const children =
     item.title === undefined || item.title.audience === "humans" ? [] : labelTree(item.title.tree);
   if (!inlineMarkdown(children, { emphasis: false }).trim())
-    throw new Error(`Linked item in section "${section.id}" at ${item.source} targeting "${href}" needs a visible title`);
+    throw new Error(
+      `Linked item in section "${section.id}" at ${item.source} targeting "${href}" needs a visible title`,
+    );
   return inlineMarkdown([{ tag: "a", href, children }], { emphasis: false });
 }
 
@@ -166,8 +170,7 @@ export function sectionMarkdown(
       const entries = visibleBody(section.body);
       const title =
         section.title ?? (entries[0]?.type === "message" ? entries[0].message : undefined);
-      if (title === undefined)
-        throw new Error(`Hero "${section.id}" needs a document heading`);
+      if (title === undefined) throw new Error(`Hero "${section.id}" needs a document heading`);
       return (
         markdown.heading(1, title) +
         paragraph(bodyMarkdown(section.title === undefined ? entries.slice(1) : entries))
@@ -242,8 +245,7 @@ export function documentMarkdown(document: PageDocument, site: string): string {
   if (heroIndex === -1)
     return `${markdown.heading(1, document.title)}${url}${parts.join("")}`.trimEnd() + "\n";
   const hero = parts[heroIndex];
-  if (hero === undefined)
-    throw new Error(`Missing hero on ${document.path}`);
+  if (hero === undefined) throw new Error(`Missing hero on ${document.path}`);
   const end = hero.indexOf("\n\n");
   parts[heroIndex] = hero.slice(0, end + 2) + url + hero.slice(end + 2);
   return parts.join("").trimEnd() + "\n";

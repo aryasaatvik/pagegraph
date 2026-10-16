@@ -18,9 +18,14 @@ TypeScript input and result shapes:
 Pass a TypeScript snippet to `executor_execute`, replacing `discovered_namespace`, `discovered_tool`, and
 arguments with the returned names and required fields:
 
-~~~ts
-return await tools.discovered_namespace.discovered_tool({ siteUrl, startDate, endDate, dimensions: ["PAGE", "QUERY"] });
-~~~
+```ts
+return await tools.discovered_namespace.discovered_tool({
+  siteUrl,
+  startDate,
+  endDate,
+  dimensions: ["PAGE", "QUERY"],
+});
+```
 
 Treat Search Console and Bing as owned-site evidence, OpenSEO and DataForSEO as provider evidence,
 and current result pages as observed evidence. Record market, language, device, reporting dates,

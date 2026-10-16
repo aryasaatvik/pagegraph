@@ -96,7 +96,11 @@ export interface WorkflowRunV2 {
   readonly workflow: WorkflowId;
   readonly startedAt: string;
   readonly finishedAt: string;
-  readonly project: { readonly root: string; readonly head?: string; readonly dirtyAtStart: boolean };
+  readonly project: {
+    readonly root: string;
+    readonly head?: string;
+    readonly dirtyAtStart: boolean;
+  };
   readonly options: WorkflowTargetOptions;
   readonly model: { readonly provider: string; readonly id: string };
   readonly targets: {
@@ -125,7 +129,9 @@ export interface WorkflowRunV2 {
   };
   readonly result: unknown;
   readonly agent: WorkflowAgentArtifact;
-  readonly rejectedItems?: ReadonlyArray<{ readonly index: number; readonly reason: string }> | undefined;
+  readonly rejectedItems?:
+    | ReadonlyArray<{ readonly index: number; readonly reason: string }>
+    | undefined;
 }
 
 /** Incomplete research-stage evidence; it is not a final workflow recommendation. */
@@ -153,7 +159,9 @@ export interface WorkflowResearchCheckpointV2 {
   readonly state: unknown;
   readonly decisionInputs: ReadonlyArray<unknown>;
   readonly agent: WorkflowAgentArtifact;
-  readonly rejectedItems?: ReadonlyArray<{ readonly index: number; readonly reason: string }> | undefined;
+  readonly rejectedItems?:
+    | ReadonlyArray<{ readonly index: number; readonly reason: string }>
+    | undefined;
 }
 
 export interface WorkflowFailureV2 {

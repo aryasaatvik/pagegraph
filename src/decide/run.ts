@@ -53,10 +53,8 @@ export const inReviewBand = (probability: number, threshold: number): boolean =>
   !isConfident(probability, threshold);
 
 /** True when any probability sits inside the review band. */
-export const anyInReviewBand = (
-  probabilities: ReadonlyArray<number>,
-  threshold: number,
-): boolean => probabilities.some((probability) => inReviewBand(probability, threshold));
+export const anyInReviewBand = (probabilities: ReadonlyArray<number>, threshold: number): boolean =>
+  probabilities.some((probability) => inReviewBand(probability, threshold));
 
 export interface RunOptions<Input> {
   readonly family: DecisionFamily<Input>;
@@ -139,7 +137,8 @@ const decideAll = <Input, E, R>(
             options.cache === undefined || !reuseCache
               ? undefined
               : yield* readAnswers(options.cache, key, definition.decisions);
-          const answered: Answered = cached === undefined ? yield* ask(input, key) : { answers: cached };
+          const answered: Answered =
+            cached === undefined ? yield* ask(input, key) : { answers: cached };
           const verdict = options.family.evaluate(input, answered.answers, options.threshold);
           return {
             decisionId: `${options.family.name}:${index}`,
@@ -181,11 +180,16 @@ export const runDecisions = <Input>(
     options,
     (input, key) =>
       Effect.gen(function* () {
-        const response = yield* DecisionModel.decide(options.family.definitionFor(input), { input });
+        const response = yield* DecisionModel.decide(options.family.definitionFor(input), {
+          input,
+        });
         if (options.cache !== undefined) yield* writeAnswers(options.cache, key, response.answers);
         return {
           answers: response.answers,
-          usage: { inputTokens: response.usage.inputTokens, outputTokens: response.usage.outputTokens },
+          usage: {
+            inputTokens: response.usage.inputTokens,
+            outputTokens: response.usage.outputTokens,
+          },
         };
       }),
     options.refresh !== true,

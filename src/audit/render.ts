@@ -10,12 +10,8 @@ const cell = (value: unknown): string =>
     .replaceAll("\n", " ");
 
 export const renderAuditMarkdown = (report: AuditReport): string => {
-  const structural = report.findings.filter(
-    (finding) => finding.severity === "structural",
-  );
-  const editorial = report.findings.filter(
-    (finding) => finding.severity === "editorial",
-  );
+  const structural = report.findings.filter((finding) => finding.severity === "structural");
+  const editorial = report.findings.filter((finding) => finding.severity === "editorial");
   const lines = [
     "# SEO audit",
     "",
@@ -47,12 +43,7 @@ export const renderAuditMarkdown = (report: AuditReport): string => {
   }
 
   if (report.warnings.length > 0) {
-    lines.push(
-      "",
-      "## Warnings",
-      "",
-      ...report.warnings.map((warning) => `- ${warning}`),
-    );
+    lines.push("", "## Warnings", "", ...report.warnings.map((warning) => `- ${warning}`));
   }
 
   return `${lines.join("\n")}\n`;
@@ -85,9 +76,7 @@ const diffSection = (
   title: string,
   changes: ReadonlyArray<AuditDiffChange>,
 ): ReadonlyArray<string> =>
-  changes.length === 0
-    ? []
-    : ["", `## ${title}`, "", ...changes.map(renderDiffChange)];
+  changes.length === 0 ? [] : ["", `## ${title}`, "", ...changes.map(renderDiffChange)];
 
 /** Human-readable rendering of the semantic comparison contract. */
 export const renderAuditDiff = (diff: AuditDiff): string => {
@@ -103,15 +92,9 @@ export const renderAuditDiff = (diff: AuditDiff): string => {
         else editorial.push(change);
         break;
       case "FindingChanged":
-        if (
-          change.beforeSeverity === "editorial" &&
-          change.afterSeverity === "structural"
-        ) {
+        if (change.beforeSeverity === "editorial" && change.afterSeverity === "structural") {
           regressions.push(change);
-        } else if (
-          change.beforeSeverity === "structural" &&
-          change.afterSeverity === "editorial"
-        ) {
+        } else if (change.beforeSeverity === "structural" && change.afterSeverity === "editorial") {
           improvements.push(change);
         } else {
           informational.push(change);
@@ -136,12 +119,7 @@ export const renderAuditDiff = (diff: AuditDiff): string => {
     }
   }
 
-  const symbol =
-    diff.outcome === "regressed"
-      ? "✗"
-      : diff.outcome === "changed"
-        ? "!"
-        : "✓";
+  const symbol = diff.outcome === "regressed" ? "✗" : diff.outcome === "changed" ? "!" : "✓";
   const lines = [
     "# SEO audit diff",
     "",

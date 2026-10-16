@@ -12,14 +12,14 @@ TypeScript input and result shapes:
 Pass a TypeScript snippet to `executor_execute`, replacing `discovered_namespace`, `discovered_tool`, and
 arguments with the returned names and required fields:
 
-~~~ts
+```ts
 return await tools.discovered_namespace.discovered_tool({
   domain,
   queries,
   market,
   language,
 });
-~~~
+```
 
 Record engine or surface, query, market, collection date, cited URL, response excerpt, sampling
 method, task status, errors, and cost. Missing citations in a small sample do not prove absence.

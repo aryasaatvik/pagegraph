@@ -1,8 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  createWorkflowMutationPolicy,
-} from "../../src/workflows/mutation";
+import { createWorkflowMutationPolicy } from "../../src/workflows/mutation";
 
 describe("workflow mutation policy", () => {
   it("allows clean workflows to write by default", () => {
@@ -40,6 +38,5 @@ describe("workflow mutation policy", () => {
 
     expect(policy.mode).toBe("dry-run");
     expect(() => policy.assertStartAllowed()).not.toThrow();
-
   });
 });

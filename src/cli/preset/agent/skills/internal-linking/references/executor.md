@@ -12,14 +12,14 @@ TypeScript input and result shapes:
 Pass a TypeScript snippet to `executor_execute`, replacing `discovered_namespace`, `discovered_tool`, and
 arguments with the returned names and required fields:
 
-~~~ts
+```ts
 return await tools.discovered_namespace.discovered_tool({
   siteUrl,
   startDate,
   endDate,
   dimensions: ["PAGE", "QUERY"],
 });
-~~~
+```
 
 Record dates, page and query filters, crawl state, task status, errors, and cost. Search performance
 can support a graph recommendation but does not override the source content. Do not submit URLs,

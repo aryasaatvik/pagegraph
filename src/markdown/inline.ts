@@ -40,8 +40,7 @@ export function inlineMarkdown(
         case "strong":
           return options.emphasis === false ? children : `**${children}**`;
         case "a":
-          if (node.href === undefined)
-            throw new Error("An anchor in T needs a string href");
+          if (node.href === undefined) throw new Error("An anchor in T needs a string href");
           return `[${children}](${documentLinkHref(node.href)})`;
         case "code": {
           const text = plainText(node.children);

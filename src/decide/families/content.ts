@@ -117,7 +117,10 @@ const ALL_EVIDENCE: ContentEvidence = { distinctIntent: true, competitiveSubstan
  */
 export const classifyContentVerdict = (
   answers: {
-    readonly value: { readonly label: string; readonly probabilities: Readonly<Record<string, number>> };
+    readonly value: {
+      readonly label: string;
+      readonly probabilities: Readonly<Record<string, number>>;
+    };
     readonly distinctIntent: { readonly probability: number };
     readonly competitiveSubstance: { readonly probability: number };
   } & Record<string, { readonly probability: number }>,

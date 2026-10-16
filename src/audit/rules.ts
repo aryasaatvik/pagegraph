@@ -15,10 +15,7 @@ const stringAt = (value: unknown, ...keys: string[]): string | undefined => {
   return typeof current === "string" ? current : undefined;
 };
 
-const firstString = (
-  value: unknown,
-  paths: readonly (readonly string[])[],
-): string | undefined => {
+const firstString = (value: unknown, paths: readonly (readonly string[])[]): string | undefined => {
   for (const path of paths) {
     const found = stringAt(value, ...path);
     if (found !== undefined) return found;
@@ -76,11 +73,7 @@ export const pageRules: readonly ScannerRule[] = [
     id: "title-length",
     evaluate: (observation, input) => {
       const evidence = pageEvidence(observation.evidence);
-      const title = firstString(evidence, [
-        ["title"],
-        ["document", "title"],
-        ["head", "title"],
-      ]);
+      const title = firstString(evidence, [["title"], ["document", "title"], ["head", "title"]]);
       const policy = input.options.policy;
       const min = policy?.titleMinLength ?? 10;
       const max = policy?.titleMaxLength ?? 70;
@@ -171,8 +164,7 @@ export const pageRules: readonly ScannerRule[] = [
       try {
         const observed = new URL(canonical, input.target.url);
         const expected = new URL(
-          firstString(pageEvidence(observation.evidence), [["finalUrl"]]) ??
-            input.target.url,
+          firstString(pageEvidence(observation.evidence), [["finalUrl"]]) ?? input.target.url,
         );
         observed.hash = "";
         expected.hash = "";
@@ -207,9 +199,7 @@ export const pageRules: readonly ScannerRule[] = [
     // stay in `check`.
     id: "content",
     evaluate: (observation, input) => {
-      const content = record(record(pageEvidence(observation.evidence))?.["document"])?.[
-        "content"
-      ];
+      const content = record(record(pageEvidence(observation.evidence))?.["document"])?.["content"];
       const list = record(content)?.["findings"];
       if (!Array.isArray(list)) return [];
       return list.flatMap((entry) => {
@@ -237,8 +227,7 @@ export const evaluateRules = (
   rules: readonly ScannerRule[],
   observation: ScannerObservation,
   input: ScannerInput,
-): readonly AuditFinding[] =>
-  rules.flatMap((rule) => rule.evaluate(observation, input));
+): readonly AuditFinding[] => rules.flatMap((rule) => rule.evaluate(observation, input));
 
 /** Default policy for a web-page audit. */
 export const defaultAuditOptions: AuditOptions = {

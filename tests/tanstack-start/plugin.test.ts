@@ -12,7 +12,10 @@ import { evaluateAppGraph, tanstackStartGraph } from "../../src/tanstack-start/l
 const fixture = fileURLToPath(new URL("../fixtures/tanstack-start-app", import.meta.url));
 
 /** A sibling copy of the fixture, so its relative imports and node_modules resolve the same way. */
-const withFixtureCopy = async (edit: (root: string) => void, run: (root: string) => Promise<void>) => {
+const withFixtureCopy = async (
+  edit: (root: string) => void,
+  run: (root: string) => Promise<void>,
+) => {
   const root = mkdtempSync(join(fixture, "..", ".tmp-start-"));
   try {
     cpSync(fixture, root, { recursive: true });
@@ -28,12 +31,16 @@ describe("evaluateAppGraph", () => {
     const loaded = await tanstackStartGraph({ root: fixture, command: "serve" })();
     try {
       expect(loaded.site).toEqual({
-        origin: "http://localhost:5173", indexable: false,
+        origin: "http://localhost:5173",
+        indexable: false,
         robots: { disallow: ["/app"], contentSignal: "search=yes", directives: undefined },
       });
-      expect(renderRobots(loaded.graph, { ...loaded.site, ...loaded.site.robots }))
-        .toBe("User-agent: *\nDisallow: /\n");
-    } finally { await loaded.dispose(); }
+      expect(renderRobots(loaded.graph, { ...loaded.site, ...loaded.site.robots })).toBe(
+        "User-agent: *\nDisallow: /\n",
+      );
+    } finally {
+      await loaded.dispose();
+    }
   });
 
   it("uses built site identity and defaults indexability to true when omitted", async () => {
@@ -44,7 +51,10 @@ describe("evaluateAppGraph", () => {
           config,
           readFileSync(config, "utf8")
             .replace('      indexable: command === "build",\n', "")
-            .replace('JSON.stringify("Example")', 'JSON.stringify(command === "build" ? "Built" : "Dev")'),
+            .replace(
+              'JSON.stringify("Example")',
+              'JSON.stringify(command === "build" ? "Built" : "Dev")',
+            ),
         );
       },
       async (root) => {
@@ -56,7 +66,9 @@ describe("evaluateAppGraph", () => {
           const robots = renderRobots(loaded.graph, { ...loaded.site, ...loaded.site.robots });
           expect(robots).toContain("Sitemap: https://example.com/sitemap.xml");
           expect(robots).toContain("Disallow: /app");
-        } finally { await loaded.dispose(); }
+        } finally {
+          await loaded.dispose();
+        }
       },
     );
   });
@@ -65,8 +77,20 @@ describe("evaluateAppGraph", () => {
     const { graph, site } = await evaluateAppGraph({ root: fixture });
 
     // `define` and aliases apply: the home head reads a build constant through `@/seo`.
-    expect(graph.nodes.get("/")?.head).toEqual({ title: "Example — home", description: "The home page.", faqs: undefined, image: { url: "http://localhost:5173/og/default.png", width: 1200, height: 630, alt: "Example — home" } });
-    expect(graph.nodes.get("/pricing")?.head?.faqs).toEqual([{ question: "Is there a free plan?", answer: "Yes." }]);
+    expect(graph.nodes.get("/")?.head).toEqual({
+      title: "Example — home",
+      description: "The home page.",
+      faqs: undefined,
+      image: {
+        url: "http://localhost:5173/og/default.png",
+        width: 1200,
+        height: 630,
+        alt: "Example — home",
+      },
+    });
+    expect(graph.nodes.get("/pricing")?.head?.faqs).toEqual([
+      { question: "Is there a free plan?", answer: "Yes." },
+    ]);
     // Instances take their route's title template; the collection's related links become edges.
     expect(graph.nodes.get("/blog/first")?.head?.title).toBe("First post | Example Blog");
     expect(graph.edges).toContainEqual({ from: "/blog/first", to: "/pricing", type: "related" });
@@ -96,7 +120,10 @@ describe("evaluateAppGraph", () => {
     await withFixtureCopy(
       (root) => {
         const config = join(root, "vite.config.ts");
-        writeFileSync(config, readFileSync(config, "utf8").replace('exclude: ["app-only.tsx"],', ""));
+        writeFileSync(
+          config,
+          readFileSync(config, "utf8").replace('exclude: ["app-only.tsx"],', ""),
+        );
       },
       async (root) => {
         await expect(evaluateAppGraph({ root })).rejects.toThrow(
@@ -112,9 +139,15 @@ describe("pagegraph() in a build", () => {
     await withFixtureCopy(
       () => {},
       async (root) => {
-        const builder = await createBuilder({ root, configFile: join(root, "vite.config.ts"), logLevel: "error" });
+        const builder = await createBuilder({
+          root,
+          configFile: join(root, "vite.config.ts"),
+          logLevel: "error",
+        });
         await builder.buildApp();
-        const server = (await import(pathToFileURL(join(root, "dist/server/server-entry.js")).href)) as {
+        const server = (await import(
+          pathToFileURL(join(root, "dist/server/server-entry.js")).href
+        )) as {
           robotsTxt: () => Response;
           sitemapXml: () => Response;
         };
@@ -132,11 +165,20 @@ describe("pagegraph() in a build", () => {
     await withFixtureCopy(
       (root) => {
         const config = join(root, "vite.config.ts");
-        writeFileSync(config, readFileSync(config, "utf8").replace('exclude: ["app-only.tsx"],', ""));
+        writeFileSync(
+          config,
+          readFileSync(config, "utf8").replace('exclude: ["app-only.tsx"],', ""),
+        );
       },
       async (root) => {
-        const builder = await createBuilder({ root, configFile: join(root, "vite.config.ts"), logLevel: "silent" });
-        await expect(builder.buildApp()).rejects.toThrow(/could not evaluate src\/routes\/app-only\.tsx/);
+        const builder = await createBuilder({
+          root,
+          configFile: join(root, "vite.config.ts"),
+          logLevel: "silent",
+        });
+        await expect(builder.buildApp()).rejects.toThrow(
+          /could not evaluate src\/routes\/app-only\.tsx/,
+        );
       },
     );
   });
@@ -187,12 +229,17 @@ describe("pagegraph() dev refresh", () => {
           const title = async () => {
             ssr.runner.clearCache();
             const runtime = await ssr.runner.import("/src/server-entry.ts");
-            return (runtime["seoGraph"] as () => { nodes: Map<string, { head?: { title: string } }> })().nodes.get("/pricing")?.head?.title;
+            return (
+              runtime["seoGraph"] as () => { nodes: Map<string, { head?: { title: string } }> }
+            )().nodes.get("/pricing")?.head?.title;
           };
           expect(await title()).toBe("Pricing | Example");
 
           const file = join(root, "src/routes/(marketing)/pricing.tsx");
-          writeFileSync(file, readFileSync(file, "utf8").replace("Pricing | Example", "Plans | Example"));
+          writeFileSync(
+            file,
+            readFileSync(file, "utf8").replace("Pricing | Example", "Plans | Example"),
+          );
           await expect.poll(title, { timeout: 5000 }).toBe("Plans | Example");
         } finally {
           await server.close();
@@ -207,27 +254,53 @@ describe("pagegraph Markdown runtime configuration", () => {
     await withFixtureCopy(
       (root) => {
         const config = join(root, "vite.config.ts");
-        writeFileSync(config, readFileSync(config, "utf8").replace('collections: "src/collections.ts",',
-          'collections: "src/collections.ts", markdown: { origin: "https://canonical.example.com" }, facts: "src/facts.ts",'));
-        writeFileSync(join(root, "src/fact-value.ts"), 'export const brand = import.meta.env.VITE_BRAND;');
-        writeFileSync(join(root, "src/facts.ts"), 'import { brand } from "@/fact-value"; export const facts = { brand: { kind: "text", value: brand, text: brand } };');
+        writeFileSync(
+          config,
+          readFileSync(config, "utf8").replace(
+            'collections: "src/collections.ts",',
+            'collections: "src/collections.ts", markdown: { origin: "https://canonical.example.com" }, facts: "src/facts.ts",',
+          ),
+        );
+        writeFileSync(
+          join(root, "src/fact-value.ts"),
+          "export const brand = import.meta.env.VITE_BRAND;",
+        );
+        writeFileSync(
+          join(root, "src/facts.ts"),
+          'import { brand } from "@/fact-value"; export const facts = { brand: { kind: "text", value: brand, text: brand } };',
+        );
         const entry = join(root, "src/server-entry.ts");
-        writeFileSync(entry, `${readFileSync(entry, "utf8")}\nexport { markdown, facts } from "virtual:pagegraph/runtime";\n`);
+        writeFileSync(
+          entry,
+          `${readFileSync(entry, "utf8")}\nexport { markdown, facts } from "virtual:pagegraph/runtime";\n`,
+        );
       },
       async (root) => {
-        const server = await createServer({ root, configFile: join(root, "vite.config.ts"), logLevel: "error",
-          server: { middlewareMode: true, hmr: false, watch: null } });
+        const server = await createServer({
+          root,
+          configFile: join(root, "vite.config.ts"),
+          logLevel: "error",
+          server: { middlewareMode: true, hmr: false, watch: null },
+        });
         try {
           const environment = server.environments.ssr as RunnableDevEnvironment;
           const runtime = await environment.runner.import("/src/server-entry.ts");
           expect(runtime.markdown).toEqual({ origin: "https://canonical.example.com" });
-          expect(runtime.facts).toEqual({ brand: { kind: "text", value: "Example", text: "Example" } });
+          expect(runtime.facts).toEqual({
+            brand: { kind: "text", value: "Example", text: "Example" },
+          });
           const graphEnvironment = server.environments.pagegraph as RunnableDevEnvironment;
           const stub = await graphEnvironment.runner.import("virtual:pagegraph/runtime");
           expect(stub.markdown).toBeNull();
           expect(stub.facts).toBeUndefined();
-        } finally { await server.close(); }
-        const builder = await createBuilder({ root, configFile: join(root, "vite.config.ts"), logLevel: "error" });
+        } finally {
+          await server.close();
+        }
+        const builder = await createBuilder({
+          root,
+          configFile: join(root, "vite.config.ts"),
+          logLevel: "error",
+        });
         await builder.buildApp();
         const built = await import(pathToFileURL(join(root, "dist/server/server-entry.js")).href);
         expect(built.markdown).toEqual({ origin: "https://canonical.example.com" });

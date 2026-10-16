@@ -12,14 +12,14 @@ TypeScript input and result shapes:
 Pass a TypeScript snippet to `executor_execute`, replacing `discovered_namespace`, `discovered_tool`, and
 arguments with the returned names and required fields:
 
-~~~ts
+```ts
 return await tools.discovered_namespace.discovered_tool({
   siteUrl,
   startDate,
   endDate,
   dimensions: ["PAGE", "QUERY"],
 });
-~~~
+```
 
 Record dates, query and page filters, market, device, task status, errors, and cost. CTR and position
 describe observed performance; they do not prove a particular title caused it. Do not mutate

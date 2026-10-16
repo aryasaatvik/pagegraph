@@ -12,6 +12,7 @@ Act only on records in the resolved set whose verdict calls for a change. Never 
 records; PageGraph lists them for a human in review.md.
 
 You cannot write files. Express every source change as one entry in `edits`:
+
 - `path`: the file as `read_file` names it, inside the app root `{{appRoot}}`.
 - `oldText`: text copied exactly from the current file, with enough context to match exactly once.
   Omit it only to create a new file.

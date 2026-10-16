@@ -18,17 +18,23 @@ export interface PageHeadsOptions {
 }
 
 /** Select page nodes before the host resolves metadata; sitemap-disabled hubs remain pages. */
-export function selectPageHeadNodes(graph: SeoGraph, options: PageHeadsOptions = {}): Array<SeoNode> {
+export function selectPageHeadNodes(
+  graph: SeoGraph,
+  options: PageHeadsOptions = {},
+): Array<SeoNode> {
   const excludes = (options.exclude ?? []).map(globToRegExp);
-  return [...graph.nodes.values()].filter((node) =>
-    node.kind !== "layout" &&
-    !node.path.includes("$") &&
-    (node.policy.sitemap !== undefined || node.instance !== undefined) &&
-    !excludes.some((pattern) => pattern.test(node.path)) &&
-    (options.indexable === false || (
-      node.policy.redirectTo === undefined &&
-      !node.policy.robots?.toLowerCase().split(/[\s,]+/).includes("noindex")
-    )),
+  return [...graph.nodes.values()].filter(
+    (node) =>
+      node.kind !== "layout" &&
+      !node.path.includes("$") &&
+      (node.policy.sitemap !== undefined || node.instance !== undefined) &&
+      !excludes.some((pattern) => pattern.test(node.path)) &&
+      (options.indexable === false ||
+        (node.policy.redirectTo === undefined &&
+          !node.policy.robots
+            ?.toLowerCase()
+            .split(/[\s,]+/)
+            .includes("noindex"))),
   );
 }
 
@@ -38,7 +44,13 @@ export function pageHeads(graph: SeoGraph, options: PageHeadsOptions = {}): Arra
     const title = node.head?.title;
     const description = node.head?.description;
     if (!title?.trim()) throw new Error(`Invalid page head for ${node.path}: missing title`);
-    if (!description?.trim()) throw new Error(`Invalid page head for ${node.path}: missing description`);
-    return { path: node.path, title, description, ...(node.head?.image === undefined ? {} : { image: node.head.image }) };
+    if (!description?.trim())
+      throw new Error(`Invalid page head for ${node.path}: missing description`);
+    return {
+      path: node.path,
+      title,
+      description,
+      ...(node.head?.image === undefined ? {} : { image: node.head.image }),
+    };
   });
 }

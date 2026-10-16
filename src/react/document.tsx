@@ -142,7 +142,12 @@ function elementProps(node: ReactElement<InlineProps>): InlineProps {
 }
 function factProps(node: ReactElement): { id: string; list?: boolean } {
   const props = node.props;
-  if ((typeof props !== "object" || props === null) || !("id" in props) || typeof props.id !== "string") {
+  if (
+    typeof props !== "object" ||
+    props === null ||
+    !("id" in props) ||
+    typeof props.id !== "string"
+  ) {
     throw new Error("Fact requires an id");
   }
   return { id: props.id, ...("list" in props && props.list === true ? { list: true } : {}) };
@@ -162,8 +167,7 @@ export function inlineTree(
   if (node.type === Fact) {
     const { id, list } = factProps(node);
     const definition = resolveFact(id, options.facts);
-    if (list && definition.kind !== "list")
-      throw new Error(`Fact "${id}" is not a list`);
+    if (list && definition.kind !== "list") throw new Error(`Fact "${id}" is not a list`);
     return [{ fact: id, text: definition.text }];
   }
   const tag = node.type;
@@ -226,7 +230,10 @@ function messageFor(node: ReactNode, source: string | undefined, context: Captur
       <a href={context.link}>{node}</a>
     );
   const tree = inlineTree(linkedContent, options);
-  const authored = inlineTree(linkedContent, options.facts === undefined ? {} : { facts: options.facts });
+  const authored = inlineTree(
+    linkedContent,
+    options.facts === undefined ? {} : { facts: options.facts },
+  );
   const refs = new Set<string>();
   const visit = (nodes: ReadonlyArray<InlineNode>): void => {
     for (const child of nodes) {
@@ -317,8 +324,7 @@ export function Title({ children, source }: ChildrenProps) {
 export function Fact({ id, list }: FactProps) {
   const context = useContext(Capture);
   const definition = resolveFact(id, context?.collector.facts);
-  if (list && definition.kind !== "list")
-    throw new Error(`Fact "${id}" is not a list`);
+  if (list && definition.kind !== "list") throw new Error(`Fact "${id}" is not a list`);
   return <>{definition.text}</>;
 }
 function ItemRoot(
@@ -406,7 +412,9 @@ function SectionRoot({
   };
   const marker = record(context, key, () => {
     if (id.startsWith(RESERVED_SECTION_ID_PREFIX))
-      throw new Error(`Document Section id "${id}" on ${context.collector.path} uses reserved prefix "${RESERVED_SECTION_ID_PREFIX}"`);
+      throw new Error(
+        `Document Section id "${id}" on ${context.collector.path} uses reserved prefix "${RESERVED_SECTION_ID_PREFIX}"`,
+      );
     if (context.collector.sections.some((entry) => entry.id === id))
       throw new Error(`Duplicate document Section id "${id}" on ${context.collector.path}`);
     context.collector.sectionCount++;
@@ -479,7 +487,8 @@ export function finishDocument(
   metadata: { title: string; description: string },
   html: string,
 ): PageDocument {
-  if (collector.completed) throw new Error(`Document capture already completed for ${collector.path}`);
+  if (collector.completed)
+    throw new Error(`Document capture already completed for ${collector.path}`);
   collector.completed = true;
   // Only completed SSR output decides which attempted renders belong to the document and their order.
   collector.sections.length = 0;
@@ -534,7 +543,10 @@ function CapturedAnchor({
     throw new Error(`Section.Item.Link outside Section.Item on ${context.collector.path}`);
   if (typeof props.href !== "string")
     throw new Error(`Document page ${context.collector.path}: Link requires a resolved href`);
-  const href = documentLinkHref(props.href, new URL(context.collector.path, context.collector.site));
+  const href = documentLinkHref(
+    props.href,
+    new URL(context.collector.path, context.collector.site),
+  );
   const item = context.item;
   const marker =
     itemLink && item !== undefined

@@ -7,7 +7,9 @@ import type { DecisionBatchReport, DecisionRecord } from "./record";
 
 /** One review-queue entry: what was asked, how it landed, and the raw answers. */
 const reviewLine = (record: DecisionRecord): string =>
-  [`  ${record.inputRef}  ·  ${record.verdict}`, `      ${JSON.stringify(record.answers)}`].join("\n");
+  [`  ${record.inputRef}  ·  ${record.verdict}`, `      ${JSON.stringify(record.answers)}`].join(
+    "\n",
+  );
 
 /**
  * Human decision report: the batch header, a verdict breakdown, and the review

@@ -1,11 +1,6 @@
 import * as Command from "effect/cli/Command";
 
-import {
-  queryFlag,
-  researchFlags,
-  serpFlags,
-  workflowCommand,
-} from "./research";
+import { queryFlag, researchFlags, serpFlags, workflowCommand } from "./research";
 
 /** Page-backed content and search-result analysis workflows. */
 export const analyzeCommandGroup = Command.make("analyze").pipe(
@@ -29,7 +24,8 @@ export const analyzeCommandGroup = Command.make("analyze").pipe(
       name: "ai-search",
       workflow: "analyze.ai-search",
       exampleArgs: "--page /docs/email",
-      description: "Evaluate extractability, entity clarity, citation support, and answer readiness",
+      description:
+        "Evaluate extractability, entity clarity, citation support, and answer readiness",
       flags: researchFlags,
     }),
   ]),

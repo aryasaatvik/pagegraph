@@ -2,22 +2,44 @@ import { mkdirSync, readFileSync, symlinkSync, mkdtempSync, rmSync, writeFileSyn
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 
-import { fauxAssistantMessage, fauxToolCall, registerFauxProvider, type FauxProviderRegistration, type JsonObject } from "@earendil-works/pi-ai/compat";
+import {
+  fauxAssistantMessage,
+  fauxToolCall,
+  registerFauxProvider,
+  type FauxProviderRegistration,
+  type JsonObject,
+} from "@earendil-works/pi-ai/compat";
 import { builtinModels } from "@earendil-works/pi-ai/providers/all";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { getWorkflowSpec } from "../../src/workflows/catalog";
-import { acquireWorkflowRunner, composeSystemPrompt, createPiRunner, totalUsage, WorkflowRunnerError } from "../../src/workflows/pi";
+import {
+  acquireWorkflowRunner,
+  composeSystemPrompt,
+  createPiRunner,
+  totalUsage,
+  WorkflowRunnerError,
+} from "../../src/workflows/pi";
 import type { WorkflowRunner } from "../../src/workflows/runner";
 import type { AnyWorkflowSpec } from "../../src/workflows/specs/types";
 import { completedExecutorTrace, fakeExecutorToolset } from "./fixtures/executor";
 
 const spec = getWorkflowSpec("research.keywords");
-const validState = { summary: "Evidence supports the query.", opportunities: [{
-  query: "email api", intent: "commercial", rationale: "Fits the product", demand: 10,
-  candidates: [{ path: "/pricing", title: "Email API", excerpt: "An email API" }], evidence: ["seo.search"],
-}] };
-const submit = (state: JsonObject) => fauxAssistantMessage(fauxToolCall("submit_result", state), { stopReason: "toolUse" });
+const validState = {
+  summary: "Evidence supports the query.",
+  opportunities: [
+    {
+      query: "email api",
+      intent: "commercial",
+      rationale: "Fits the product",
+      demand: 10,
+      candidates: [{ path: "/pricing", title: "Email API", excerpt: "An email API" }],
+      evidence: ["seo.search"],
+    },
+  ],
+};
+const submit = (state: JsonObject) =>
+  fauxAssistantMessage(fauxToolCall("submit_result", state), { stopReason: "toolUse" });
 const directories: string[] = [];
 const providers: FauxProviderRegistration[] = [];
 const runners: WorkflowRunner[] = [];
@@ -25,30 +47,50 @@ const runners: WorkflowRunner[] = [];
 afterEach(async () => {
   for (const runner of runners.splice(0)) await runner.close();
   for (const provider of providers.splice(0)) provider.unregister();
-  for (const directory of directories.splice(0)) rmSync(directory, { recursive: true, force: true });
+  for (const directory of directories.splice(0))
+    rmSync(directory, { recursive: true, force: true });
   vi.unstubAllEnvs();
 });
 
-const fixture = (withEvidence = true, tokensPerSecond?: number, workflowSpec: AnyWorkflowSpec = spec) => {
+const fixture = (
+  withEvidence = true,
+  tokensPerSecond?: number,
+  workflowSpec: AnyWorkflowSpec = spec,
+) => {
   const root = mkdtempSync(join(tmpdir(), "pagegraph-pi-"));
   directories.push(root);
   const presetDirectory = join(root, "preset");
-  const files = ["agents/seo.md", "AGENTS.md", ...workflowSpec.skills.flatMap((skill) => [
-    `skills/${skill}/SKILL.md`, `skills/${skill}/references/executor.md`,
-  ])];
+  const files = [
+    "agents/seo.md",
+    "AGENTS.md",
+    ...workflowSpec.skills.flatMap((skill) => [
+      `skills/${skill}/SKILL.md`,
+      `skills/${skill}/references/executor.md`,
+    ]),
+  ];
   for (const file of files) {
     const path = join(presetDirectory, file);
     mkdirSync(dirname(path), { recursive: true });
     writeFileSync(path, `Project instructions: ${file}`);
   }
-  const provider = registerFauxProvider({ api: `pagegraph-test-${providers.length}-${Date.now()}`, tokensPerSecond });
+  const provider = registerFauxProvider({
+    api: `pagegraph-test-${providers.length}-${Date.now()}`,
+    tokensPerSecond,
+  });
   providers.push(provider);
   const executor = fakeExecutorToolset(withEvidence ? completedExecutorTrace() : []);
-  const runner = createPiRunner({ root, presetDirectory, model: provider.getModel(), limit: 1, executor });
+  const runner = createPiRunner({
+    root,
+    presetDirectory,
+    model: provider.getModel(),
+    limit: 1,
+    executor,
+  });
   runners.push(runner);
   return { root, presetDirectory, provider, executor, runner, files };
 };
-const research = (runner: WorkflowRunner, signal = AbortSignal.timeout(2000)) => runner.research(spec, "Research email APIs.", { signal });
+const research = (runner: WorkflowRunner, signal = AbortSignal.timeout(2000)) =>
+  runner.research(spec, "Research email APIs.", { signal });
 
 describe("Pi workflow runner", () => {
   it("accepts a valid first submission and retains message usage and total cost", async () => {
@@ -68,21 +110,45 @@ describe("Pi workflow runner", () => {
     writeFileSync(join(root, "page.txt"), "Original page");
     provider.setResponses([submit({}), submit(validState)]);
     const researched = await research(runner);
-    const edit = { path: "page.txt", oldText: "Original", newText: "Improved", reason: "Clearer", evidence: ["seo.search"] };
+    const edit = {
+      path: "page.txt",
+      oldText: "Original",
+      newText: "Improved",
+      reason: "Clearer",
+      evidence: ["seo.search"],
+    };
     provider.setResponses([
       (context) => {
         expect(JSON.stringify(context)).toContain("Evidence supports the query.");
-        return submit({ summary: "Improved page", edits: [{ ...edit, oldText: "Missing" }], reviewItems: [] });
+        return submit({
+          summary: "Improved page",
+          edits: [{ ...edit, oldText: "Missing" }],
+          reviewItems: [],
+        });
       },
-      submit({ summary: "Improved page", edits: [edit], reviewItems: [{ path: "/pricing", reason: "Needs legal review", evidence: [] }] }),
+      submit({
+        summary: "Improved page",
+        edits: [edit],
+        reviewItems: [{ path: "/pricing", reason: "Needs legal review", evidence: [] }],
+      }),
     ]);
-    const acted = await runner.act(spec, "Submit the resolved changes.", { signal: AbortSignal.timeout(2000) });
+    const acted = await runner.act(spec, "Submit the resolved changes.", {
+      signal: AbortSignal.timeout(2000),
+    });
     expect(readFileSync(join(root, "page.txt"), "utf8")).toBe("Original page");
-    expect(acted.state).toEqual({ summary: "Improved page", edits: [edit], reviewItems: [{ path: "/pricing", reason: "Needs legal review", evidence: [] }] });
+    expect(acted.state).toEqual({
+      summary: "Improved page",
+      edits: [edit],
+      reviewItems: [{ path: "/pricing", reason: "Needs legal review", evidence: [] }],
+    });
     expect(acted.messages.slice(0, researched.messages.length)).toEqual(researched.messages);
-    const errors = acted.messages.filter((message) => message.role === "toolResult" && message.isError);
+    const errors = acted.messages.filter(
+      (message) => message.role === "toolResult" && message.isError,
+    );
     expect(errors).toHaveLength(2);
-    expect(JSON.stringify(errors.at(-1))).toContain("edits[0] (page.txt): stale, target text not found");
+    expect(JSON.stringify(errors.at(-1))).toContain(
+      "edits[0] (page.txt): stale, target text not found",
+    );
   });
 
   it("refuses edits outside the app root or in protected directories at submission", async () => {
@@ -93,16 +159,36 @@ describe("Pi workflow runner", () => {
     symlinkSync(outside, join(root, "escape.txt"));
     provider.setResponses([submit(validState)]);
     await research(runner);
-    const blockedPaths = [".git/config", "node_modules/pkg/file", "escape.txt", "preset/AGENTS.md", ".pagegraph/runs/result.json"];
+    const blockedPaths = [
+      ".git/config",
+      "node_modules/pkg/file",
+      "escape.txt",
+      "preset/AGENTS.md",
+      ".pagegraph/runs/result.json",
+    ];
     provider.setResponses([
-      submit({ summary: "Unsafe", reviewItems: [], edits: blockedPaths.map((path) => ({ path, newText: "unsafe", reason: "r", evidence: [] })) }),
-      submit({ summary: "Outside", reviewItems: [], edits: [{ path: outside, oldText: "Outside", newText: "unsafe", reason: "r", evidence: [] }] }),
+      submit({
+        summary: "Unsafe",
+        reviewItems: [],
+        edits: blockedPaths.map((path) => ({ path, newText: "unsafe", reason: "r", evidence: [] })),
+      }),
+      submit({
+        summary: "Outside",
+        reviewItems: [],
+        edits: [
+          { path: outside, oldText: "Outside", newText: "unsafe", reason: "r", evidence: [] },
+        ],
+      }),
       submit({ summary: "No safe change", edits: [], reviewItems: [] }),
     ]);
     const result = await runner.act(spec, "Apply changes", { signal: AbortSignal.timeout(2000) });
-    const errors = result.messages.filter((message) => message.role === "toolResult" && message.toolName === "submit_result" && message.isError);
+    const errors = result.messages.filter(
+      (message) =>
+        message.role === "toolResult" && message.toolName === "submit_result" && message.isError,
+    );
     expect(errors).toHaveLength(2);
-    for (const index of blockedPaths.keys()) expect(JSON.stringify(errors[0])).toContain(`edits[${index}]`);
+    for (const index of blockedPaths.keys())
+      expect(JSON.stringify(errors[0])).toContain(`edits[${index}]`);
     expect(JSON.stringify(errors[1])).toContain("outside the app root");
     expect(result.state).toEqual({ summary: "No safe change", edits: [], reviewItems: [] });
     expect(readFileSync(outside, "utf8")).toBe("Outside evidence");
@@ -112,15 +198,18 @@ describe("Pi workflow runner", () => {
     const { runner, provider } = fixture();
     provider.setResponses([submit(validState)]);
     await research(runner);
-    provider.setResponses([(context) => {
-      expect(JSON.stringify(context)).not.toContain("edit_file");
-      expect(JSON.stringify(context)).not.toContain("write_file");
-      expect(JSON.stringify(context)).toContain("read_file");
-      expect(JSON.stringify(context)).toContain("executor_execute");
-      return submit({ summary: "Nothing to change", edits: [], reviewItems: [] });
-    }]);
-    expect((await runner.act(spec, "Describe changes", { signal: AbortSignal.timeout(2000) })).state)
-      .toEqual({ summary: "Nothing to change", edits: [], reviewItems: [] });
+    provider.setResponses([
+      (context) => {
+        expect(JSON.stringify(context)).not.toContain("edit_file");
+        expect(JSON.stringify(context)).not.toContain("write_file");
+        expect(JSON.stringify(context)).toContain("read_file");
+        expect(JSON.stringify(context)).toContain("executor_execute");
+        return submit({ summary: "Nothing to change", edits: [], reviewItems: [] });
+      },
+    ]);
+    expect(
+      (await runner.act(spec, "Describe changes", { signal: AbortSignal.timeout(2000) })).state,
+    ).toEqual({ summary: "Nothing to change", edits: [], reviewItems: [] });
   });
 
   it("returns invalid submission issues in-loop and accepts the correction", async () => {
@@ -129,8 +218,14 @@ describe("Pi workflow runner", () => {
     const result = await research(runner);
     expect(result.state).toEqual(validState);
     expect(provider.state.callCount).toBe(2);
-    const rejection = result.messages.find((message) => message.role === "toolResult" && message.isError);
-    expect(rejection?.content).toEqual(expect.arrayContaining([expect.objectContaining({ type: "text", text: expect.stringContaining("summary") })]));
+    const rejection = result.messages.find(
+      (message) => message.role === "toolResult" && message.isError,
+    );
+    expect(rejection?.content).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ type: "text", text: expect.stringContaining("summary") }),
+      ]),
+    );
   });
 
   it("decodes raw submissions so a numeric summary is rejected before correction", async () => {
@@ -139,29 +234,56 @@ describe("Pi workflow runner", () => {
     const result = await research(runner);
     expect(result.state).toEqual(validState);
     expect(provider.state.callCount).toBe(2);
-    expect(result.messages.filter((message) => message.role === "toolResult" && message.isError)).toHaveLength(1);
+    expect(
+      result.messages.filter((message) => message.role === "toolResult" && message.isError),
+    ).toHaveLength(1);
   });
 
   it("drops nulls and caps opportunities before validating tool arguments", async () => {
     const { runner, provider } = fixture();
-    const opportunity = { ...validState.opportunities[0], demand: null, evidence: [null, "seo.search"] };
-    provider.setResponses([submit({ summary: validState.summary, opportunities: [null, opportunity, { invalid: "beyond limit" }] })]);
+    const opportunity = {
+      ...validState.opportunities[0],
+      demand: null,
+      evidence: [null, "seo.search"],
+    };
+    provider.setResponses([
+      submit({
+        summary: validState.summary,
+        opportunities: [null, opportunity, { invalid: "beyond limit" }],
+      }),
+    ]);
     const result = await research(runner);
     const { demand: _demand, ...expected } = validState.opportunities[0];
     expect(result.state).toEqual({ summary: validState.summary, opportunities: [expected] });
     expect(provider.state.callCount).toBe(1);
-    expect(result.messages.filter((message) => message.role === "toolResult" && message.isError)).toHaveLength(0);
+    expect(
+      result.messages.filter((message) => message.role === "toolResult" && message.isError),
+    ).toHaveLength(0);
   });
 
   it("bounds semantically invalid metadata submissions and retains decision input issues", async () => {
     const metadata = getWorkflowSpec("improve.metadata");
     const { runner, provider } = fixture(true, undefined, metadata);
-    const invalid = { summary: "Update metadata", items: [{
-      url: "/pricing", intent: "commercial", categoryLock: "email",
-      candidates: [{ id: "one", title: "Email API", description: "Send email" }],
-    }] };
-    provider.setResponses([submit(invalid), submit(invalid), submit(invalid), submit({ summary: "Empty", items: [] })]);
-    const error = await runner.research(metadata, "Inspect metadata", { signal: AbortSignal.timeout(2000) }).catch((cause: unknown) => cause);
+    const invalid = {
+      summary: "Update metadata",
+      items: [
+        {
+          url: "/pricing",
+          intent: "commercial",
+          categoryLock: "email",
+          candidates: [{ id: "one", title: "Email API", description: "Send email" }],
+        },
+      ],
+    };
+    provider.setResponses([
+      submit(invalid),
+      submit(invalid),
+      submit(invalid),
+      submit({ summary: "Empty", items: [] }),
+    ]);
+    const error = await runner
+      .research(metadata, "Inspect metadata", { signal: AbortSignal.timeout(2000) })
+      .catch((cause: unknown) => cause);
     expect(error).toBeInstanceOf(WorkflowRunnerError);
     expect((error as Error).message).toContain("decisionInputs[0]");
     expect((error as Error).message).toContain("at least two candidates");
@@ -173,8 +295,12 @@ describe("Pi workflow runner", () => {
     const { runner, provider, executor } = fixture(false);
     provider.setResponses([
       submit(validState),
-      fauxAssistantMessage(fauxToolCall("executor_search", { query: "SEO" }), { stopReason: "toolUse" }),
-      fauxAssistantMessage(fauxToolCall("executor_execute", { code: "await tools.seo.search()" }), { stopReason: "toolUse" }),
+      fauxAssistantMessage(fauxToolCall("executor_search", { query: "SEO" }), {
+        stopReason: "toolUse",
+      }),
+      fauxAssistantMessage(fauxToolCall("executor_execute", { code: "await tools.seo.search()" }), {
+        stopReason: "toolUse",
+      }),
       submit(validState),
     ]);
     const result = await research(runner);
@@ -182,13 +308,26 @@ describe("Pi workflow runner", () => {
     expect(executor.trace.map((record) => record.kind)).toEqual(["search", "execute"]);
     expect(result.executor.searches).toHaveLength(1);
     expect(result.executor.calls).toHaveLength(1);
-    const rejection = result.messages.find((message) => message.role === "toolResult" && message.isError);
-    expect(rejection?.content).toEqual(expect.arrayContaining([expect.objectContaining({ text: expect.stringContaining("completed Executor provider evidence") })]));
+    const rejection = result.messages.find(
+      (message) => message.role === "toolResult" && message.isError,
+    );
+    expect(rejection?.content).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          text: expect.stringContaining("completed Executor provider evidence"),
+        }),
+      ]),
+    );
   });
 
   it("stops at three rejected submissions and reports the last decode issues", async () => {
     const { runner, provider } = fixture();
-    provider.setResponses([submit({}), submit({}), submit({ opportunities: [] }), submit(validState)]);
+    provider.setResponses([
+      submit({}),
+      submit({}),
+      submit({ opportunities: [] }),
+      submit(validState),
+    ]);
     const error = await research(runner).catch((cause: unknown) => cause);
     expect(error).toBeInstanceOf(WorkflowRunnerError);
     expect((error as Error).message).toContain("summary");
@@ -198,12 +337,17 @@ describe("Pi workflow runner", () => {
 
   it("enforces the rejection bound within one assistant tool-call batch", async () => {
     const { runner, provider } = fixture();
-    provider.setResponses([fauxAssistantMessage([
-      fauxToolCall("submit_result", { summary: 42, opportunities: [] }),
-      fauxToolCall("submit_result", { summary: 42, opportunities: [] }),
-      fauxToolCall("submit_result", { summary: 42, opportunities: [] }),
-      fauxToolCall("submit_result", validState),
-    ], { stopReason: "toolUse" })]);
+    provider.setResponses([
+      fauxAssistantMessage(
+        [
+          fauxToolCall("submit_result", { summary: 42, opportunities: [] }),
+          fauxToolCall("submit_result", { summary: 42, opportunities: [] }),
+          fauxToolCall("submit_result", { summary: 42, opportunities: [] }),
+          fauxToolCall("submit_result", validState),
+        ],
+        { stopReason: "toolUse" },
+      ),
+    ]);
     await expect(research(runner)).rejects.toThrow("Workflow result rejected");
     expect(provider.state.callCount).toBe(1);
   });
@@ -211,8 +355,15 @@ describe("Pi workflow runner", () => {
   it("aborts an active run when its deadline expires", async () => {
     const { runner, provider } = fixture(true, 100);
     let started!: () => void;
-    const ready = new Promise<void>((resolve) => { started = resolve; });
-    provider.setResponses([() => { started(); return fauxAssistantMessage("Researching " + "evidence ".repeat(100)); }]);
+    const ready = new Promise<void>((resolve) => {
+      started = resolve;
+    });
+    provider.setResponses([
+      () => {
+        started();
+        return fauxAssistantMessage("Researching " + "evidence ".repeat(100));
+      },
+    ]);
     const controller = new AbortController();
     const pending = research(runner, controller.signal);
     await ready;
@@ -224,7 +375,10 @@ describe("Pi workflow runner", () => {
 
   it("retains structured failure details when the deadline expires before agent construction", async () => {
     const { runner, provider } = fixture();
-    const error = await research(runner, AbortSignal.abort(new DOMException("Timed out", "TimeoutError"))).catch((cause: unknown) => cause);
+    const error = await research(
+      runner,
+      AbortSignal.abort(new DOMException("Timed out", "TimeoutError")),
+    ).catch((cause: unknown) => cause);
     expect(error).toBeInstanceOf(WorkflowRunnerError);
     if (!(error instanceof WorkflowRunnerError)) throw new Error("Expected runner failure");
     expect(error.message).toContain("deadline exceeded or run aborted");
@@ -245,29 +399,55 @@ describe("Pi workflow runner", () => {
   it("sums assistant token usage and cost across messages", () => {
     const first = fauxAssistantMessage("First result");
     first.usage = {
-      input: 10, output: 4, cacheRead: 2, cacheWrite: 3, totalTokens: 19,
+      input: 10,
+      output: 4,
+      cacheRead: 2,
+      cacheWrite: 3,
+      totalTokens: 19,
       cost: { input: 0.1, output: 0.2, cacheRead: 0.3, cacheWrite: 0.4, total: 1 },
     };
     const second = fauxAssistantMessage("Second result");
     second.usage = {
-      input: 20, output: 8, cacheRead: 4, cacheWrite: 6, totalTokens: 38,
+      input: 20,
+      output: 8,
+      cacheRead: 4,
+      cacheWrite: 6,
+      totalTokens: 38,
       cost: { input: 0.2, output: 0.4, cacheRead: 0.6, cacheWrite: 0.8, total: 2 },
     };
-    expect(totalUsage([{ role: "user", content: "Request", timestamp: 0 }, first, second])).toEqual({
-      input: 30, output: 12, cacheRead: 6, cacheWrite: 9, totalTokens: 57,
-      cost: { input: expect.closeTo(0.3), output: expect.closeTo(0.6), cacheRead: expect.closeTo(0.9), cacheWrite: expect.closeTo(1.2), total: 3 },
-    });
+    expect(totalUsage([{ role: "user", content: "Request", timestamp: 0 }, first, second])).toEqual(
+      {
+        input: 30,
+        output: 12,
+        cacheRead: 6,
+        cacheWrite: 9,
+        totalTokens: 57,
+        cost: {
+          input: expect.closeTo(0.3),
+          output: expect.closeTo(0.6),
+          cacheRead: expect.closeTo(0.9),
+          cacheWrite: expect.closeTo(1.2),
+          total: 3,
+        },
+      },
+    );
   });
 });
 
 describe("Pi runner acquisition", () => {
-  const acquire = (model: string) => acquireWorkflowRunner({ root: "/project", limit: 1,
-    config: { presetDirectory: "preset", defaultModel: model },
-  });
+  const acquire = (model: string) =>
+    acquireWorkflowRunner({
+      root: "/project",
+      limit: 1,
+      config: { presetDirectory: "preset", defaultModel: model },
+    });
 
-  it.each(["model", "/model", "openai/"])("rejects malformed provider/id model %s", async (model) => {
-    await expect(acquire(model)).rejects.toThrow("Workflow model must use provider/id");
-  });
+  it.each(["model", "/model", "openai/"])(
+    "rejects malformed provider/id model %s",
+    async (model) => {
+      await expect(acquire(model)).rejects.toThrow("Workflow model must use provider/id");
+    },
+  );
 
   it("names the provider environment variable when credentials are missing", async () => {
     vi.stubEnv("OPENAI_API_KEY", undefined);

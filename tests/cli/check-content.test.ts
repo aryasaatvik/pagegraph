@@ -20,7 +20,11 @@ const html = (path: string, main: string, head = ""): string =>
 const PAGES: Record<string, string> = {
   "/pricing": html("/pricing", "<h1>Pricing page</h1><h2>Plans</h2><p>Growth is $19 a month.</p>"),
   "/about": html("/about", "<h2>About</h2><h4>Team</h4>"),
-  "/compare": html("/compare", "<h1>Compare page</h1>", '<meta name="robots" content="noindex, follow">'),
+  "/compare": html(
+    "/compare",
+    "<h1>Compare page</h1>",
+    '<meta name="robots" content="noindex, follow">',
+  ),
 };
 
 let server: Server;
@@ -67,7 +71,9 @@ afterAll(async () => {
   );
 });
 
-const CONFIG = (extra: string): string => `const SITEMAP = { priority: 0.5, changeFrequency: "monthly" };
+const CONFIG = (
+  extra: string,
+): string => `const SITEMAP = { priority: 0.5, changeFrequency: "monthly" };
 const node = (path, policy = {}, instance) => ({
   path,
   kind: "page",
@@ -127,7 +133,10 @@ interface Report {
 
 describe("pagegraph check --site", () => {
   it("checks every declared page's rendered HTML and fails on structural findings", async () => {
-    const result = await run(["check", "--site", site, "--allow-private", "--json"], configDirectory());
+    const result = await run(
+      ["check", "--site", site, "--allow-private", "--json"],
+      configDirectory(),
+    );
     expect(result.status).toBe(1);
     const report = JSON.parse(result.stdout) as Report;
     expect(report.rendered).toEqual({ site, pages: 4 });
@@ -144,7 +153,9 @@ describe("pagegraph check --site", () => {
     const result = await run(["check", "--site", site, "--json"], configDirectory());
     expect(result.status).toBe(1);
     const report = JSON.parse(result.stdout) as Report;
-    expect(report.violations.filter((violation) => violation.rule === "rendered-page-unavailable")).toHaveLength(4);
+    expect(
+      report.violations.filter((violation) => violation.rule === "rendered-page-unavailable"),
+    ).toHaveLength(4);
   }, 30_000);
 
   it("leaves the declared-graph check unchanged without --site", async () => {
@@ -154,7 +165,10 @@ describe("pagegraph check --site", () => {
   }, 30_000);
 
   it("adds editorial stale-page findings under a freshness policy", async () => {
-    const result = await run(["check", "--json"], configDirectory("freshness: { maxAgeDays: 365 },"));
+    const result = await run(
+      ["check", "--json"],
+      configDirectory("freshness: { maxAgeDays: 365 },"),
+    );
     expect(result.status).toBe(0);
     const report = JSON.parse(result.stdout) as Report;
     expect(report.violations).toEqual([
@@ -163,7 +177,10 @@ describe("pagegraph check --site", () => {
   }, 30_000);
 
   it("rejects a malformed content policy in pagegraph.config", async () => {
-    const result = await run(["check"], configDirectory('content: { minWords: [{ path: "/**" }] },'));
+    const result = await run(
+      ["check"],
+      configDirectory('content: { minWords: [{ path: "/**" }] },'),
+    );
     expect(result.status).toBe(1);
     expect(result.stderr).toContain("must default-export defineSeoConfig");
   }, 30_000);
@@ -179,9 +196,16 @@ describe("pagegraph stale", () => {
   }, 30_000);
 
   it("reads the limit from pagegraph.config and emits JSON", async () => {
-    const result = await run(["stale", "--json"], configDirectory("freshness: { maxAgeDays: 365 },"));
+    const result = await run(
+      ["stale", "--json"],
+      configDirectory("freshness: { maxAgeDays: 365 },"),
+    );
     expect(result.status).toBe(0);
-    const report = JSON.parse(result.stdout) as { stale: Array<{ path: string }>; undated: Array<string>; maxAgeDays: number };
+    const report = JSON.parse(result.stdout) as {
+      stale: Array<{ path: string }>;
+      undated: Array<string>;
+      maxAgeDays: number;
+    };
     expect(report).toMatchObject({ maxAgeDays: 365, undated: ["/about"] });
     expect(report.stale.map((entry) => entry.path)).toEqual(["/blog/old"]);
   }, 30_000);

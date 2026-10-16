@@ -82,22 +82,23 @@ describe("copy lock", () => {
   });
 });
 
-
 describe("untyped lock input", () => {
   it("preserves final source string validation diagnostics", () => {
     const malformed = {
       ...document("/bad", "a".repeat(64)),
       messages: [{ ...message("b".repeat(16), "src"), source: 3 }],
     };
-    expect(() => Reflect.apply(createMarkdownLock, undefined, [[malformed]]))
-      .toThrow('Expected string\n  at ["pages"]["/bad"]["messages"]["bbbbbbbbbbbbbbbb"]');
+    expect(() => Reflect.apply(createMarkdownLock, undefined, [[malformed]])).toThrow(
+      'Expected string\n  at ["pages"]["/bad"]["messages"]["bbbbbbbbbbbbbbbb"]',
+    );
   });
   it("rejects document hashes that only coerce to valid strings", () => {
     const malformed = {
       ...document("/bad", "a".repeat(64)),
       hash: { toString: () => "a".repeat(64) },
     };
-    expect(() => Reflect.apply(createMarkdownLock, undefined, [[malformed]]))
-      .toThrow('Expected string\n  at ["pages"]["/bad"]["document"]');
+    expect(() => Reflect.apply(createMarkdownLock, undefined, [[malformed]])).toThrow(
+      'Expected string\n  at ["pages"]["/bad"]["document"]',
+    );
   });
 });

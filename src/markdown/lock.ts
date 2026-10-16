@@ -3,10 +3,15 @@ import type { PageDocument } from "./document";
 /** Stable, reviewable snapshot of document and message hashes with source locations. */
 export interface MarkdownLock {
   readonly version: 1;
-  readonly pages: Readonly<Record<string, {
-    readonly document: string;
-    readonly messages: Readonly<Record<string, string>>;
-  }>>;
+  readonly pages: Readonly<
+    Record<
+      string,
+      {
+        readonly document: string;
+        readonly messages: Readonly<Record<string, string>>;
+      }
+    >
+  >;
 }
 
 const compare = (left: string, right: string): number => (left < right ? -1 : left > right ? 1 : 0);
@@ -39,7 +44,9 @@ export function createMarkdownLock(documents: ReadonlyArray<PageDocument>): Mark
       throw new Error(`Expected string\n  at ["pages"][${JSON.stringify(path)}]["document"]`);
     for (const [hash, source] of Object.entries(page.messages)) {
       if (typeof source !== "string")
-        throw new Error(`Expected string\n  at ["pages"][${JSON.stringify(path)}]["messages"][${JSON.stringify(hash)}]`);
+        throw new Error(
+          `Expected string\n  at ["pages"][${JSON.stringify(path)}]["messages"][${JSON.stringify(hash)}]`,
+        );
     }
   }
   return { version: 1, pages };

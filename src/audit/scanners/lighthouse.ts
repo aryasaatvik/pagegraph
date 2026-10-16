@@ -32,8 +32,7 @@ const UnknownRecord = Schema.Record(Schema.String, Schema.Unknown);
 const decodeUnknownRecord = Schema.decodeUnknownOption(UnknownRecord);
 const asRecord = (value: unknown): UnknownRecord | null =>
   Option.getOrNull(decodeUnknownRecord(value));
-const asString = (value: unknown): string | null =>
-  typeof value === "string" ? value : null;
+const asString = (value: unknown): string | null => (typeof value === "string" ? value : null);
 const asNumber = (value: unknown): number | null =>
   typeof value === "number" && Number.isFinite(value) ? value : null;
 
@@ -61,9 +60,7 @@ const resolveLighthouse = (): {
   }
 };
 
-const parseCategories = (
-  value: unknown,
-): Readonly<Record<string, LighthouseCategory>> => {
+const parseCategories = (value: unknown): Readonly<Record<string, LighthouseCategory>> => {
   const categories: Record<string, LighthouseCategory> = {};
   for (const [id, candidate] of Object.entries(asRecord(value) ?? {})) {
     const category = asRecord(candidate);
@@ -77,9 +74,7 @@ const parseCategories = (
   return categories;
 };
 
-const parseMetrics = (
-  auditsValue: unknown,
-): Readonly<Record<string, LighthouseMetric>> => {
+const parseMetrics = (auditsValue: unknown): Readonly<Record<string, LighthouseMetric>> => {
   const metrics: Record<string, LighthouseMetric> = {};
   const audits = asRecord(auditsValue) ?? {};
   for (const id of metricIds) {
@@ -97,9 +92,7 @@ const parseMetrics = (
   return metrics;
 };
 
-const parseOpportunities = (
-  auditsValue: unknown,
-): ReadonlyArray<LighthouseOpportunity> => {
+const parseOpportunities = (auditsValue: unknown): ReadonlyArray<LighthouseOpportunity> => {
   const opportunities: Array<LighthouseOpportunity> = [];
   for (const [id, candidate] of Object.entries(asRecord(auditsValue) ?? {})) {
     const audit = asRecord(candidate);
@@ -124,9 +117,7 @@ const parseOpportunities = (
 };
 
 const parseWarnings = (value: unknown): ReadonlyArray<string> =>
-  Array.isArray(value)
-    ? value.filter((item): item is string => typeof item === "string")
-    : [];
+  Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
 
 export const parseLighthouseResult = (
   value: unknown,
@@ -317,37 +308,31 @@ const runLighthouseInDirectory = async (
   }
 };
 
-export const runLighthouse = async (
-  options: LighthouseOptions,
-): Promise<LighthouseRun> => {
+export const runLighthouse = async (options: LighthouseOptions): Promise<LighthouseRun> => {
   let directory: string | undefined;
   try {
     directory = await mkdtemp(join(tmpdir(), "tanstack-seo-lighthouse-"));
     return await runLighthouseInDirectory(options, directory);
   } finally {
-    if (directory !== undefined)
-      await rm(directory, { recursive: true, force: true });
+    if (directory !== undefined) await rm(directory, { recursive: true, force: true });
   }
 };
 
-export const runLighthouseEffect = Effect.fn("SeoAudit.runLighthouse")(
-  function* (options: LighthouseOptions) {
-    const directory = yield* Effect.acquireRelease(
-      Effect.tryPromise({
-        try: () => mkdtemp(join(tmpdir(), "tanstack-seo-lighthouse-")),
-        catch: (cause) =>
-          new LighthouseError({ message: errorMessage(cause), cause }),
-      }),
-      (path) =>
-        Effect.promise(() => rm(path, { recursive: true, force: true })),
-    );
-    return yield* Effect.tryPromise({
-      try: () => runLighthouseInDirectory(options, directory),
-      catch: (cause) =>
-        new LighthouseError({ message: errorMessage(cause), cause }),
-    });
-  },
-);
+export const runLighthouseEffect = Effect.fn("SeoAudit.runLighthouse")(function* (
+  options: LighthouseOptions,
+) {
+  const directory = yield* Effect.acquireRelease(
+    Effect.tryPromise({
+      try: () => mkdtemp(join(tmpdir(), "tanstack-seo-lighthouse-")),
+      catch: (cause) => new LighthouseError({ message: errorMessage(cause), cause }),
+    }),
+    (path) => Effect.promise(() => rm(path, { recursive: true, force: true })),
+  );
+  return yield* Effect.tryPromise({
+    try: () => runLighthouseInDirectory(options, directory),
+    catch: (cause) => new LighthouseError({ message: errorMessage(cause), cause }),
+  });
+});
 
 export const makeLighthouseScanner = (
   options: Omit<LighthouseOptions, "url" | "formFactor" | "run">,
@@ -361,8 +346,7 @@ export const makeLighthouseScanner = (
     Effect.fn("SeoAudit.scanLighthouse")(function* () {
       const target = new URL(input.target.url);
       const requestedFormFactors =
-        input.options.formFactors === undefined ||
-        input.options.formFactors.length === 0
+        input.options.formFactors === undefined || input.options.formFactors.length === 0
           ? (["mobile"] as const)
           : input.options.formFactors;
       const requestedRuns = Math.max(1, Math.floor(input.options.runs ?? 1));

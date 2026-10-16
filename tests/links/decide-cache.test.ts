@@ -86,7 +86,11 @@ describe("decideLinks cache", () => {
     const cacheDir = temporaryDirectory();
     const first = { calls: 0 };
     const firstReport = await Effect.runPromise(
-      decideLinks(candidates, { model: "jev-latest", threshold: 0.7, cache: { directory: cacheDir, policy: "scratch" } }).pipe(
+      decideLinks(candidates, {
+        model: "jev-latest",
+        threshold: 0.7,
+        cache: { directory: cacheDir, policy: "scratch" },
+      }).pipe(
         Effect.provide(countingModel(() => ({ realReason: 0.9, anchorPresent: 0.1 }), first)),
       ),
     );
@@ -96,7 +100,11 @@ describe("decideLinks cache", () => {
     // Same model and input: a warm cache skips the provider entirely.
     const cached = { calls: 0 };
     const cachedReport = await Effect.runPromise(
-      decideLinks(candidates, { model: "jev-latest", threshold: 0.7, cache: { directory: cacheDir, policy: "scratch" } }).pipe(
+      decideLinks(candidates, {
+        model: "jev-latest",
+        threshold: 0.7,
+        cache: { directory: cacheDir, policy: "scratch" },
+      }).pipe(
         Effect.provide(countingModel(() => ({ realReason: 0.1, anchorPresent: 0.1 }), cached)),
       ),
     );
@@ -106,7 +114,11 @@ describe("decideLinks cache", () => {
     // A different model must not reuse the other model's answers.
     const other = { calls: 0 };
     const otherReport = await Effect.runPromise(
-      decideLinks(candidates, { model: "jev-preview", threshold: 0.7, cache: { directory: cacheDir, policy: "scratch" } }).pipe(
+      decideLinks(candidates, {
+        model: "jev-preview",
+        threshold: 0.7,
+        cache: { directory: cacheDir, policy: "scratch" },
+      }).pipe(
         Effect.provide(countingModel(() => ({ realReason: 0.1, anchorPresent: 0.1 }), other)),
       ),
     );
@@ -134,7 +146,11 @@ describe("decideLinks cache", () => {
 
       const counter = { calls: 0 };
       const report = await Effect.runPromise(
-        decideLinks(candidates, { model: "jev-latest", threshold: 0.7, cache: { directory: cacheDir, policy: "scratch" } }).pipe(
+        decideLinks(candidates, {
+          model: "jev-latest",
+          threshold: 0.7,
+          cache: { directory: cacheDir, policy: "scratch" },
+        }).pipe(
           Effect.provide(countingModel(() => ({ realReason: 0.9, anchorPresent: 0.1 }), counter)),
         ),
       );

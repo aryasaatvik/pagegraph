@@ -95,11 +95,7 @@ export const classifyAuthorityVerdict = (
 ): AuthorityVerdict => {
   if (
     anyInReviewBand(
-      [
-        answers.legitimate.probability,
-        answers.spam.probability,
-        answers.outreachWorth.probability,
-      ],
+      [answers.legitimate.probability, answers.spam.probability, answers.outreachWorth.probability],
       threshold,
     )
   ) {

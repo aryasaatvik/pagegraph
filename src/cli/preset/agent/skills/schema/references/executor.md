@@ -12,14 +12,14 @@ TypeScript input and result shapes:
 Pass a TypeScript snippet to `executor_execute`, replacing `discovered_namespace`, `discovered_tool`, and
 arguments with the returned names and required fields:
 
-~~~ts
+```ts
 return await tools.discovered_namespace.discovered_tool({
   siteUrl,
   startDate,
   endDate,
   dimensions: ["SEARCH_APPEARANCE", "PAGE"],
 });
-~~~
+```
 
 Treat visible page content and current primary requirements as eligibility authority. Record dates,
 page filters, result types, task status, errors, and cost. Do not request indexing, submit schemas,

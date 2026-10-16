@@ -16,8 +16,18 @@ import { MARKDOWN_CAPTURE_PATH } from "./markdown-path";
 
 /** File names must remain inside the package's capture and the client's output trees. */
 function documentName(path: string): string {
-  if (!path.startsWith("/") || path.startsWith("//") || /[?#\\$\u0000-\u001f\u007f]/.test(path) ||
-      (path !== "/" && path.endsWith("/")) || path.slice(1).split("/").some((part) => part === "." || part === ".." || part === "*" || (part === "" && path !== "/"))) {
+  if (
+    !path.startsWith("/") ||
+    path.startsWith("//") ||
+    /[?#\\$\u0000-\u001f\u007f]/.test(path) ||
+    (path !== "/" && path.endsWith("/")) ||
+    path
+      .slice(1)
+      .split("/")
+      .some(
+        (part) => part === "." || part === ".." || part === "*" || (part === "" && path !== "/"),
+      )
+  ) {
     throw new Error(`Invalid captured document path "${path}"`);
   }
   return path === "/" ? "index" : path.slice(1);
@@ -37,16 +47,24 @@ async function pruneDocuments(directory: string, paths: ReadonlySet<string>): Pr
     const entries = await readdir(folder, { withFileTypes: true });
     for (const entry of entries) {
       const file = resolve(folder, entry.name);
-      if (entry.isDirectory()) { await visit(file); continue; }
+      if (entry.isDirectory()) {
+        await visit(file);
+        continue;
+      }
       if (!entry.isFile() || !entry.name.endsWith(".json")) continue;
       const contents = await readFile(file, "utf8");
       let document: PageDocument;
       let name: string;
       try {
-        document = Schema.decodeUnknownSync(Schema.fromJsonString(PageDocumentSchema))(contents, { onExcessProperty: "error" });
+        document = Schema.decodeUnknownSync(Schema.fromJsonString(PageDocumentSchema))(contents, {
+          onExcessProperty: "error",
+        });
         name = verifyDocument(document);
-      } catch { continue; }
-      if (file === resolve(directory, `${name}.json`) && !paths.has(document.path)) await unlink(file);
+      } catch {
+        continue;
+      }
+      if (file === resolve(directory, `${name}.json`) && !paths.has(document.path))
+        await unlink(file);
     }
   };
   await visit(directory);
@@ -54,19 +72,30 @@ async function pruneDocuments(directory: string, paths: ReadonlySet<string>): Pr
 
 /** Documents, twins, and graph heads are persisted before prerender onSuccess returns. */
 export async function persistMarkdownCapture(
-  html: string, root: string, clientOutDir: string, claims?: ClaimsOptions, facts: Facts = {},
+  html: string,
+  root: string,
+  clientOutDir: string,
+  claims?: ClaimsOptions,
+  facts: Facts = {},
 ): Promise<void> {
-  const bundle = Schema.decodeUnknownSync(Schema.fromJsonString(CaptureBundle))(html, { onExcessProperty: "error" });
+  const bundle = Schema.decodeUnknownSync(Schema.fromJsonString(CaptureBundle))(html, {
+    onExcessProperty: "error",
+  });
   const origin = new URL(bundle.origin);
-  if ((origin.protocol !== "https:" && origin.protocol !== "http:") || origin.origin !== bundle.origin)
+  if (
+    (origin.protocol !== "https:" && origin.protocol !== "http:") ||
+    origin.origin !== bundle.origin
+  )
     throw new Error(`Invalid captured markdown origin "${bundle.origin}"`);
   const active = new Set<string>();
   const destinations = new Set<string>();
   const names = bundle.documents.map((document) => {
-    if (active.has(document.path)) throw new Error(`Duplicate captured document path "${document.path}"`);
+    if (active.has(document.path))
+      throw new Error(`Duplicate captured document path "${document.path}"`);
     active.add(document.path);
     const name = verifyDocument(document);
-    if (destinations.has(name)) throw new Error(`Captured document paths share the output name "${name}"`);
+    if (destinations.has(name))
+      throw new Error(`Captured document paths share the output name "${name}"`);
     destinations.add(name);
     return name;
   });

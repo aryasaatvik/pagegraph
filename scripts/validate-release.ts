@@ -91,8 +91,7 @@ const runSuccessfully = async (
   return result.stdout;
 };
 
-const stripAnsi = (output: string): string =>
-  output.replace(/\u001B\[[0-?]*[ -/]*[@-~]/g, "");
+const stripAnsi = (output: string): string => output.replace(/\u001B\[[0-?]*[ -/]*[@-~]/g, "");
 
 const parsePackOutput = (output: string): ReadonlyArray<PackResult> => {
   const normalized = stripAnsi(output).trim();
@@ -162,7 +161,13 @@ const assertPackageIdentity = (manifest: PackageManifest): void => {
     throw new Error("Package exports do not match the supported public entry points");
   }
 
-  for (const peer of ["effect", "@effect/platform-bun", "lighthouse", "vite", "@tanstack/router-generator"] as const) {
+  for (const peer of [
+    "effect",
+    "@effect/platform-bun",
+    "lighthouse",
+    "vite",
+    "@tanstack/router-generator",
+  ] as const) {
     if (manifest.peerDependencies[peer] === undefined) {
       throw new Error(`Package must declare ${peer} as a peer dependency`);
     }
@@ -189,14 +194,7 @@ try {
   assertPackageIdentity(manifest);
 
   const packOutput = await runSuccessfully(
-    [
-      "npm",
-      "pack",
-      "--json",
-      "--color=false",
-      "--pack-destination",
-      packDirectory,
-    ],
+    ["npm", "pack", "--json", "--color=false", "--pack-destination", packDirectory],
     root,
     {
       env: {
@@ -276,10 +274,7 @@ try {
       2,
     ),
   );
-  await runSuccessfully(
-    ["npm", "install", "--ignore-scripts"],
-    installDirectory,
-  );
+  await runSuccessfully(["npm", "install", "--ignore-scripts"], installDirectory);
 
   const installedRoot = path.join(installDirectory, "node_modules", packageName);
   const installedManifest = JSON.parse(
@@ -300,7 +295,10 @@ try {
   if (!coreSmoke.includes("core exports ok")) throw new Error("Core export smoke test failed");
 
   await runSuccessfully(
-    ["bun", "-e", `
+    [
+      "bun",
+      "-e",
+      `
       const m = await import("pagegraph");
       const facts = m.defineFacts({ attempts: m.fact.number(8) });
       if (m.resolveFact("attempts", facts).text !== "8") throw new Error("fact exports failed");
@@ -308,7 +306,8 @@ try {
       if (lock.version !== 1) throw new Error("markdown lock exports failed");
       const plugin = (await import("pagegraph/oxlint")).default;
       if (plugin.meta.name !== "pagegraph" || !plugin.rules["no-bare-text"] || !plugin.rules["t-children"]) throw new Error("oxlint exports failed");
-    `],
+    `,
+    ],
     installDirectory,
   );
 
@@ -320,13 +319,18 @@ try {
     throw new Error("Packed pagegraph bin did not run standalone (Effect must be bundled)");
   }
   if (included.has("skill-data/core/SKILL.md")) {
-    throw new Error("Skill source must be embedded in the CLI, not shipped as a separate runtime file");
+    throw new Error(
+      "Skill source must be embedded in the CLI, not shipped as a separate runtime file",
+    );
   }
   const packedSkill = await runSuccessfully(
     [executable, "skills", "get", "core"],
     installDirectory,
   );
-  if (!packedSkill.startsWith("---\nname: core\n") || !packedSkill.includes("# Pagegraph and TanStack Start")) {
+  if (
+    !packedSkill.startsWith("---\nname: core\n") ||
+    !packedSkill.includes("# Pagegraph and TanStack Start")
+  ) {
     throw new Error("Packed Pagegraph CLI did not serve its embedded integration skill");
   }
 
@@ -348,13 +352,17 @@ try {
   );
 
   await runSuccessfully(
-    ["bun", "-e", `
+    [
+      "bun",
+      "-e",
+      `
       const m = await import("pagegraph/claims");
       for (const name of ["claimsFamily", "claimsInputs", "resolveClaimsDocuments", "claimsRunOptions", "runClaims", "replayClaims"]) {
         if (typeof m[name] !== "function") throw new Error("Claims export missing: " + name);
       }
       if (!m.claimsInput) throw new Error("Claims input schema missing");
-    `],
+    `,
+    ],
     installDirectory,
   );
 
@@ -371,18 +379,25 @@ try {
   }
 
   await runSuccessfully(
-    ["bun", "-e", `
+    [
+      "bun",
+      "-e",
+      `
       const m = await import("pagegraph/react");
       for (const name of ["DocumentProvider", "T", "Title", "Section", "Fact", "Visual", "ForAgents", "ForHumans", "messageText", "CaptureAnchor", "createCollector", "finishDocument", "useCapturePage"]) {
         if (typeof m[name] !== "function") throw new Error("React authored export missing: " + name);
       }
       if (!m.CaptureRequest || typeof m.Section.Item.Link !== "function") throw new Error("React capture exports missing");
-    `],
+    `,
+    ],
     installDirectory,
   );
 
   await runSuccessfully(
-    ["bun", "-e", `
+    [
+      "bun",
+      "-e",
+      `
       import { mock } from "bun:test";
       mock.module("virtual:pagegraph/runtime", () => ({ graph: null, site: null, markdown: null, facts: undefined }));
       const { markdownRequest } = await import("pagegraph/tanstack-start/markdown");
@@ -399,12 +414,19 @@ try {
       const responses = await Promise.all(pending);
       if (responses[0] !== null || responses[1]?.status !== 404 || responses[2]?.status !== 404)
         throw new Error("Capture gating failed without Node compatibility");
-    `],
+    `,
+    ],
     installDirectory,
   );
 
   const help = await runSuccessfully([executable, "--help"], installDirectory);
-  if (!help.includes("pagegraph <subcommand>") || !help.includes("audit") || !help.includes("diff") || !help.includes("check") || !help.includes("sitemap")) {
+  if (
+    !help.includes("pagegraph <subcommand>") ||
+    !help.includes("audit") ||
+    !help.includes("diff") ||
+    !help.includes("check") ||
+    !help.includes("sitemap")
+  ) {
     throw new Error("Packed pagegraph bin did not print the expected command tree");
   }
   const version = await runSuccessfully([executable, "--version"], installDirectory);
@@ -504,11 +526,19 @@ try {
   for (const entry of ["vite", "config", "audit", "tanstack-start", "oxlint", "claims"]) {
     const specifier = `${packageName}/${entry}`;
     const runtime = await run(
-      ["node", "--conditions=workerd", "--input-type=module", "-e", `await import(${JSON.stringify(specifier)})`],
+      [
+        "node",
+        "--conditions=workerd",
+        "--input-type=module",
+        "-e",
+        `await import(${JSON.stringify(specifier)})`,
+      ],
       installDirectory,
     );
     if (runtime.exitCode === 0 || !runtime.stderr.includes(`"${specifier}" is build-time only`)) {
-      throw new Error(`${specifier} did not fail loud under the workerd condition\n${runtime.stderr}`);
+      throw new Error(
+        `${specifier} did not fail loud under the workerd condition\n${runtime.stderr}`,
+      );
     }
   }
   // The published runtime entries reach only their runtime peers.
@@ -533,19 +563,40 @@ try {
     ["dist/index.js", []],
     ["dist/react.js", ["@tanstack/react-router", "react", "react/jsx-runtime"]],
     ["dist/tanstack-start/server.js", ["virtual:pagegraph/runtime"]],
-    ["dist/tanstack-start/markdown.js", ["react", "react/jsx-runtime", "react-dom/server", "@tanstack/react-router", "@tanstack/react-start/server", "@tanstack/react-router/ssr/server", "virtual:pagegraph/runtime"]],
+    [
+      "dist/tanstack-start/markdown.js",
+      [
+        "react",
+        "react/jsx-runtime",
+        "react-dom/server",
+        "@tanstack/react-router",
+        "@tanstack/react-start/server",
+        "@tanstack/react-router/ssr/server",
+        "virtual:pagegraph/runtime",
+      ],
+    ],
     ["dist/tanstack-start/react.js", ["react", "react/jsx-runtime", "@tanstack/react-router"]],
     ["dist/tanstack-start/prerender-worker.js", ["virtual:pagegraph/prerender-server"]],
   ] as const) {
-    const unexpected = [...(await runtimeImports(entry))].filter((specifier) => !(allowed as ReadonlyArray<string>).includes(specifier));
-    if (unexpected.length > 0) throw new Error(`${entry} imports build-only modules: ${unexpected.join(", ")}`);
+    const unexpected = [...(await runtimeImports(entry))].filter(
+      (specifier) => !(allowed as ReadonlyArray<string>).includes(specifier),
+    );
+    if (unexpected.length > 0)
+      throw new Error(`${entry} imports build-only modules: ${unexpected.join(", ")}`);
   }
 
   const core = await runSuccessfully(
-    ["node", "--conditions=workerd", "--input-type=module", "-e", `const m = await import(${JSON.stringify(packageName)}); console.log(typeof m.pageHeads)`],
+    [
+      "node",
+      "--conditions=workerd",
+      "--input-type=module",
+      "-e",
+      `const m = await import(${JSON.stringify(packageName)}); console.log(typeof m.pageHeads)`,
+    ],
     installDirectory,
   );
-  if (core.trim() !== "function") throw new Error("pagegraph did not load under the workerd condition");
+  if (core.trim() !== "function")
+    throw new Error("pagegraph did not load under the workerd condition");
 
   console.log(`Validated ${packed.filename} from an isolated temporary consumer`);
 } finally {

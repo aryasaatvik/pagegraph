@@ -10,7 +10,12 @@ import { allowedByRobots, crawlRenderedPages, robotsRules } from "../../audit/cr
 import { probeHttp } from "../../audit/scanners/http";
 import { checkRenderedCoverage, type CoverageRule, type Violation } from "../../core/checks";
 import { decodeRenderedEdges, generateLinkCandidates } from "../../core/link-candidates";
-import { extractPageSentences, rankLinkSuggestions, selectSuggestionPages, type LinksSuggestionReport } from "../../core/link-suggestions";
+import {
+  extractPageSentences,
+  rankLinkSuggestions,
+  selectSuggestionPages,
+  type LinksSuggestionReport,
+} from "../../core/link-suggestions";
 import {
   buildRenderedGraph,
   decodeRenderedEdgeArtifact,
@@ -103,7 +108,11 @@ const analyzeDeclared = (
     readonly failures: number;
     readonly discoveryFailures: number;
     readonly sitemapTruncated: boolean;
-    readonly nonHtml: ReadonlyArray<{ readonly url: string; readonly finalUrl: string; readonly contentType: string }>;
+    readonly nonHtml: ReadonlyArray<{
+      readonly url: string;
+      readonly finalUrl: string;
+      readonly contentType: string;
+    }>;
   },
 ): Effect.Effect<DeclaredAnalysis, SeoCliError> =>
   Effect.gen(function* () {
@@ -121,7 +130,8 @@ const analyzeDeclared = (
       }
       if (crawlState.discoveryFailures > 0 || crawlState.sitemapTruncated) {
         return yield* new SeoCliError({
-          message: "Refusing to assert rendered coverage: sitemap or robots discovery was incomplete.",
+          message:
+            "Refusing to assert rendered coverage: sitemap or robots discovery was incomplete.",
         });
       }
       if (crawlState.bodyTruncated) {
@@ -174,17 +184,29 @@ const analyzeDeclared = (
         }
         if (configOrigin !== crawlOrigin) {
           const mismatch = `declared graph origin ${configOrigin} differs from crawled origin ${crawlOrigin}`;
-          if (assertCoverage) return yield* new SeoCliError({ message: `Cannot assert coverage: ${mismatch}.` });
-          warnings.push(`${mismatch.charAt(0).toUpperCase()}${mismatch.slice(1)}; skipping the declared-vs-rendered diff.`);
+          if (assertCoverage)
+            return yield* new SeoCliError({ message: `Cannot assert coverage: ${mismatch}.` });
+          warnings.push(
+            `${mismatch.charAt(0).toUpperCase()}${mismatch.slice(1)}; skipping the declared-vs-rendered diff.`,
+          );
           return { declaredEdges: undefined, coverage: undefined, warnings };
         }
         const graph = loaded.graph;
         if (assertCoverage && crawlState.nonHtml.length > 0) {
-          const declaredPaths = new Set([...graph.nodes.values()].filter(isSitemapEligible).map((node) => normalizePath(new URL(node.path, crawlOrigin))));
-          const missed = crawlState.nonHtml.find((item) =>
-            declaredPaths.has(normalizePath(new URL(item.url))) || declaredPaths.has(normalizePath(new URL(item.finalUrl))));
+          const declaredPaths = new Set(
+            [...graph.nodes.values()]
+              .filter(isSitemapEligible)
+              .map((node) => normalizePath(new URL(node.path, crawlOrigin))),
+          );
+          const missed = crawlState.nonHtml.find(
+            (item) =>
+              declaredPaths.has(normalizePath(new URL(item.url))) ||
+              declaredPaths.has(normalizePath(new URL(item.finalUrl))),
+          );
           if (missed !== undefined) {
-            return yield* new SeoCliError({ message: `Refusing to assert rendered coverage: declared page ${missed.url} served non-HTML content.` });
+            return yield* new SeoCliError({
+              message: `Refusing to assert rendered coverage: declared page ${missed.url} served non-HTML content.`,
+            });
           }
         }
         // Only `related` edges are deliberate in-copy cross-links. Breadcrumbs are
@@ -271,7 +293,8 @@ const linksVerifyCommand = Command.make("verify", {
     },
     {
       command: "pagegraph links verify --rendered rendered.json --assert-coverage",
-      description: "Assert pagegraph.config.ts coverage offline against a saved crawl (exit 1 on unmet)",
+      description:
+        "Assert pagegraph.config.ts coverage offline against a saved crawl (exit 1 on unmet)",
     },
     {
       command: "pagegraph links verify https://example.com --assert-coverage",
@@ -334,10 +357,16 @@ const linksVerifyCommand = Command.make("verify", {
           ...(artifact.crawl.nonHtml === undefined ? {} : { nonHtml: artifact.crawl.nonHtml }),
           bodyTruncated: artifact.crawl.bodyTruncated,
           truncatedPages: artifact.crawl.truncatedPages,
-          ...(artifact.crawl.discoveryFailures === undefined ? {} : { discoveryFailures: artifact.crawl.discoveryFailures }),
+          ...(artifact.crawl.discoveryFailures === undefined
+            ? {}
+            : { discoveryFailures: artifact.crawl.discoveryFailures }),
           ...(artifact.crawl.skipped === undefined ? {} : { skipped: artifact.crawl.skipped }),
-          ...(artifact.crawl.sitemapTruncated === undefined ? {} : { sitemapTruncated: artifact.crawl.sitemapTruncated }),
-          ...(artifact.crawl.sitemapUsed === undefined ? {} : { sitemapUsed: artifact.crawl.sitemapUsed }),
+          ...(artifact.crawl.sitemapTruncated === undefined
+            ? {}
+            : { sitemapTruncated: artifact.crawl.sitemapTruncated }),
+          ...(artifact.crawl.sitemapUsed === undefined
+            ? {}
+            : { sitemapUsed: artifact.crawl.sitemapUsed }),
         };
       } else {
         const checkedLimit = yield* positive("limit", options.limit);
@@ -414,11 +443,18 @@ const linksVerifyCommand = Command.make("verify", {
           `${crawlReport.truncatedPages.length} page body/bodies exceeded --max-body-bytes; anchors past the cutoff are missing.`,
         );
       }
-      if ((crawlReport.discoveryFailures?.length ?? 0) > 0 || crawlReport.sitemapTruncated === true) {
-        warnings.push("Sitemap or robots discovery was incomplete; rendered coverage cannot be asserted.");
+      if (
+        (crawlReport.discoveryFailures?.length ?? 0) > 0 ||
+        crawlReport.sitemapTruncated === true
+      ) {
+        warnings.push(
+          "Sitemap or robots discovery was incomplete; rendered coverage cannot be asserted.",
+        );
       }
       if ((crawlReport.nonHtml?.length ?? 0) > 0) {
-        warnings.push(`${crawlReport.nonHtml!.length} link-only URL(s) served non-HTML and were skipped.`);
+        warnings.push(
+          `${crawlReport.nonHtml!.length} link-only URL(s) served non-HTML and were skipped.`,
+        );
       }
 
       const analysis = yield* analyzeDeclared(origin, renderedEdges, options.assertCoverage, {
@@ -557,8 +593,10 @@ const linksCandidatesCommand = Command.make("candidates", {
       description: "Rank verifiable sentence-and-anchor suggestions from served pages",
     },
     {
-      command: "pagegraph links candidates --site https://example.com --cluster blog --page-limit 25 --json",
-      description: "Focus a bounded probe on an editorial section when the site-wide sample is sparse",
+      command:
+        "pagegraph links candidates --site https://example.com --cluster blog --page-limit 25 --json",
+      description:
+        "Focus a bounded probe on an editorial section when the site-wide sample is sparse",
     },
     {
       command: "pagegraph links candidates --site https://example.com --target /blog/weak --json",
@@ -569,8 +607,15 @@ const linksCandidatesCommand = Command.make("candidates", {
     Effect.fn("SeoCli.linksCandidates")(function* (options) {
       const limit = yield* positive("limit", options.limit);
       const pageLimit = yield* positive("page-limit", options.pageLimit);
-      if (Option.isSome(options.site) && (!Number.isSafeInteger(options.maxBodyBytes) || options.maxBodyBytes < 1 || options.maxBodyBytes > 10_000_000)) {
-        return yield* new SeoCliError({ message: "--max-body-bytes must be between 1 and 10000000 in site mode" });
+      if (
+        Option.isSome(options.site) &&
+        (!Number.isSafeInteger(options.maxBodyBytes) ||
+          options.maxBodyBytes < 1 ||
+          options.maxBodyBytes > 10_000_000)
+      ) {
+        return yield* new SeoCliError({
+          message: "--max-body-bytes must be between 1 and 10000000 in site mode",
+        });
       }
 
       const config = yield* loadSeoConfig;
@@ -584,69 +629,151 @@ const linksCandidatesCommand = Command.make("candidates", {
           try: async (): Promise<LinksSuggestionReport> => {
             const target = new URL(site);
             const configured = new URL(loaded.site.origin);
-            if (!["http:", "https:"].includes(target.protocol) || target.origin !== configured.origin) {
+            if (
+              !["http:", "https:"].includes(target.protocol) ||
+              target.origin !== configured.origin
+            ) {
               throw new Error(`--site origin must match the loaded graph (${configured.origin})`);
             }
             const requestedTargets = new Set(options.target);
             const requestedSources = new Set(options.source);
             const nodes = [...graph.nodes.values()].filter(isSitemapEligible);
-            const selected = selectSuggestionPages(graph, { pageLimit, targets: requestedTargets, sources: requestedSources, clusters: options.cluster, renderedEdges });
-            const selectedPaths = new Set(selected.map((node) => node.path));
-            const skipped: Array<{ path: string; reason: string }> = nodes.filter((node) => !selectedPaths.has(node.path)).map((node) => ({ path: node.path, reason: "page limit or target filter" }));
-            const robots = await probeHttp({ kind: "robots", method: "GET", accept: "text/plain", url: new URL("/robots.txt", configured) }, {
-              sameOrigin: configured.origin, allowPrivate: options.allowPrivate, timeoutMs: options.requestTimeoutMs,
-              maxBodyBytes: options.maxBodyBytes, captureBody: true,
+            const selected = selectSuggestionPages(graph, {
+              pageLimit,
+              targets: requestedTargets,
+              sources: requestedSources,
+              clusters: options.cluster,
+              renderedEdges,
             });
+            const selectedPaths = new Set(selected.map((node) => node.path));
+            const skipped: Array<{ path: string; reason: string }> = nodes
+              .filter((node) => !selectedPaths.has(node.path))
+              .map((node) => ({ path: node.path, reason: "page limit or target filter" }));
+            const robots = await probeHttp(
+              {
+                kind: "robots",
+                method: "GET",
+                accept: "text/plain",
+                url: new URL("/robots.txt", configured),
+              },
+              {
+                sameOrigin: configured.origin,
+                allowPrivate: options.allowPrivate,
+                timeoutMs: options.requestTimeoutMs,
+                maxBodyBytes: options.maxBodyBytes,
+                captureBody: true,
+              },
+            );
             if ((!robots.ok && robots.status !== 404) || robots.bodyTruncated) {
               throw new Error("Could not establish complete robots policy for the site");
             }
             const rules = robots.ok ? robotsRules(robots.body ?? "").rules : [];
             const pages: Array<{ path: string; sentences: ReadonlyArray<string> }> = [];
-            const observed: Array<{ from: string; to: string; region: "nav" | "header" | "footer" | "body" }> = [];
+            const observed: Array<{
+              from: string;
+              to: string;
+              region: "nav" | "header" | "footer" | "body";
+            }> = [];
             for (const node of selected) {
-              if (!allowedByRobots(node.path, rules)) { skipped.push({ path: node.path, reason: "robots disallow" }); continue; }
+              if (!allowedByRobots(node.path, rules)) {
+                skipped.push({ path: node.path, reason: "robots disallow" });
+                continue;
+              }
               const url = new URL(node.path, configured);
-              const probe = await probeHttp({ kind: "page-html", method: "GET", accept: "text/html", url }, {
-                sameOrigin: configured.origin,
-                allowPrivate: options.allowPrivate,
-                timeoutMs: options.requestTimeoutMs,
-                maxBodyBytes: options.maxBodyBytes,
-                captureAnchors: true,
-                captureBody: true,
-                allowUrl: (next) => allowedByRobots(`${next.pathname}${next.search}`, rules),
-              });
+              const probe = await probeHttp(
+                { kind: "page-html", method: "GET", accept: "text/html", url },
+                {
+                  sameOrigin: configured.origin,
+                  allowPrivate: options.allowPrivate,
+                  timeoutMs: options.requestTimeoutMs,
+                  maxBodyBytes: options.maxBodyBytes,
+                  captureAnchors: true,
+                  captureBody: true,
+                  allowUrl: (next) => allowedByRobots(`${next.pathname}${next.search}`, rules),
+                },
+              );
               const contentType = probe.responseHeaders["content-type"];
-              if (!probe.ok || probe.bodyTruncated || (contentType !== undefined && !/text\/html|application\/xhtml\+xml/i.test(contentType)) || !probe.body || !probe.finalUrl || new URL(probe.finalUrl).pathname.replace(/\/+$/, "") !== node.path.replace(/\/+$/, "")) {
-                skipped.push({ path: node.path, reason: probe.error ?? (probe.bodyTruncated ? "body truncated" : "unreadable or redirected page") });
+              if (
+                !probe.ok ||
+                probe.bodyTruncated ||
+                (contentType !== undefined &&
+                  !/text\/html|application\/xhtml\+xml/i.test(contentType)) ||
+                !probe.body ||
+                !probe.finalUrl ||
+                new URL(probe.finalUrl).pathname.replace(/\/+$/, "") !==
+                  node.path.replace(/\/+$/, "")
+              ) {
+                skipped.push({
+                  path: node.path,
+                  reason:
+                    probe.error ??
+                    (probe.bodyTruncated ? "body truncated" : "unreadable or redirected page"),
+                });
                 continue;
               }
               const sentences = extractPageSentences(probe.body);
-              if (sentences.length === 0) { skipped.push({ path: node.path, reason: "no readable main content" }); continue; }
+              if (sentences.length === 0) {
+                skipped.push({ path: node.path, reason: "no readable main content" });
+                continue;
+              }
               pages.push({ path: node.path, sentences });
               for (const anchor of probe.anchors ?? []) {
                 if (!anchor.internal) continue;
-                observed.push({ from: node.path, to: new URL(anchor.href).pathname.replace(/\/+$/, "") || "/", region: anchor.region });
+                observed.push({
+                  from: node.path,
+                  to: new URL(anchor.href).pathname.replace(/\/+$/, "") || "/",
+                  region: anchor.region,
+                });
               }
             }
             const readablePaths = new Set(pages.map((page) => page.path));
-            const scopedGraph = { ...graph, nodes: new Map([...graph.nodes].filter(([path]) => readablePaths.has(path))),
-              edges: graph.edges.filter((edge) => readablePaths.has(edge.from) && readablePaths.has(edge.to)) };
-            const pairs = generateLinkCandidates(scopedGraph, { clusters: options.cluster, limit: Number.MAX_SAFE_INTEGER, renderedEdges: [...renderedEdges, ...observed] }).candidates
-              .filter((pair) => (requestedTargets.size === 0 || requestedTargets.has(pair.destination))
-                && (requestedSources.size === 0 || requestedSources.has(pair.source)));
+            const scopedGraph = {
+              ...graph,
+              nodes: new Map([...graph.nodes].filter(([path]) => readablePaths.has(path))),
+              edges: graph.edges.filter(
+                (edge) => readablePaths.has(edge.from) && readablePaths.has(edge.to),
+              ),
+            };
+            const pairs = generateLinkCandidates(scopedGraph, {
+              clusters: options.cluster,
+              limit: Number.MAX_SAFE_INTEGER,
+              renderedEdges: [...renderedEdges, ...observed],
+            }).candidates.filter(
+              (pair) =>
+                (requestedTargets.size === 0 || requestedTargets.has(pair.destination)) &&
+                (requestedSources.size === 0 || requestedSources.has(pair.source)),
+            );
             const inbound = new Map<string, number>();
-            for (const edge of [...graph.edges.filter((edge) => edge.type === "related"), ...observed.filter((edge) => edge.region === "body")]) {
+            for (const edge of [
+              ...graph.edges.filter((edge) => edge.type === "related"),
+              ...observed.filter((edge) => edge.region === "body"),
+            ]) {
               inbound.set(edge.to, (inbound.get(edge.to) ?? 0) + 1);
             }
             const ranked = rankLinkSuggestions(pairs, pages, inbound, limit);
-            return { kind: "links-candidates", schemaVersion: 2, origin: configured.origin, limit, pageLimit, maxBodyBytes: options.maxBodyBytes, total: ranked.total,
-              truncated: ranked.total > ranked.candidates.length || skipped.some((item) => item.reason === "page limit or target filter"),
-              skipped, candidates: ranked.candidates };
+            return {
+              kind: "links-candidates",
+              schemaVersion: 2,
+              origin: configured.origin,
+              limit,
+              pageLimit,
+              maxBodyBytes: options.maxBodyBytes,
+              total: ranked.total,
+              truncated:
+                ranked.total > ranked.candidates.length ||
+                skipped.some((item) => item.reason === "page limit or target filter"),
+              skipped,
+              candidates: ranked.candidates,
+            };
           },
-          catch: (cause) => new SeoCliError({ message: `Could not produce site suggestions: ${messageOf(cause)}` }),
+          catch: (cause) =>
+            new SeoCliError({ message: `Could not produce site suggestions: ${messageOf(cause)}` }),
         });
         if (options.json) yield* printJson(report);
-        else yield* printText(`${report.total} content-backed suggestion(s) · ${report.skipped.length} page(s) skipped\n\n${report.candidates.map((item) => `${item.source} → ${item.destination} (score ${item.score})\n  ${item.sentence}\n  Anchor: ${item.anchor}\n  Target: ${item.targetSentence}\n  ${item.reason}`).join("\n\n")}`);
+        else
+          yield* printText(
+            `${report.total} content-backed suggestion(s) · ${report.skipped.length} page(s) skipped\n\n${report.candidates.map((item) => `${item.source} → ${item.destination} (score ${item.score})\n  ${item.sentence}\n  Anchor: ${item.anchor}\n  Target: ${item.targetSentence}\n  ${item.reason}`).join("\n\n")}`,
+          );
         return;
       }
 

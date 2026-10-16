@@ -28,11 +28,16 @@ export async function checkLocalOgImages(
     let url: URL;
     try {
       url = new URL(image.url, origin);
-      if (url.protocol !== "http:" && url.protocol !== "https:") throw new Error("Invalid image protocol");
+      if (url.protocol !== "http:" && url.protocol !== "https:")
+        throw new Error("Invalid image protocol");
     } catch {
-      findings.push({ severity, rule: "invalid-og-image", path: node.path,
+      findings.push({
+        severity,
+        rule: "invalid-og-image",
+        path: node.path,
         message: `Sitemap page "${node.path}" has an invalid OG image URL "${image.url}".`,
-        fix: "Declare an HTTP(S) image URL or a local asset path." });
+        fix: "Declare an HTTP(S) image URL or a local asset path.",
+      });
       continue;
     }
     if (url.origin !== siteOrigin) continue;
@@ -48,11 +53,14 @@ export async function checkLocalOgImages(
     } catch {
       // Missing, malformed, or escaped assets all fail the same local-file contract.
     }
-    if (!valid) findings.push({
-      severity, rule: "missing-og-image-file", path: node.path,
-      message: `Sitemap page "${node.path}" references OG image "${image.url}" without a file inside "${publicRoot}".`,
-      fix: "Generate or add the image in the public asset directory, update its URL, or configure ogImage.publicDirectory.",
-    });
+    if (!valid)
+      findings.push({
+        severity,
+        rule: "missing-og-image-file",
+        path: node.path,
+        message: `Sitemap page "${node.path}" references OG image "${image.url}" without a file inside "${publicRoot}".`,
+        fix: "Generate or add the image in the public asset directory, update its URL, or configure ogImage.publicDirectory.",
+      });
   }
   return findings;
 }

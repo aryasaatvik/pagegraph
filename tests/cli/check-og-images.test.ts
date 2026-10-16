@@ -14,7 +14,9 @@ const project = (image?: string, policy = "", directory = "public"): string => {
   const root = mkdtempSync(join(tmpdir(), "pagegraph-og-check-"));
   roots.push(root);
   mkdirSync(join(root, directory));
-  writeFileSync(join(root, "pagegraph.config.mjs"), `export default {
+  writeFileSync(
+    join(root, "pagegraph.config.mjs"),
+    `export default {
     ${policy}
     loadGraph: async () => ({
       site: { origin: "https://example.com", indexable: true, robots: { disallow: [] } },
@@ -24,10 +26,12 @@ const project = (image?: string, policy = "", directory = "public"): string => {
         head: { title: "Pricing"${image === undefined ? "" : `, image: { url: ${JSON.stringify(image)} }`} },
       }]]), edges: [] }, dispose: async () => {},
     }),
-  };`);
+  };`,
+  );
   return root;
 };
-const run = (root: string) => spawnSync("bun", [cli, "check", "--json"], { cwd: root, encoding: "utf8", timeout: 20_000 });
+const run = (root: string) =>
+  spawnSync("bun", [cli, "check", "--json"], { cwd: root, encoding: "utf8", timeout: 20_000 });
 afterAll(() => roots.forEach((root) => rmSync(root, { recursive: true, force: true })));
 
 describe("pagegraph check — OG images", () => {
@@ -35,7 +39,12 @@ describe("pagegraph check — OG images", () => {
     const result = run(project());
     expect(result.status).toBe(1);
     expect(JSON.parse(result.stdout).violations).toEqual([
-      expect.objectContaining({ path: "/pricing", rule: "missing-og-image", severity: "structural", fix: expect.stringContaining("ogImage resolver") }),
+      expect.objectContaining({
+        path: "/pricing",
+        rule: "missing-og-image",
+        severity: "structural",
+        fix: expect.stringContaining("ogImage resolver"),
+      }),
     ]);
   });
   it("fails missing same-origin files and passes an existing encoded path from a nested cwd", () => {
@@ -54,17 +63,31 @@ describe("pagegraph check — OG images", () => {
   });
   it("compares canonical origins when callers supply a trailing slash", async () => {
     const root = project();
-    const graph: SeoGraph = { nodes: new Map([["/pricing", {
-      path: "/pricing", kind: "page", source: "route",
-      policy: { kind: "page", sitemap: { priority: 0.5, changeFrequency: "monthly" } },
-      head: { title: "Pricing", image: { url: "https://example.com/missing.png" } },
-    }]]), edges: [] };
+    const graph: SeoGraph = {
+      nodes: new Map([
+        [
+          "/pricing",
+          {
+            path: "/pricing",
+            kind: "page",
+            source: "route",
+            policy: { kind: "page", sitemap: { priority: 0.5, changeFrequency: "monthly" } },
+            head: { title: "Pricing", image: { url: "https://example.com/missing.png" } },
+          },
+        ],
+      ]),
+      edges: [],
+    };
     expect(await checkLocalOgImages(graph, "https://example.com/", root)).toEqual([
       expect.objectContaining({ rule: "missing-og-image-file" }),
     ]);
   });
   it("rejects non-http image protocols", () => {
-    for (const url of ["data:image/png;base64,AA==", "javascript:alert(1)", "file:///tmp/card.png"]) {
+    for (const url of [
+      "data:image/png;base64,AA==",
+      "javascript:alert(1)",
+      "file:///tmp/card.png",
+    ]) {
       const result = run(project(url));
       expect(result.status).toBe(1);
       expect(JSON.parse(result.stdout).violations[0].rule).toBe("invalid-og-image");
@@ -84,7 +107,9 @@ describe("pagegraph check — OG images", () => {
     "reports malformed URLs from actual graph loading under %s policy",
     (severity) => {
       const root = project();
-      writeFileSync(join(root, "pagegraph.config.mjs"), `
+      writeFileSync(
+        join(root, "pagegraph.config.mjs"),
+        `
         import { buildSeoGraph } from ${JSON.stringify(graphModule)};
         export default {
           ogImage: { severity: ${JSON.stringify(severity)} },
@@ -100,15 +125,18 @@ describe("pagegraph check — OG images", () => {
             dispose: async () => {},
           }),
         };
-      `);
+      `,
+      );
       const result = run(root);
       expect(result.status).toBe(severity === "structural" ? 1 : 0);
       expect(result.stdout).not.toBe("");
       const report = JSON.parse(result.stdout);
       expect(report.ok).toBe(severity !== "structural");
-      expect(report.violations).toEqual(severity === "off" ? [] : [
-        expect.objectContaining({ path: "/pricing", rule: "invalid-og-image", severity }),
-      ]);
+      expect(report.violations).toEqual(
+        severity === "off"
+          ? []
+          : [expect.objectContaining({ path: "/pricing", rule: "invalid-og-image", severity })],
+      );
     },
   );
   it("rejects directories, decoded traversal, malformed encoding, and escaping symlinks", () => {

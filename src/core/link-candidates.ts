@@ -68,7 +68,8 @@ export const undirectedEdgeKey = (from: string, to: string): string => {
   return `${a}\u0000${b}`;
 };
 
-const directedEdgeKey = (from: string, to: string): string => `${normalize(from)}\u0000${normalize(to)}`;
+const directedEdgeKey = (from: string, to: string): string =>
+  `${normalize(from)}\u0000${normalize(to)}`;
 
 /** First path segment, or undefined for the root page. */
 const topSegment = (path: string): string | undefined => {
@@ -84,7 +85,10 @@ const isRootLevel = (path: string): boolean => path.split("/").filter(Boolean).l
  * a shared top-level section wins. The kind fallback is local to root-level
  * pages, so it never pairs two nested pages from different sections.
  */
-export const candidateClusterOf = (a: SeoNode, b: SeoNode): { key: string; reason: string } | undefined => {
+export const candidateClusterOf = (
+  a: SeoNode,
+  b: SeoNode,
+): { key: string; reason: string } | undefined => {
   const aSegment = topSegment(a.path);
   const bSegment = topSegment(b.path);
   if (aSegment !== undefined && aSegment === bSegment) {
@@ -128,7 +132,8 @@ export const generateLinkCandidates = (
   // Legacy bare edges have no region. Treat them as body links so a v1 edge dump
   // remains conservative; region-aware artifacts retain nav/header/footer edges.
   const rendered = new Set(
-    (options.renderedEdges ?? []).filter((edge) => edge.region === undefined || edge.region === "body")
+    (options.renderedEdges ?? [])
+      .filter((edge) => edge.region === undefined || edge.region === "body")
       .map((edge) => directedEdgeKey(edge.from, edge.to)),
   );
   const declared = new Set(
@@ -146,13 +151,24 @@ export const generateLinkCandidates = (
       const b = eligible[j]!;
       const cluster = candidateClusterOf(a, b);
       if (cluster === undefined) continue;
-      if (filters.length > 0 && !filters.some((filter) => matchesClusterFilter(cluster.key, filter))) {
+      if (
+        filters.length > 0 &&
+        !filters.some((filter) => matchesClusterFilter(cluster.key, filter))
+      ) {
         continue;
       }
-      for (const [source, destination] of [[a.path, b.path], [b.path, a.path]]) {
+      for (const [source, destination] of [
+        [a.path, b.path],
+        [b.path, a.path],
+      ]) {
         const key = directedEdgeKey(source!, destination!);
         if (declared.has(key) || rendered.has(key)) continue;
-        all.push({ source: source!, destination: destination!, cluster: cluster.key, reason: cluster.reason });
+        all.push({
+          source: source!,
+          destination: destination!,
+          cluster: cluster.key,
+          reason: cluster.reason,
+        });
       }
     }
   }
@@ -190,22 +206,23 @@ export const generateLinkCandidates = (
  * `{ from, to }` edges, or an object carrying `edges` (or `internalEdges`).
  * Throws on any other shape — this is user input, not a provider payload.
  */
-export const decodeRenderedEdges = (input: unknown): ReadonlyArray<SimpleEdge & { readonly region?: AnchorRegion }> => {
-  const array =
-    Array.isArray(input)
-      ? input
-      : input !== null && typeof input === "object" && Array.isArray((input as { edges?: unknown }).edges)
-        ? (input as { edges: ReadonlyArray<unknown> }).edges
-        : input !== null &&
-            typeof input === "object" &&
-            Array.isArray((input as { internalEdges?: unknown }).internalEdges)
-          ? (input as { internalEdges: ReadonlyArray<unknown> }).internalEdges
-          : undefined;
+export const decodeRenderedEdges = (
+  input: unknown,
+): ReadonlyArray<SimpleEdge & { readonly region?: AnchorRegion }> => {
+  const array = Array.isArray(input)
+    ? input
+    : input !== null &&
+        typeof input === "object" &&
+        Array.isArray((input as { edges?: unknown }).edges)
+      ? (input as { edges: ReadonlyArray<unknown> }).edges
+      : input !== null &&
+          typeof input === "object" &&
+          Array.isArray((input as { internalEdges?: unknown }).internalEdges)
+        ? (input as { internalEdges: ReadonlyArray<unknown> }).internalEdges
+        : undefined;
 
   if (array === undefined) {
-    throw new Error(
-      "expected an array of { from, to } edges, or an object with an `edges` array",
-    );
+    throw new Error("expected an array of { from, to } edges, or an object with an `edges` array");
   }
 
   return array.map((item) => {

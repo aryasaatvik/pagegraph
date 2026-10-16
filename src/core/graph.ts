@@ -20,7 +20,13 @@
 
 import type { AnyRoute } from "@tanstack/react-router";
 
-import { applyTitleTemplate, type PublicPath, type RouteSeo, type SeoKind, type SeoImage } from "./declare";
+import {
+  applyTitleTemplate,
+  type PublicPath,
+  type RouteSeo,
+  type SeoKind,
+  type SeoImage,
+} from "./declare";
 
 /**
  * Where a node came from: `"route"` for a structural route declaration, or the
@@ -134,17 +140,26 @@ export type OgImageNode = Pick<SeoNode, "path" | "kind" | "head">;
 export type OgImageResolver = (node: OgImageNode) => SeoImage | undefined;
 
 /** Resolve the shared page/article/resolver precedence and site-relative URL semantics. */
-export function resolveOgImage(node: OgImageNode, origin?: string, resolver?: OgImageResolver): SeoImage | undefined {
-  const image = node.head?.image ?? resolver?.({
-    path: node.head?.canonicalPath ?? node.path,
-    kind: node.kind,
-    head: node.head === undefined ? undefined : {
-      title: node.head.title,
-      description: node.head.description,
-      faqs: node.head.faqs,
-      image: node.head.image,
-    },
-  });
+export function resolveOgImage(
+  node: OgImageNode,
+  origin?: string,
+  resolver?: OgImageResolver,
+): SeoImage | undefined {
+  const image =
+    node.head?.image ??
+    resolver?.({
+      path: node.head?.canonicalPath ?? node.path,
+      kind: node.kind,
+      head:
+        node.head === undefined
+          ? undefined
+          : {
+              title: node.head.title,
+              description: node.head.description,
+              faqs: node.head.faqs,
+              image: node.head.image,
+            },
+    });
   if (image === undefined) return undefined;
   if (origin === undefined) return image;
   const base = new URL("/", origin);
@@ -168,7 +183,6 @@ export interface BuildSeoGraphInput {
 /** Kind for instances whose collection route carries no declaration to inherit. */
 const FALLBACK_KIND: SeoKind = "page";
 
-
 /**
  * Join a child's local path onto its parent's computed full path with the same
  * semantics as TanStack's route init (relative segments, index "/" inherits the
@@ -189,7 +203,9 @@ function declaredHead(seo: RouteSeo): SeoNodeHead | undefined {
     title: applyTitleTemplate(seo.titleTemplate, seo.head.title),
     description: seo.head.description,
     ...(seo.head.canonicalPath === undefined ? {} : { canonicalPath: seo.head.canonicalPath }),
-    image: seo.head.image ?? (seo.head.article?.image === undefined ? undefined : { url: seo.head.article.image }),
+    image:
+      seo.head.image ??
+      (seo.head.article?.image === undefined ? undefined : { url: seo.head.article.image }),
     faqs: seo.head.faqs?.map(({ question, answer }) => ({ question, answer })),
   };
 }
@@ -301,7 +317,11 @@ function addCollection(
       markdown: collectionNode?.markdown,
       llms: collectionNode?.llms,
       policy: { kind, sitemap },
-      head: { title: applyTitleTemplate(titleTemplate, instance.title), description: instance.description, image: instance.image },
+      head: {
+        title: applyTitleTemplate(titleTemplate, instance.title),
+        description: instance.description,
+        image: instance.image,
+      },
       instance: {
         title: instance.title,
         description: instance.description,
@@ -335,9 +355,10 @@ export function buildSeoGraph(input: BuildSeoGraphInput): SeoGraph {
   }
 
   for (const node of nodes.values()) {
-    const image = node.kind === "layout" || node.path.includes("$")
-      ? undefined
-      : resolveOgImage(node, input.origin, input.ogImage);
+    const image =
+      node.kind === "layout" || node.path.includes("$")
+        ? undefined
+        : resolveOgImage(node, input.origin, input.ogImage);
     if (image !== undefined) node.head = { ...node.head, image };
     if (node.source !== "route") continue;
     for (const to of node.policy.related ?? []) {

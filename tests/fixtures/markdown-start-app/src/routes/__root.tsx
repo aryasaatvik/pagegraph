@@ -6,9 +6,13 @@ import "../facts";
 export const Route = createRootRoute({
   component: () => (
     <html lang="en">
-      <head><HeadContent /></head>
+      <head>
+        <HeadContent />
+      </head>
       <body>
-        <header><T>Shared shell text</T></header>
+        <header>
+          <T>Shared shell text</T>
+        </header>
         <Outlet />
         <Scripts />
       </body>

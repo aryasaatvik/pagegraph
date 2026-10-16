@@ -1,12 +1,7 @@
 import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 
-import type {
-  AuditFinding,
-  AuditOptions,
-  AuditTarget,
-  ScannerId,
-} from "./model";
+import type { AuditFinding, AuditOptions, AuditTarget, ScannerId } from "./model";
 
 /** A typed, attributed failure from a scanner. The audit service catches this
  * at the scanner boundary and preserves it in the report. */
@@ -41,9 +36,7 @@ export interface Scanner {
   readonly id: ScannerId;
   readonly description?: string;
   readonly rules?: readonly ScannerRule[];
-  readonly scan: (
-    input: ScannerInput,
-  ) => Effect.Effect<ScannerObservation, ScannerFailure>;
+  readonly scan: (input: ScannerInput) => Effect.Effect<ScannerObservation, ScannerFailure>;
 }
 
 export const scanner = (definition: Scanner): Scanner => definition;

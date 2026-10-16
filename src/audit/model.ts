@@ -11,10 +11,7 @@ export type FormFactor = (typeof formFactors)[number];
 
 export type FindingSeverity = "structural" | "editorial";
 
-export const FindingSeverity = Schema.Literals([
-  "structural",
-  "editorial",
-] as const);
+export const FindingSeverity = Schema.Literals(["structural", "editorial"] as const);
 
 /** A machine-readable audit finding. Values are intentionally open-ended so
  * scanner authors can retain the evidence that led to a finding. */

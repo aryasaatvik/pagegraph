@@ -36,39 +36,67 @@ const fixture = async () => {
 
 const context = (name: string, path: string): BeforeToolCallContext => ({
   toolCall: { type: "toolCall", id: "call", name, arguments: { path } },
-  args: { path }, context: { messages: [] },
+  args: { path },
+  context: { messages: [] },
   assistantMessage: {
-    role: "assistant", content: [], api: "openai-completions", provider: "openai", model: "test", timestamp: 0,
-    stopReason: "toolUse", usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0,
-      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
+    role: "assistant",
+    content: [],
+    api: "openai-completions",
+    provider: "openai",
+    model: "test",
+    timestamp: 0,
+    stopReason: "toolUse",
+    usage: {
+      input: 0,
+      output: 0,
+      cacheRead: 0,
+      cacheWrite: 0,
+      totalTokens: 0,
+      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+    },
   },
 });
 
-const text = (result: Awaited<ReturnType<ReturnType<typeof createRepositoryTools>[number]["execute"]>>) =>
-  result.content.filter((part) => part.type === "text").map((part) => part.text).join("\n");
+const text = (
+  result: Awaited<ReturnType<ReturnType<typeof createRepositoryTools>[number]["execute"]>>,
+) =>
+  result.content
+    .filter((part) => part.type === "text")
+    .map((part) => part.text)
+    .join("\n");
 
 afterEach(async () => {
   process.chdir(originalCwd);
-  await Promise.all(directories.splice(0).map((path) => rm(path, { recursive: true, force: true })));
+  await Promise.all(
+    directories.splice(0).map((path) => rm(path, { recursive: true, force: true })),
+  );
 });
 
 describe("workflow read scope", () => {
-  it.each(["../..", undefined, "", "  ", 42])("validates repositoryRoot configuration %s", async (repositoryRoot) => {
-    const { app } = await fixture();
-    await writeFile(join(app, "pagegraph.config.mjs"), `export default {
+  it.each(["../..", undefined, "", "  ", 42])(
+    "validates repositoryRoot configuration %s",
+    async (repositoryRoot) => {
+      const { app } = await fixture();
+      await writeFile(
+        join(app, "pagegraph.config.mjs"),
+        `export default {
       loadGraph: async () => {}, workflows: {
         agent: { presetDirectory: ".pagegraph/agent", defaultModel: "test/model" },
         ${repositoryRoot === undefined ? "" : `repositoryRoot: ${JSON.stringify(repositoryRoot)},`}
       },
-    };`);
-    process.chdir(app);
-    if (repositoryRoot === undefined || repositoryRoot === "../..") {
-      const project = await Effect.runPromise(loadSeoProjectConfig);
-      expect(project.config.workflows?.repositoryRoot).toBe(repositoryRoot);
-    } else {
-      await expect(Effect.runPromise(loadSeoProjectConfig)).rejects.toThrow("must default-export");
-    }
-  });
+    };`,
+      );
+      process.chdir(app);
+      if (repositoryRoot === undefined || repositoryRoot === "../..") {
+        const project = await Effect.runPromise(loadSeoProjectConfig);
+        expect(project.config.workflows?.repositoryRoot).toBe(repositoryRoot);
+      } else {
+        await expect(Effect.runPromise(loadSeoProjectConfig)).rejects.toThrow(
+          "must default-export",
+        );
+      }
+    },
+  );
 
   it("defaults to the Git top level, falls back outside Git, and honors a configured app-relative root", async () => {
     const { repository, app } = await fixture();
@@ -87,15 +115,23 @@ describe("workflow read scope", () => {
     const list = tools.find((entry) => entry.name === "list_files")!;
     const search = tools.find((entry) => entry.name === "search_text")!;
     expect(text(await read.execute("read", { path: "AGENTS.md" }))).toBe("repository context");
-    expect(text(await list.execute("list", { path: ".", recursive: true }))).toContain("apps/web/route.ts");
-    expect(text(await search.execute("search", { path: ".", text: "repository context" }))).toContain("AGENTS.md:1:repository context");
+    expect(text(await list.execute("list", { path: ".", recursive: true }))).toContain(
+      "apps/web/route.ts",
+    );
+    expect(
+      text(await search.execute("search", { path: ".", text: "repository context" })),
+    ).toContain("AGENTS.md:1:repository context");
     const writeOptions = { runsDirectory, presetDirectory: ".pagegraph/agent", check: false };
     const guard = guardRepositoryToolCall(app, { repositoryRoot: repository, runsDirectory })!;
     expect(await guard(context("read_file", join(repository, "AGENTS.md")))).toBeUndefined();
-    const outcomes = await applyWorkflowEdits(app, [
-      { id: "e1", path: "../../AGENTS.md", oldText: "repository context", newText: "changed" },
-      { id: "e2", path: "new.ts", newText: "app change" },
-    ], writeOptions);
+    const outcomes = await applyWorkflowEdits(
+      app,
+      [
+        { id: "e1", path: "../../AGENTS.md", oldText: "repository context", newText: "changed" },
+        { id: "e2", path: "new.ts", newText: "app change" },
+      ],
+      writeOptions,
+    );
     expect(outcomes.map(({ status }) => status)).toEqual(["failed", "applied"]);
     expect(outcomes[0]?.reason).toContain("escapes project root");
     expect(text(await read.execute("read", { path: "AGENTS.md" }))).toBe("repository context");
@@ -108,10 +144,18 @@ describe("workflow read scope", () => {
     const tools = createRepositoryTools(repository, readOptions);
     const read = tools.find((entry) => entry.name === "read_file")!;
     const guard = guardRepositoryToolCall(app, { repositoryRoot: repository, runsDirectory })!;
-    for (const path of ["../outside.txt", join(parent, "outside.txt"), "escape.txt", join(runsDirectory, "escape.txt"), join(runsDirectory, "../outside.txt")]) {
+    for (const path of [
+      "../outside.txt",
+      join(parent, "outside.txt"),
+      "escape.txt",
+      join(runsDirectory, "escape.txt"),
+      join(runsDirectory, "../outside.txt"),
+    ]) {
       expect((await guard(context("read_file", path)))?.block).toBe(true);
       await expect(read.execute("read", { path })).rejects.toThrow("escapes project root");
-      await expect(collectContextFiles(repository, "research.keywords", { files: [path] }, readOptions)).rejects.toThrow("escapes project root");
+      await expect(
+        collectContextFiles(repository, "research.keywords", { files: [path] }, readOptions),
+      ).rejects.toThrow("escapes project root");
       for (const name of ["list_files", "search_text"]) {
         expect((await guard(context(name, path)))?.block).toBe(true);
       }
@@ -119,10 +163,19 @@ describe("workflow read scope", () => {
     const runPath = join(runsDirectory, "run.json");
     expect(await guard(context("read_file", runPath))).toBeUndefined();
     expect(text(await read.execute("read", { path: runPath }))).toBe("run context");
-    expect(await collectContextFiles(repository, "research.keywords", {
-      files: ["AGENTS.md"], byWorkflow: { "research.keywords": ["AGENTS.md", runPath] },
-    }, readOptions)).toEqual([
-      { path: "AGENTS.md", content: "repository context" }, { path: runPath, content: "run context" },
+    expect(
+      await collectContextFiles(
+        repository,
+        "research.keywords",
+        {
+          files: ["AGENTS.md"],
+          byWorkflow: { "research.keywords": ["AGENTS.md", runPath] },
+        },
+        readOptions,
+      ),
+    ).toEqual([
+      { path: "AGENTS.md", content: "repository context" },
+      { path: runPath, content: "run context" },
     ]);
     const list = tools.find((entry) => entry.name === "list_files")!;
     expect(text(await list.execute("list", { path: runsDirectory }))).toContain("run.json");
@@ -130,11 +183,15 @@ describe("workflow read scope", () => {
 
   it("reads a full large UTF-8 artifact through byte pages without losing characters", async () => {
     const { repository, runsDirectory } = await fixture();
-    const content = JSON.stringify({ rows: Array.from({ length: 5000 }, (_, index) => ({ index, keyword: "keyword 🙂 café" })) });
+    const content = JSON.stringify({
+      rows: Array.from({ length: 5000 }, (_, index) => ({ index, keyword: "keyword 🙂 café" })),
+    });
     expect(Buffer.byteLength(content)).toBeGreaterThan(100_000);
     const path = join(runsDirectory, "outcome.json");
     await writeFile(path, content);
-    const read = createRepositoryTools(repository, { runsDirectory }).find((entry) => entry.name === "read_file")!;
+    const read = createRepositoryTools(repository, { runsDirectory }).find(
+      (entry) => entry.name === "read_file",
+    )!;
     let offset = 0;
     let recovered = "";
     for (let page = 0; page < 10; page++) {

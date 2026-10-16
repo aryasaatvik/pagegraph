@@ -2,10 +2,7 @@ import { Effect, FileSystem, Schema } from "effect";
 import * as Argument from "effect/cli/Argument";
 import * as Command from "effect/cli/Command";
 
-import {
-  AuditComparisonResult,
-  compareAuditReports,
-} from "../../audit/diff";
+import { AuditComparisonResult, compareAuditReports } from "../../audit/diff";
 import { AuditReport } from "../../audit/model";
 import { renderAuditDiff } from "../../audit/render";
 import { jsonFlag, printJson, printText, SeoCliError } from "../output";
@@ -30,9 +27,7 @@ const readAuditReport = Effect.fn("SeoCli.readAuditReport")(function* (
         }),
     ),
   );
-  return yield* Schema.decodeUnknownEffect(
-    Schema.fromJsonString(AuditReport),
-  )(contents).pipe(
+  return yield* Schema.decodeUnknownEffect(Schema.fromJsonString(AuditReport))(contents).pipe(
     Effect.mapError(
       (error) =>
         new SeoCliError({

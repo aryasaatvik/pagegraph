@@ -118,7 +118,9 @@ const renderSite = (
     try {
       origin = new URL(site);
     } catch {
-      return yield* new SeoCliError({ message: `--site must be an absolute URL, received "${site}"` });
+      return yield* new SeoCliError({
+        message: `--site must be an absolute URL, received "${site}"`,
+      });
     }
     if (origin.protocol !== "http:" && origin.protocol !== "https:") {
       return yield* new SeoCliError({ message: `--site must be http(s), received "${site}"` });
@@ -135,7 +137,9 @@ const parseCoverageRule = (value: string): Effect.Effect<CoverageRule, SeoCliErr
   const separator = value.lastIndexOf("=");
   if (separator <= 0) {
     return Effect.fail(
-      new SeoCliError({ message: `--require-inbound must be "<path-glob>=<n>", received "${value}"` }),
+      new SeoCliError({
+        message: `--require-inbound must be "<path-glob>=<n>", received "${value}"`,
+      }),
     );
   }
   const path = value.slice(0, separator).trim();
@@ -167,7 +171,10 @@ export const checkCommand = Command.make("check", {
   Command.withDescription("Check the SEO graph; exit 1 on any structural violation"),
   Command.withExamples([
     { command: "pagegraph check", description: "Run every rule and print the violations" },
-    { command: "pagegraph check --json", description: "Violations as JSON (exit 1 iff structural)" },
+    {
+      command: "pagegraph check --json",
+      description: "Violations as JSON (exit 1 iff structural)",
+    },
     {
       command: 'pagegraph check --require-inbound "/pricing=2"',
       description: "Also require 2 contextual links into /pricing",
@@ -199,9 +206,11 @@ export const checkCommand = Command.make("check", {
           ? { coverage, ogImage: config.ogImage }
           : { coverage, ogImage: config.ogImage, freshness: config.freshness, now: new Date() },
       );
-      violations.push(...yield* Effect.promise(() =>
-        checkLocalOgImages(graph, loaded.site.origin, project.root, config.ogImage),
-      ));
+      violations.push(
+        ...(yield* Effect.promise(() =>
+          checkLocalOgImages(graph, loaded.site.origin, project.root, config.ogImage),
+        )),
+      );
       let rendered: { readonly site: string; readonly pages: number } | undefined;
       if (Option.isSome(flags.site)) {
         const documents = yield* renderSite(graph, flags.site.value, renderOptions);
@@ -226,7 +235,9 @@ export const checkCommand = Command.make("check", {
       }
 
       if (claims !== undefined && claims.findings.length > 0) {
-        return yield* new SeoCliError({ message: `${claims.findings.length} claims violation(s); see the report above. Run pagegraph claims check after correcting the claims.` });
+        return yield* new SeoCliError({
+          message: `${claims.findings.length} claims violation(s); see the report above. Run pagegraph claims check after correcting the claims.`,
+        });
       }
       if (hasStructuralViolations(violations)) {
         return yield* new SeoCliError({

@@ -18,7 +18,12 @@ import { Decision, DecisionModel } from "effect/ai";
 import type * as AiError from "effect/ai/AiError";
 
 import { cacheKey, inputHash } from "../decide/answers";
-import { readAnswers, writeAnswers, type DecisionCache, type DecisionCacheInvalid } from "../decide/cache";
+import {
+  readAnswers,
+  writeAnswers,
+  type DecisionCache,
+  type DecisionCacheInvalid,
+} from "../decide/cache";
 
 /** Default probability boundary between a confident and an uncertain answer. */
 export const DEFAULT_LINK_THRESHOLD = 0.7;
@@ -187,7 +192,9 @@ export const applyBudget = (
   }
   const kept = new Set<LinkDecisionRecord>();
   for (const bucket of bySource.values()) {
-    const top = [...bucket].sort((a, b) => b.relevance.rating - a.relevance.rating).slice(0, budget);
+    const top = [...bucket]
+      .sort((a, b) => b.relevance.rating - a.relevance.rating)
+      .slice(0, budget);
     for (const record of top) kept.add(record);
   }
   return records.filter((record) => kept.has(record));
@@ -292,7 +299,11 @@ export const decideLinks = (
     /** Keep the top-K candidates per source by relevance; absent means no budget. */
     readonly budget?: number;
   },
-): Effect.Effect<LinksDecideReport, AiError.AiError | DecisionCacheInvalid, DecisionModel.DecisionModel> =>
+): Effect.Effect<
+  LinksDecideReport,
+  AiError.AiError | DecisionCacheInvalid,
+  DecisionModel.DecisionModel
+> =>
   Effect.gen(function* () {
     const records = yield* Effect.forEach(
       candidates,
@@ -309,7 +320,8 @@ export const decideLinks = (
             options.cache === undefined
               ? undefined
               : yield* readAnswers(options.cache, key, LinkDecision.decisions);
-          if (cached !== undefined) return toRecord(candidate, cached as LinkAnswers, options.threshold);
+          if (cached !== undefined)
+            return toRecord(candidate, cached as LinkAnswers, options.threshold);
           const { answers } = yield* DecisionModel.decide(LinkDecision, { input: candidate });
           if (options.cache !== undefined) yield* writeAnswers(options.cache, key, answers);
           return toRecord(candidate, answers, options.threshold);

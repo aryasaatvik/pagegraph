@@ -82,7 +82,9 @@ const presetDirectoryFlag = Flag.String("preset-directory").pipe(
   Flag.optional,
 );
 const fromFlag = Flag.String("from").pipe(
-  Flag.withDescription("Resume a recorded run directory or run ID, retaining its targets and completed stages"),
+  Flag.withDescription(
+    "Resume a recorded run directory or run ID, retaining its targets and completed stages",
+  ),
   Flag.optional,
 );
 const outFlag = Flag.String("out").pipe(
@@ -182,14 +184,19 @@ export const runWorkflowCommand = async (
 ): Promise<WorkflowCommandResult> => {
   const project = await Effect.runPromise(loadSeoProjectConfig);
   if (project.config.workflows === undefined) {
-    throw new Error("pagegraph.config.ts has no workflows configuration; run `pagegraph init` and add it.");
+    throw new Error(
+      "pagegraph.config.ts has no workflows configuration; run `pagegraph init` and add it.",
+    );
   }
 
   const from = optionalString(flags.from);
   const out = optionalString(flags.out);
   if (from !== undefined) {
     const completed = loadCompletedWorkflowRun(
-      project.root, out ?? project.config.workflows.runsDirectory ?? ".pagegraph/runs", from, workflow,
+      project.root,
+      out ?? project.config.workflows.runsDirectory ?? ".pagegraph/runs",
+      from,
+      workflow,
     );
     if (completed !== undefined) return completed;
   }
@@ -272,13 +279,18 @@ export const workflowCommand = (input: {
           catch: (cause) => new SeoCliError({ message: messageOf(cause) }),
         });
         if (rawFlags.json === true) yield* printJson(result.run);
-        else yield* printText([
-          resultSummary(result),
-          "",
-          `Run artifact: ${result.directory}`,
-          ...(input.writesFiles ? [`Review: ${join(result.directory, "review.md")}`] : []),
-          ...(input.writesFiles && result.run.options.dryRun ? [`Apply: pagegraph apply ${result.directory} --check`] : []),
-        ].join("\n"));
+        else
+          yield* printText(
+            [
+              resultSummary(result),
+              "",
+              `Run artifact: ${result.directory}`,
+              ...(input.writesFiles ? [`Review: ${join(result.directory, "review.md")}`] : []),
+              ...(input.writesFiles && result.run.options.dryRun
+                ? [`Apply: pagegraph apply ${result.directory} --check`]
+                : []),
+            ].join("\n"),
+          );
       }),
     ),
   );

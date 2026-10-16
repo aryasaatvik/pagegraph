@@ -1,0 +1,11 @@
+{
+  "ignorePatterns": [
+    "dist/**",
+    "node_modules/**",
+    "bun.lock",
+    "CHANGELOG.md",
+    "tests/fixtures/**/.pagegraph/**",
+    "tests/fixtures/**/.wrangler/**",
+    "tests/fixtures/**/routeTree.gen.ts"
+  ]
+}

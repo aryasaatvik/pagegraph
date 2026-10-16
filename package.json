@@ -119,7 +119,9 @@
     "version:packages": "bun run tegami version",
     "release:check": "bun run typecheck && bun run test && bun run release:validate",
     "release:validate": "bun run scripts/validate-release.ts",
-    "release": "bun run release:check && bun run tegami publish"
+    "release": "bun run release:check && bun run tegami publish",
+    "format": "oxfmt --write .",
+    "format:check": "oxfmt --check ."
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "^1.62.5",
@@ -140,6 +142,7 @@
     "@vitejs/plugin-react": "^6.0.6",
     "effect": "4.0.0",
     "lighthouse": "13.4.1",
+    "oxfmt": "0.72.0",
     "oxlint": "^1.83.0",
     "react": "19.2.8",
     "react-dom": "19.2.8",

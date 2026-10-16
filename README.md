@@ -1254,3 +1254,7 @@ Start app and keep your own route tree and content collections.
 ## License
 
 MIT
+
+## Contributing
+
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for setup, validation commands, and the gated release path.

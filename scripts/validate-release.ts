@@ -1,4 +1,3 @@
-import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -62,7 +61,7 @@ const run = async (
   cwd: string,
   options: { readonly env?: Record<string, string | undefined> } = {},
 ): Promise<RunResult> => {
-  const child = Bun.spawn(command, {
+  const child = Bun.spawn([...command], {
     cwd,
     env: options.env,
     stdin: "ignore",
@@ -91,7 +90,9 @@ const runSuccessfully = async (
   return result.stdout;
 };
 
-const stripAnsi = (output: string): string => output.replace(/\u001B\[[0-?]*[ -/]*[@-~]/g, "");
+const stripAnsi = (output: string): string =>
+  // oxlint-disable-next-line eslint/no-control-regex -- Strip ANSI escape sequences from npm output.
+  output.replace(/\u001B\[[0-?]*[ -/]*[@-~]/g, "");
 
 const parsePackOutput = (output: string): ReadonlyArray<PackResult> => {
   const normalized = stripAnsi(output).trim();
@@ -597,6 +598,49 @@ try {
   );
   if (core.trim() !== "function")
     throw new Error("pagegraph did not load under the workerd condition");
+
+  const typeConsumer = path.join(installDirectory, "consumer.ts");
+  await Bun.write(
+    typeConsumer,
+    `
+    import { checkGraph, pageHeads, defineFacts, fact } from "pagegraph";
+    import { createSeo } from "pagegraph/react";
+    import { defineSeoConfig } from "pagegraph/config";
+    import { markdownRequest } from "pagegraph/tanstack-start/markdown";
+    void [checkGraph, pageHeads, defineFacts({ count: fact.number(1) }), createSeo, defineSeoConfig, markdownRequest];
+  `,
+  );
+  await runSuccessfully(
+    [
+      path.join(root, "node_modules", ".bin", "tsc"),
+      "--noEmit",
+      "--strict",
+      "--skipLibCheck",
+      "--module",
+      "Preserve",
+      "--moduleResolution",
+      "Bundler",
+      "--target",
+      "ES2023",
+      typeConsumer,
+    ],
+    installDirectory,
+  );
+
+  // Prove an invalid installed export is rejected by the same consumer boundary.
+  const manifestPath = path.join(installedRoot, "package.json");
+  const originalManifest = await readFile(manifestPath, "utf8");
+  try {
+    const broken = JSON.parse(originalManifest);
+    broken.exports["."].import = "./dist/missing-entry.js";
+    await Bun.write(manifestPath, JSON.stringify(broken));
+    const rejected = await run(["bun", "-e", 'await import("pagegraph")'], installDirectory);
+    if (rejected.exitCode === 0 || !rejected.stderr.includes("missing-entry.js")) {
+      throw new Error("Broken installed export did not fail the artifact boundary");
+    }
+  } finally {
+    await Bun.write(manifestPath, originalManifest);
+  }
 
   console.log(`Validated ${packed.filename} from an isolated temporary consumer`);
 } finally {

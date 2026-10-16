@@ -38,8 +38,6 @@ export interface RenderedGraph {
   readonly maxDepth: number | null;
 }
 
-const REGION_TAGS = new Set(["nav", "footer", "header"]);
-
 const TOKEN = /<(\/?)(nav|footer|header)\b[^>]*>|<a\b([^>]*)>([\s\S]*?)<\/a>/gi;
 
 // A real `href` attribute is preceded by whitespace (or the tag's start). The

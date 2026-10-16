@@ -9,7 +9,6 @@ import { metadataWorkflow } from "./specs/metadata";
 import { serpWorkflow } from "./specs/serp";
 import { schemaWorkflow } from "./specs/schema";
 import { defineWorkflow, type AnyWorkflowSpec } from "./specs/types";
-import { workflowIds } from "./model";
 import type { WorkflowId } from "./model";
 export { workflowIds } from "./model";
 export type { WorkflowId } from "./model";

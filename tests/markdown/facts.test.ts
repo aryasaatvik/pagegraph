@@ -1,3 +1,4 @@
+/* oxlint-disable unicorn/no-new-array -- Sparse arrays are deliberately invalid JSON fixtures. */
 import { describe, expect, it } from "vitest";
 import { defineFacts, fact, resolveFact } from "../../src/markdown/facts";
 

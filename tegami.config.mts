@@ -2,6 +2,8 @@ import { tegami, type TegamiPlugin } from "tegami";
 import { runCli } from "tegami/cli";
 import { github } from "tegami/plugins/github";
 
+import { releaseChecks } from "./scripts/release-checks.mts";
+
 import rootPackage from "./package.json" with { type: "json" };
 
 const REPOSITORY = "aryasaatvik/pagegraph";
@@ -36,6 +38,7 @@ const paper = tegami({
     pagegraph: {},
   },
   plugins: [
+    releaseChecks(),
     github({
       repo: REPOSITORY,
       pushTags: true,

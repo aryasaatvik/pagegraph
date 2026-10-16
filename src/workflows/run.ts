@@ -750,6 +750,7 @@ export const runWorkflow = async (
       try {
         await runner.close();
       } catch (cause) {
+        // oxlint-disable-next-line eslint/no-unsafe-finally -- Preserve the turn error; surface close failures only after success.
         if (!turnFailed) throw cause;
       }
     }

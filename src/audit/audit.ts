@@ -92,8 +92,8 @@ const runAudit = Effect.fn("Audit.run")(function* (
   const targets = yield* Effect.forEach(request.targets, validateTarget);
   const options = {
     ...defaultOptions,
-    ...(request.options ?? {}),
-    policy: { ...defaultOptions.policy, ...(request.options?.policy ?? {}) },
+    ...request.options,
+    policy: { ...defaultOptions.policy, ...request.options?.policy },
   };
   const available = registry.all();
   const scanners =

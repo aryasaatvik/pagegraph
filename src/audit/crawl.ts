@@ -179,7 +179,7 @@ export const allowedByRobots = (
       (anchored && (parts.length === 1 ? path !== parts[0] : !path.endsWith(parts.at(-1)!)))
     )
       continue;
-    const length = rule.path.replace(/[\*$]/g, "").length;
+    const length = rule.path.replace(/[*$]/g, "").length;
     if (length > bestLength || (length === bestLength && rule.allow)) {
       chosen = rule;
       bestLength = length;

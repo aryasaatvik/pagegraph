@@ -634,7 +634,10 @@ try {
     const broken = JSON.parse(originalManifest);
     broken.exports["."].import = "./dist/missing-entry.js";
     await Bun.write(manifestPath, JSON.stringify(broken));
-    const rejected = await run(["bun", "-e", 'await import("pagegraph")'], installDirectory);
+    const rejected = await run(
+      ["node", "--input-type=module", "-e", 'await import("pagegraph")'],
+      installDirectory,
+    );
     if (rejected.exitCode === 0 || !rejected.stderr.includes("missing-entry.js")) {
       throw new Error("Broken installed export did not fail the artifact boundary");
     }

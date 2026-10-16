@@ -60,10 +60,18 @@ const classify = (
   },
   threshold: number,
 ): string => {
-  if (anyInReviewBand([answers.supportedDemand.probability, answers.productFit.probability], threshold)) {
+  if (
+    anyInReviewBand(
+      [answers.supportedDemand.probability, answers.productFit.probability],
+      threshold,
+    )
+  ) {
     return "review";
   }
-  if (answers.supportedDemand.probability < threshold || answers.productFit.probability < threshold) {
+  if (
+    answers.supportedDemand.probability < threshold ||
+    answers.productFit.probability < threshold
+  ) {
     return "reject";
   }
   const confidence = answers.ownership.probabilities[answers.ownership.label] ?? 0;

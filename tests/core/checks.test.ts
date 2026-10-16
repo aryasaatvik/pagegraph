@@ -220,7 +220,6 @@ describe("checkGraph — exit classification", () => {
   });
 });
 
-
 describe("checkGraph — OG image requirements", () => {
   const sitemap = { priority: 0.5, changeFrequency: "monthly" } as const;
   it("fails only sitemap-eligible pages without a resolved image", () => {
@@ -228,7 +227,9 @@ describe("checkGraph — OG image requirements", () => {
     const noindex = routeNode("/private", { kind: "page", sitemap, robots: "noindex" });
     const dynamic = routeNode("/blog/$slug", { kind: "article", sitemap });
     for (const node of [eligible, noindex, dynamic]) delete node.head;
-    const findings = checkGraph(graphOf([eligible, noindex, dynamic])).filter((v) => v.rule === "missing-og-image");
+    const findings = checkGraph(graphOf([eligible, noindex, dynamic])).filter(
+      (v) => v.rule === "missing-og-image",
+    );
     expect(findings).toHaveLength(1);
     expect(findings[0]).toMatchObject({ path: "/pricing", severity: "structural" });
     expect(findings[0]?.fix).toContain("ogImage resolver");

@@ -12,13 +12,17 @@ import {
 
 const writeFlags = { dryRun: dryRunFlag, allowDirty: allowDirtyFlag };
 const allowPrivateFlag = Flag.Boolean("allow-private").pipe(
-  Flag.withDescription("Allow localhost/private site probes for suggestion freshness (local development only)"),
+  Flag.withDescription(
+    "Allow localhost/private site probes for suggestion freshness (local development only)",
+  ),
   Flag.withDefault(false),
 );
 
 /** File-writing content, metadata, schema, and link workflows. */
 export const improveCommandGroup = Command.make("improve").pipe(
-  Command.withDescription("Apply page-backed SEO improvements with Pi and guarded repository edits"),
+  Command.withDescription(
+    "Apply page-backed SEO improvements with Pi and guarded repository edits",
+  ),
   Command.withSubcommands([
     workflowCommand({
       name: "content",
@@ -61,7 +65,8 @@ export const improveCommandGroup = Command.make("improve").pipe(
       name: "links",
       workflow: "improve.links",
       exampleArgs: "--page /docs/email",
-      description: "Add contextual internal links and update PageGraph declarations when appropriate",
+      description:
+        "Add contextual internal links and update PageGraph declarations when appropriate",
       flags: {
         ...baseFlags,
         suggestions: suggestionsFlag,

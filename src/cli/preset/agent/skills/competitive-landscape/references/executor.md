@@ -12,14 +12,14 @@ TypeScript input and result shapes:
 Pass a TypeScript snippet to `executor_execute`, replacing `discovered_namespace`, `discovered_tool`, and
 arguments with the returned names and required fields:
 
-~~~ts
+```ts
 return await tools.discovered_namespace.discovered_tool({
   queries,
   market,
   language,
   device,
 });
-~~~
+```
 
 Prefer relevant cached OpenSEO context or research when an existing project matches the domain
 unambiguously. Use external traffic and keyword values as estimates. Record query, market, device,

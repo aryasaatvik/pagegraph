@@ -85,10 +85,7 @@ describe("generateLinkCandidates", () => {
       instanceNode("/blog/c"),
     ]);
     // /blog/a and /blog/c share the "/blog" section; /docs/b shares only a kind.
-    expect(pairs(graph)).toEqual([
-      "/blog/a→/blog/c",
-      "/blog/c→/blog/a",
-    ]);
+    expect(pairs(graph)).toEqual(["/blog/a→/blog/c", "/blog/c→/blog/a"]);
     expect(generateLinkCandidates(graph).clusters).toEqual([{ key: "blog", candidates: 2 }]);
   });
 
@@ -117,8 +114,12 @@ describe("generateLinkCandidates", () => {
 
   it("excludes only a rendered body anchor in its own direction", () => {
     const graph = graphOf([instanceNode("/blog/a"), instanceNode("/blog/b")]);
-    expect(pairs(graph, { renderedEdges: [{ from: "/blog/b", to: "/blog/a", region: "body" }] })).toEqual(["/blog/a→/blog/b"]);
-    expect(pairs(graph, { renderedEdges: [{ from: "/blog/b", to: "/blog/a", region: "nav" }] })).toEqual(["/blog/a→/blog/b", "/blog/b→/blog/a"]);
+    expect(
+      pairs(graph, { renderedEdges: [{ from: "/blog/b", to: "/blog/a", region: "body" }] }),
+    ).toEqual(["/blog/a→/blog/b"]);
+    expect(
+      pairs(graph, { renderedEdges: [{ from: "/blog/b", to: "/blog/a", region: "nav" }] }),
+    ).toEqual(["/blog/a→/blog/b", "/blog/b→/blog/a"]);
   });
 
   it("normalizes queries and hashes on rendered edges before excluding", () => {
@@ -166,15 +167,9 @@ describe("generateLinkCandidates", () => {
       routeNode("/pricing", { kind: "page", sitemap: { ...SITEMAP } }),
       routeNode("/about", { kind: "page", sitemap: { ...SITEMAP } }),
     ]);
-    expect(pairs(graph, { clusters: ["blog"] })).toEqual([
-      "/blog/a→/blog/b",
-      "/blog/b→/blog/a",
-    ]);
+    expect(pairs(graph, { clusters: ["blog"] })).toEqual(["/blog/a→/blog/b", "/blog/b→/blog/a"]);
     expect(pairs(graph, { clusters: ["/blog"] })).toHaveLength(2);
-    expect(pairs(graph, { clusters: ["page"] })).toEqual([
-      "/about→/pricing",
-      "/pricing→/about",
-    ]);
+    expect(pairs(graph, { clusters: ["page"] })).toEqual(["/about→/pricing", "/pricing→/about"]);
   });
 
   it("orders deterministically, reports totals, and truncates at limit", () => {
@@ -226,7 +221,9 @@ describe("matchesClusterFilter", () => {
 
 describe("candidateSourceText", () => {
   it("prefers an instance description, then title, then route link metadata, then the path", () => {
-    expect(candidateSourceText(instanceNode("/blog/a", "article", { title: "T", description: "D" }))).toBe("D");
+    expect(
+      candidateSourceText(instanceNode("/blog/a", "article", { title: "T", description: "D" })),
+    ).toBe("D");
     expect(candidateSourceText(instanceNode("/blog/a", "article", { title: "T" }))).toBe("T");
     expect(
       candidateSourceText(
@@ -253,8 +250,12 @@ describe("decodeRenderedEdges", () => {
       { from: "/a", to: "/b", region: "nav" },
     ]);
     const graph = graphOf([instanceNode("/a"), instanceNode("/b")]);
-    expect(pairs(graph, { renderedEdges: decodeRenderedEdges([{ from: "/a", to: "/b" }]) })).toEqual(["/b→/a"]);
-    expect(() => decodeRenderedEdges([{ from: "/a", to: "/b", region: "sidebar" }])).toThrow("region");
+    expect(
+      pairs(graph, { renderedEdges: decodeRenderedEdges([{ from: "/a", to: "/b" }]) }),
+    ).toEqual(["/b→/a"]);
+    expect(() => decodeRenderedEdges([{ from: "/a", to: "/b", region: "sidebar" }])).toThrow(
+      "region",
+    );
   });
 
   it("rejects malformed input", () => {

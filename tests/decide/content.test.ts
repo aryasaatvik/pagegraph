@@ -87,7 +87,9 @@ describe("classifyContentVerdict", () => {
 
   it("flags a thin page and any confidently failed rubric item", () => {
     expect(classifyContentVerdict(answersFor({}, "thin"), 0.7)).toBe("flag");
-    expect(classifyContentVerdict(answersFor({ originalValue: falseProbability }), 0.7)).toBe("flag");
+    expect(classifyContentVerdict(answersFor({ originalValue: falseProbability }), 0.7)).toBe(
+      "flag",
+    );
   });
 
   it("reviews when any probability is inside the band", () => {

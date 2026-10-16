@@ -19,7 +19,8 @@ const routeNode = (path: string, policy: Partial<RouteSeo> & { kind: SeoKind }):
   policy,
 });
 
-const moneyNode = (path: string): SeoNode => routeNode(path, { kind: "page", sitemap: { ...SITEMAP } });
+const moneyNode = (path: string): SeoNode =>
+  routeNode(path, { kind: "page", sitemap: { ...SITEMAP } });
 
 const graphOf = (nodes: Array<SeoNode>, edges: Array<SeoEdge> = []): SeoGraph => ({
   nodes: new Map(nodes.map((node) => [node.path, node])),
@@ -98,7 +99,10 @@ describe("checkCoverage", () => {
     const graph = graphOf([moneyNode("/pricing")]);
     const violations = checkCoverage(graph, [{ path: "/missing", minInbound: 1 }]);
     expect(violations).toHaveLength(1);
-    expect(violations[0]).toMatchObject({ rule: "coverage-rule-unmatched", severity: "structural" });
+    expect(violations[0]).toMatchObject({
+      rule: "coverage-rule-unmatched",
+      severity: "structural",
+    });
     expect(violations[0]?.message).toContain("matches no page");
   });
 

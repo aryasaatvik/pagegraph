@@ -41,7 +41,11 @@ describe("freshnessReport", () => {
     post("/blog/old", { publishedAt: "2025-01-01" }),
     post("/blog/older", { publishedAt: "2024-01-01", modifiedAt: "2024-06-01" }),
     post("/blog/refreshed", { publishedAt: "2024-01-01", modifiedAt: "2026-09-01" }),
-    post("/blog/hidden", { publishedAt: "2020-01-01" }, { robots: "noindex, follow", sitemap: false }),
+    post(
+      "/blog/hidden",
+      { publishedAt: "2020-01-01" },
+      { robots: "noindex, follow", sitemap: false },
+    ),
     post("/blog/broken", { publishedAt: "not a date" }),
   ]);
 
@@ -81,7 +85,11 @@ describe("checkGraph — dates", () => {
       ]),
     ).filter((violation) => violation.rule === "invalid-date");
     expect(violations).toEqual([
-      expect.objectContaining({ path: "/pricing", severity: "structural", message: 'modifiedAt "soon" is not an ISO 8601 date on a real calendar day.' }),
+      expect.objectContaining({
+        path: "/pricing",
+        severity: "structural",
+        message: 'modifiedAt "soon" is not an ISO 8601 date on a real calendar day.',
+      }),
       expect.objectContaining({ path: "/blog/a", severity: "structural" }),
     ]);
   });
@@ -94,7 +102,12 @@ describe("checkGraph — dates", () => {
     for (const value of ["2026-02-30", "Sep 29, 2026", "2026-09-01T10:00", "2026-9-1"]) {
       expect(invalid(value), value).toBe(true);
     }
-    for (const value of ["2026-02-28", "2024-02-29", "2026-09-01T10:00:00Z", "2026-09-01T10:00+05:30"]) {
+    for (const value of [
+      "2026-02-28",
+      "2024-02-29",
+      "2026-09-01T10:00:00Z",
+      "2026-09-01T10:00+05:30",
+    ]) {
       expect(invalid(value), value).toBe(false);
     }
   });

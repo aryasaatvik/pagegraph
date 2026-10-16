@@ -3,7 +3,9 @@ import { createIsomorphicFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
 import { DocumentProvider, Fact, Section, T } from "pagegraph/react";
 
-const requestSnapshot = createIsomorphicFn().server(() => getRequest()).client(() => undefined);
+const requestSnapshot = createIsomorphicFn()
+  .server(() => getRequest())
+  .client(() => undefined);
 
 export const Route = createFileRoute("/guides/$slug")({
   staticData: { markdown: "rendered", llms: "Guides", seo: { kind: "page" } },
@@ -14,10 +16,11 @@ export const Route = createFileRoute("/guides/$slug")({
     return {
       title: `Guide: ${params.slug}`,
       description: `Loaded ${params.slug}`,
-      personalized: request !== undefined && (
-        [...request.headers.keys()].some((name) => name !== "accept") ||
-        request.headers.get("accept") !== "text/html" || new URL(request.url).search !== ""
-      ),
+      personalized:
+        request !== undefined &&
+        ([...request.headers.keys()].some((name) => name !== "accept") ||
+          request.headers.get("accept") !== "text/html" ||
+          new URL(request.url).search !== ""),
     };
   },
   head: ({ loaderData }) => ({
@@ -33,7 +36,13 @@ function Page() {
     <DocumentProvider>
       <Section id="hero" kind="hero">
         <h1 data-slug={slug}>
-          {data.personalized ? <T>Personalized text must not enter the snapshot.</T> : <T>Start with <Fact id="emails" /> emails.</T>}
+          {data.personalized ? (
+            <T>Personalized text must not enter the snapshot.</T>
+          ) : (
+            <T>
+              Start with <Fact id="emails" /> emails.
+            </T>
+          )}
         </h1>
       </Section>
     </DocumentProvider>

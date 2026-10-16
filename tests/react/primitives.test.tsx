@@ -4,7 +4,19 @@ import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 
 import { defineFacts, fact } from "../../src/core/index";
-import { DocumentProvider, Fact, ForAgents, ForHumans, Section, T, Title, Visual, messageText, createCollector, finishDocument } from "../../src/react/index";
+import {
+  DocumentProvider,
+  Fact,
+  ForAgents,
+  ForHumans,
+  Section,
+  T,
+  Title,
+  Visual,
+  messageText,
+  createCollector,
+  finishDocument,
+} from "../../src/react/index";
 import { CaptureAnchor } from "../../src/react/document";
 
 const facts = defineFacts({

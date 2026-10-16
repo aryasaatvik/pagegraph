@@ -229,15 +229,23 @@ describe("pagegraph links verify — rendered-edge artifact", () => {
       configFor(new URL(target).origin, `coverage: [{ path: "/pricing", minInbound: 1 }],`),
     );
     const artifactPath = join(directory, "rendered.json");
-    const emitted = await runVerify([target, "--allow-private", "--emit-rendered", artifactPath], directory);
+    const emitted = await runVerify(
+      [target, "--allow-private", "--emit-rendered", artifactPath],
+      directory,
+    );
     expect(emitted.status).toBe(0);
     const artifact = JSON.parse(readFileSync(artifactPath, "utf8")) as {
       crawl: { discoveryFailures: Array<{ url: string; error: string }> };
     };
-    artifact.crawl.discoveryFailures = [{ url: `${target}sitemap.xml`, error: "malformed sitemap" }];
+    artifact.crawl.discoveryFailures = [
+      { url: `${target}sitemap.xml`, error: "malformed sitemap" },
+    ];
     writeFileSync(artifactPath, JSON.stringify(artifact));
 
-    const result = await runVerify(["--rendered", artifactPath, "--assert-coverage", "--json"], directory);
+    const result = await runVerify(
+      ["--rendered", artifactPath, "--assert-coverage", "--json"],
+      directory,
+    );
     expect(result.status).toBe(1);
     expect(result.stdout).toBe("");
     expect(result.stderr).toContain("discovery was incomplete");
@@ -248,18 +256,31 @@ describe("pagegraph links verify — rendered-edge artifact", () => {
       configFor(new URL(target).origin, `coverage: [{ path: "/pricing", minInbound: 1 }],`),
     );
     const artifactPath = join(directory, "rendered.json");
-    const emitted = await runVerify([target, "--allow-private", "--emit-rendered", artifactPath], directory);
+    const emitted = await runVerify(
+      [target, "--allow-private", "--emit-rendered", artifactPath],
+      directory,
+    );
     expect(emitted.status).toBe(0);
     const artifact = JSON.parse(readFileSync(artifactPath, "utf8")) as {
       crawl: { nonHtml: Array<{ url: string; finalUrl: string; contentType: string }> };
     };
-    artifact.crawl.nonHtml = [{ url: `${target}auth.md`, finalUrl: `${target}auth.md`, contentType: "text/markdown" }];
+    artifact.crawl.nonHtml = [
+      { url: `${target}auth.md`, finalUrl: `${target}auth.md`, contentType: "text/markdown" },
+    ];
     writeFileSync(artifactPath, JSON.stringify(artifact));
-    expect((await runVerify(["--rendered", artifactPath, "--assert-coverage", "--json"], directory)).status).toBe(0);
+    expect(
+      (await runVerify(["--rendered", artifactPath, "--assert-coverage", "--json"], directory))
+        .status,
+    ).toBe(0);
 
-    artifact.crawl.nonHtml = [{ url: `${target}pricing`, finalUrl: `${target}pricing`, contentType: "text/markdown" }];
+    artifact.crawl.nonHtml = [
+      { url: `${target}pricing`, finalUrl: `${target}pricing`, contentType: "text/markdown" },
+    ];
     writeFileSync(artifactPath, JSON.stringify(artifact));
-    const declared = await runVerify(["--rendered", artifactPath, "--assert-coverage", "--json"], directory);
+    const declared = await runVerify(
+      ["--rendered", artifactPath, "--assert-coverage", "--json"],
+      directory,
+    );
     expect(declared.status).toBe(1);
     expect(declared.stderr).toContain("declared page");
   }, 20_000);

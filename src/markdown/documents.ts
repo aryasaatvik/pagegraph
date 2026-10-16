@@ -11,22 +11,37 @@ export type PageHead = MarkdownCapture["heads"][number];
 
 /** Captured paths are decoded; derived files must stay inside the capture tree. */
 function verifyPath(path: string): void {
-  if (!path.startsWith("/") || path.startsWith("//") || /[?#\\$\u0000-\u001f\u007f]/.test(path) ||
-      (path !== "/" && path.endsWith("/")) ||
-      path.slice(1).split("/").some((part) => part === "." || part === ".." || part === "*" || (part === "" && path !== "/"))) {
+  if (
+    !path.startsWith("/") ||
+    path.startsWith("//") ||
+    /[?#\\$\u0000-\u001f\u007f]/.test(path) ||
+    (path !== "/" && path.endsWith("/")) ||
+    path
+      .slice(1)
+      .split("/")
+      .some(
+        (part) => part === "." || part === ".." || part === "*" || (part === "" && path !== "/"),
+      )
+  ) {
     throw new Error(`Invalid captured page path "${path}"`);
   }
 }
 
-function verifyDocuments(documents: ReadonlyArray<PageDocument>, heads: ReadonlyArray<PageHead>): void {
+function verifyDocuments(
+  documents: ReadonlyArray<PageDocument>,
+  heads: ReadonlyArray<PageHead>,
+): void {
   const paths = new Set<string>();
   for (const document of documents) {
     verifyPath(document.path);
-    if (paths.has(document.path)) throw new Error(`Duplicate captured document path "${document.path}"`);
+    if (paths.has(document.path))
+      throw new Error(`Duplicate captured document path "${document.path}"`);
     paths.add(document.path);
     const { hash, ...content } = document;
     if (!/^[0-9a-f]{64}$/.test(hash) || hashDocument(content) !== hash)
-      throw new Error(`Invalid captured document hash for "${document.path}"; build the app again.`);
+      throw new Error(
+        `Invalid captured document hash for "${document.path}"; build the app again.`,
+      );
   }
   const headPaths = new Set<string>();
   for (const head of heads) {
@@ -46,26 +61,36 @@ export async function readMarkdownCapture(root: string, origin: string): Promise
   const visit = async (folder: string): Promise<void> => {
     for (const entry of await readdir(folder, { withFileTypes: true })) {
       const file = resolve(folder, entry.name);
-      if (entry.isDirectory()) { await visit(file); continue; }
+      if (entry.isDirectory()) {
+        await visit(file);
+        continue;
+      }
       if (!entry.isFile() || !entry.name.endsWith(".json")) continue;
       const document = Schema.decodeUnknownSync(Schema.fromJsonString(PageDocumentSchema))(
-        await readFile(file, "utf8"), { onExcessProperty: "error" },
+        await readFile(file, "utf8"),
+        { onExcessProperty: "error" },
       );
       verifyPath(document.path);
       const name = document.path === "/" ? "index" : document.path.slice(1);
       if (file !== resolve(directory, `${name}.json`))
-        throw new Error(`Captured document "${document.path}" is stored at the wrong path: ${file}`);
+        throw new Error(
+          `Captured document "${document.path}" is stored at the wrong path: ${file}`,
+        );
       documents.push(document);
     }
   };
-  try { await visit(directory); }
-  catch (cause) {
+  try {
+    await visit(directory);
+  } catch (cause) {
     if (cause instanceof Error && "code" in cause && cause.code === "ENOENT")
-      throw new Error(`Missing markdown captures at ${directory}; build the app or use --dev <origin>.`);
+      throw new Error(
+        `Missing markdown captures at ${directory}; build the app or use --dev <origin>.`,
+      );
     throw cause;
   }
   const heads = Schema.decodeUnknownSync(Schema.fromJsonString(CaptureBundle.fields.heads))(
-    await readFile(resolve(root, ".pagegraph/heads.json"), "utf8"), { onExcessProperty: "error" },
+    await readFile(resolve(root, ".pagegraph/heads.json"), "utf8"),
+    { onExcessProperty: "error" },
   );
   verifyDocuments(documents, heads);
   return { origin, documents: documents.sort((a, b) => a.path.localeCompare(b.path)), heads };
@@ -80,7 +105,8 @@ export async function readDevMarkdownCapture(origin: string): Promise<MarkdownCa
   const response = await fetch(endpoint);
   if (!response.ok) throw new Error(`GET ${endpoint} returned HTTP ${response.status}.`);
   const bundle = Schema.decodeUnknownSync(Schema.fromJsonString(CaptureBundle))(
-    await response.text(), { onExcessProperty: "error" },
+    await response.text(),
+    { onExcessProperty: "error" },
   );
   const canonical = new URL(bundle.origin);
   if (!/^https?:$/.test(canonical.protocol) || canonical.origin !== bundle.origin)

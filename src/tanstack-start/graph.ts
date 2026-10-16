@@ -12,10 +12,20 @@ import type { ClaimsOptions } from "../decide/families/claims";
 import type { RouteNode } from "@tanstack/router-generator";
 
 import { globToRegExp } from "../core/checks";
-import { buildSeoGraph, type OgImageResolver, type SeoCollection, type SeoGraph, type SeoRouteNode } from "../core/graph";
+import {
+  buildSeoGraph,
+  type OgImageResolver,
+  type SeoCollection,
+  type SeoGraph,
+  type SeoRouteNode,
+} from "../core/graph";
 import type { RobotsConfig } from "../core/projections";
 import type { SiteRuntime } from "../config/vite-graph-loader";
-import { deriveRouteConfig, resolveOptions, type SeoRouteConfigOptions } from "../vite/route-config";
+import {
+  deriveRouteConfig,
+  resolveOptions,
+  type SeoRouteConfigOptions,
+} from "../vite/route-config";
 import { scanRoutes, type ScannedRoutes } from "./routes";
 import { decodeFacts, type Facts } from "../markdown/facts";
 
@@ -59,7 +69,9 @@ export interface PagegraphOptions {
    */
   readonly collections?: string | undefined;
   /** Canonical origin for rendered documents; serverEntry is relative to the Vite root. */
-  readonly markdown?: { readonly origin: string; readonly serverEntry?: string | undefined } | undefined;
+  readonly markdown?:
+    | { readonly origin: string; readonly serverEntry?: string | undefined }
+    | undefined;
   /** Committed claims answers gate the rendered documents and graph heads at build time. */
   readonly claims?: ClaimsOptions | undefined;
   /** Root-relative module exporting the code-owned document facts. */
@@ -84,16 +96,21 @@ export interface GraphModuleRunner {
   import(url: string): Promise<Record<string, unknown>>;
 }
 
-
 const GRAPH_ROUTE_TYPES = new Set(["__root", "static", "layout", "pathless_layout"]);
 
-const messageOf = (cause: unknown): string => (cause instanceof Error ? cause.message : String(cause));
+const messageOf = (cause: unknown): string =>
+  cause instanceof Error ? cause.message : String(cause);
 
-const routeStaticData = (module: Record<string, unknown>, file: string): SeoRouteNode["options"]["staticData"] => {
+const routeStaticData = (
+  module: Record<string, unknown>,
+  file: string,
+): SeoRouteNode["options"]["staticData"] => {
   const route = module["Route"] as { options?: SeoRouteNode["options"] } | undefined;
   if (route?.options === undefined) throw new Error(`${file} has no \`Route\` export`);
   const data = route.options.staticData;
-  return data === undefined ? undefined : { seo: data.seo, markdown: data.markdown, llms: data.llms };
+  return data === undefined
+    ? undefined
+    : { seo: data.seo, markdown: data.markdown, llms: data.llms };
 };
 
 const loadCollections = async (
@@ -107,8 +124,10 @@ const loadCollections = async (
   });
   const exported = module["collections"];
   if (exported === undefined) throw new Error(`${path} has no \`collections\` export`);
-  const collections: unknown = typeof exported === "function" ? await (exported as () => unknown)() : exported;
-  if (!Array.isArray(collections)) throw new Error(`${path} \`collections\` must be an array or return one`);
+  const collections: unknown =
+    typeof exported === "function" ? await (exported as () => unknown)() : exported;
+  if (!Array.isArray(collections))
+    throw new Error(`${path} \`collections\` must be an array or return one`);
   return collections as ReadonlyArray<SeoCollection>;
 };
 
@@ -137,7 +156,8 @@ export async function planGraph(root: string, options: PagegraphOptions): Promis
     options,
     scan,
     routeFiles: [scan.root, ...scan.nodes].filter(participates).map((node) => node.fullPath),
-    collectionsFile: options.collections === undefined ? undefined : resolve(root, options.collections),
+    collectionsFile:
+      options.collections === undefined ? undefined : resolve(root, options.collections),
     factsFile: options.facts === undefined ? undefined : resolve(root, options.facts),
   };
 }
@@ -147,7 +167,9 @@ export async function planGraph(root: string, options: PagegraphOptions): Promis
  * groups, pathless layouts, and trailing underscores contribute no segment.
  */
 const publicSegment = (node: RouteNode): string | undefined =>
-  node.isNonPath === true || node.cleanedPath === undefined || node.cleanedPath === "" ? undefined : node.cleanedPath;
+  node.isNonPath === true || node.cleanedPath === undefined || node.cleanedPath === ""
+    ? undefined
+    : node.cleanedPath;
 
 /** Evaluate a plan's modules through `runner`, then build the graph and the site runtime. */
 export async function evaluateGraph(runner: GraphModuleRunner, plan: GraphPlan): Promise<AppGraph> {
@@ -156,7 +178,10 @@ export async function evaluateGraph(runner: GraphModuleRunner, plan: GraphPlan):
     await Promise.all(
       plan.routeFiles.map(async (fullPath) => {
         const file = relative(root, fullPath);
-        const routeFile = relative(resolve(root, options.routesDirectory ?? "src/routes"), fullPath);
+        const routeFile = relative(
+          resolve(root, options.routesDirectory ?? "src/routes"),
+          fullPath,
+        );
         const module = await runner.import(fullPath).catch((cause: unknown) => {
           throw new Error(
             `pagegraph could not evaluate ${file} in the graph environment: ${messageOf(cause)}\n` +
@@ -179,8 +204,15 @@ export async function evaluateGraph(runner: GraphModuleRunner, plan: GraphPlan):
   };
 
   const collections =
-    plan.collectionsFile === undefined ? [] : await loadCollections(runner, root, plan.collectionsFile);
-  const graph = buildSeoGraph({ routeTree, collections, origin: options.origin, ogImage: options.ogImage });
+    plan.collectionsFile === undefined
+      ? []
+      : await loadCollections(runner, root, plan.collectionsFile);
+  const graph = buildSeoGraph({
+    routeTree,
+    collections,
+    origin: options.origin,
+    ogImage: options.ogImage,
+  });
 
   const exclusions =
     options.routeConfig === undefined
@@ -209,5 +241,10 @@ export async function evaluateGraph(runner: GraphModuleRunner, plan: GraphPlan):
       throw new Error(`pagegraph could not evaluate ${path}: ${messageOf(cause)}`, { cause });
     }
   }
-  return { graph, site, markdown: options.markdown === undefined ? null : { origin: options.markdown.origin }, facts };
+  return {
+    graph,
+    site,
+    markdown: options.markdown === undefined ? null : { origin: options.markdown.origin },
+    facts,
+  };
 }

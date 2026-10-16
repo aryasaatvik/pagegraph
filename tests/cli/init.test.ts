@@ -45,12 +45,17 @@ describe("pagegraph init", () => {
     const root = mkdtempSync(join(tmpdir(), "pagegraph-init-runtime-"));
     directories.push(root);
     const preload = join(root, "deny-pi.ts");
-    writeFileSync(preload, `import { plugin } from "bun";
+    writeFileSync(
+      preload,
+      `import { plugin } from "bun";
 plugin({ name: "deny-pi", setup(build) {
   build.onLoad({ filter: /pi-(ai|agent-core)/ }, () => { throw new Error("Pi runtime must not load for init"); });
-} });`);
+} });`,
+    );
     const help = spawnSync("bun", ["--preload", preload, cli, "init", "--help"], {
-      cwd: root, encoding: "utf8", timeout: 20_000,
+      cwd: root,
+      encoding: "utf8",
+      timeout: 20_000,
     });
     expect(help.status, help.stderr).toBe(0);
     expect(help.stdout).toContain("workflows.agent");
@@ -75,7 +80,9 @@ plugin({ name: "deny-pi", setup(build) {
 
     expect(run(root, []).status).toBe(0);
     const config = join(root, ".pagegraph/agent/AGENTS.md");
-    expect(readFileSync(config, "utf8")).toContain('workflows.agent.presetDirectory: ".pagegraph/agent"');
+    expect(readFileSync(config, "utf8")).toContain(
+      'workflows.agent.presetDirectory: ".pagegraph/agent"',
+    );
     expect(readFileSync(join(root, ".pagegraph/agent/agents/seo.md"), "utf8")).toContain(
       "Research is read-only",
     );

@@ -50,8 +50,12 @@ const mockDecisionModel = (
         Effect.sync(() => {
           const decoded = state as unknown as DecodedState;
           onDecide?.(decoded, Object.keys(decisions));
-          const { realReason, anchorPresent, direction = "a_to_b", relevance = "useful" } =
-            answers(decoded);
+          const {
+            realReason,
+            anchorPresent,
+            direction = "a_to_b",
+            relevance = "useful",
+          } = answers(decoded);
           return {
             answers: {
               realReason: probability(realReason),
@@ -91,7 +95,9 @@ const record = (
     anchorPresent: 0.1,
     direction,
     relevance: relevanceOf(options.relevance ?? "useful"),
-    ...(direction === "b_to_a" ? { from: destinationUrl, to: sourceUrl } : { from: sourceUrl, to: destinationUrl }),
+    ...(direction === "b_to_a"
+      ? { from: destinationUrl, to: sourceUrl }
+      : { from: sourceUrl, to: destinationUrl }),
     verdict,
   };
 };
@@ -199,8 +205,16 @@ describe("applyBudget", () => {
   it("counts b_to_a candidates against the outbound page's budget", () => {
     const records = [
       record("/a", "recommend", { destinationUrl: "/z", direction: "b_to_a", relevance: "useful" }),
-      record("/b", "recommend", { destinationUrl: "/z", direction: "b_to_a", relevance: "essential" }),
-      record("/c", "recommend", { destinationUrl: "/z", direction: "b_to_a", relevance: "irrelevant" }),
+      record("/b", "recommend", {
+        destinationUrl: "/z",
+        direction: "b_to_a",
+        relevance: "essential",
+      }),
+      record("/c", "recommend", {
+        destinationUrl: "/z",
+        direction: "b_to_a",
+        relevance: "irrelevant",
+      }),
     ];
 
     // All three share the outbound page /z; the top two by relevance survive.

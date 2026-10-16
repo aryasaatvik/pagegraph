@@ -40,8 +40,7 @@ export interface RenderedGraph {
 
 const REGION_TAGS = new Set(["nav", "footer", "header"]);
 
-const TOKEN =
-  /<(\/?)(nav|footer|header)\b[^>]*>|<a\b([^>]*)>([\s\S]*?)<\/a>/gi;
+const TOKEN = /<(\/?)(nav|footer|header)\b[^>]*>|<a\b([^>]*)>([\s\S]*?)<\/a>/gi;
 
 // A real `href` attribute is preceded by whitespace (or the tag's start). The
 // boundary keeps `data-href`, `xhref`, and similar attributes from reading as
@@ -60,7 +59,7 @@ const decodeEntities = (value: string): string =>
     .replace(/&amp;/gi, "&")
     .replace(/&lt;/gi, "<")
     .replace(/&gt;/gi, ">")
-    .replace(/&quot;/gi, "\"")
+    .replace(/&quot;/gi, '"')
     .replace(/&#39;|&apos;/gi, "'");
 
 const anchorText = (value: string): string =>
@@ -318,9 +317,7 @@ export const diffLinkGraph = (
   const declaredNormalized = declared.map(normalizeEdge);
   const declaredKeys = new Set(declaredNormalized.map(edgeKey));
   const renderedKeys = new Set(rendered.contextualEdges.map(edgeKey));
-  const declaredNotRendered = declaredNormalized.filter(
-    (edge) => !renderedKeys.has(edgeKey(edge)),
-  );
+  const declaredNotRendered = declaredNormalized.filter((edge) => !renderedKeys.has(edgeKey(edge)));
   const renderedNotDeclared = rendered.internalEdges
     .filter((edge) => edge.region === "body")
     .map((edge) => normalizeEdge(edge))
@@ -361,7 +358,11 @@ export interface RenderedEdgeArtifactCrawl {
   /** Pages that failed to fetch; their outgoing anchors are missing. */
   readonly failures: ReadonlyArray<RenderedEdgeFailure>;
   /** Non-HTML responses from link-only discovery; these do not hide HTML pages. */
-  readonly nonHtml?: ReadonlyArray<{ readonly url: string; readonly finalUrl: string; readonly contentType: string }>;
+  readonly nonHtml?: ReadonlyArray<{
+    readonly url: string;
+    readonly finalUrl: string;
+    readonly contentType: string;
+  }>;
   readonly discoveryFailures?: ReadonlyArray<RenderedEdgeFailure>;
   readonly skipped?: ReadonlyArray<string>;
   readonly sitemapTruncated?: boolean;
@@ -505,15 +506,28 @@ export const decodeRenderedEdgeArtifact = (input: unknown): RenderedEdgeArtifact
     throw new Error("rendered-edge artifact `crawl.truncated` must be a boolean");
   }
   const skipped = provenance["skipped"];
-  if (skipped !== undefined && (!Array.isArray(skipped) || !skipped.every((url) => typeof url === "string"))) {
+  if (
+    skipped !== undefined &&
+    (!Array.isArray(skipped) || !skipped.every((url) => typeof url === "string"))
+  ) {
     throw new Error("rendered-edge artifact `crawl.skipped` must be an array of URLs");
   }
   const nonHtml = provenance["nonHtml"];
-  if (nonHtml !== undefined && (!Array.isArray(nonHtml) || !nonHtml.every((item) =>
-    item !== null && typeof item === "object" &&
-    typeof item.url === "string" && typeof item.finalUrl === "string" && typeof item.contentType === "string"
-  ))) {
-    throw new Error("rendered-edge artifact `crawl.nonHtml` must be an array of { url, finalUrl, contentType }");
+  if (
+    nonHtml !== undefined &&
+    (!Array.isArray(nonHtml) ||
+      !nonHtml.every(
+        (item) =>
+          item !== null &&
+          typeof item === "object" &&
+          typeof item.url === "string" &&
+          typeof item.finalUrl === "string" &&
+          typeof item.contentType === "string",
+      ))
+  ) {
+    throw new Error(
+      "rendered-edge artifact `crawl.nonHtml` must be an array of { url, finalUrl, contentType }",
+    );
   }
   if (Array.isArray(nonHtml)) {
     for (const item of nonHtml) {
@@ -539,11 +553,25 @@ export const decodeRenderedEdgeArtifact = (input: unknown): RenderedEdgeArtifact
       bodyTruncated: bodyTruncated === true,
       truncatedPages: (truncatedPages as ReadonlyArray<string> | undefined) ?? [],
       failures: decodeArtifactFailures(provenance["failures"]),
-      ...(nonHtml === undefined ? {} : { nonHtml: nonHtml as ReadonlyArray<{ url: string; finalUrl: string; contentType: string }> }),
-      ...(provenance["discoveryFailures"] === undefined ? {} : { discoveryFailures: decodeArtifactFailures(provenance["discoveryFailures"]) }),
+      ...(nonHtml === undefined
+        ? {}
+        : {
+            nonHtml: nonHtml as ReadonlyArray<{
+              url: string;
+              finalUrl: string;
+              contentType: string;
+            }>,
+          }),
+      ...(provenance["discoveryFailures"] === undefined
+        ? {}
+        : { discoveryFailures: decodeArtifactFailures(provenance["discoveryFailures"]) }),
       ...(skipped === undefined ? {} : { skipped: skipped as ReadonlyArray<string> }),
-      ...(provenance["sitemapTruncated"] === undefined ? {} : { sitemapTruncated: provenance["sitemapTruncated"] as boolean }),
-      ...(provenance["sitemapUsed"] === undefined ? {} : { sitemapUsed: provenance["sitemapUsed"] as boolean }),
+      ...(provenance["sitemapTruncated"] === undefined
+        ? {}
+        : { sitemapTruncated: provenance["sitemapTruncated"] as boolean }),
+      ...(provenance["sitemapUsed"] === undefined
+        ? {}
+        : { sitemapUsed: provenance["sitemapUsed"] as boolean }),
     },
     nodes: decodeArtifactNodes(value["nodes"]),
     edges: decodeArtifactEdges(value["edges"]),

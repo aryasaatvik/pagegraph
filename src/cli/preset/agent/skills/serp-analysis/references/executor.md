@@ -11,7 +11,7 @@ TypeScript input and result shapes:
 Pass a TypeScript snippet to `executor_execute`, replacing `discovered_namespace`, `discovered_tool`, and
 arguments with the returned names and required fields:
 
-~~~ts
+```ts
 return await tools.discovered_namespace.discovered_tool({
   query,
   market,
@@ -19,7 +19,7 @@ return await tools.discovered_namespace.discovered_tool({
   device,
   depth: 20,
 });
-~~~
+```
 
 Reuse a matching cached OpenSEO SERP when it satisfies the requested freshness. Record query,
 market, language, device, collection time, depth, features, task status, errors, and cost. Fetch

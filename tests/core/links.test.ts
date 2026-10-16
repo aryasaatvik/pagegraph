@@ -105,7 +105,12 @@ describe("buildRenderedGraph", () => {
     {
       url: "https://example.com/",
       anchors: [
-        { href: "https://example.com/compare", text: "compare", region: "body" as const, internal: true },
+        {
+          href: "https://example.com/compare",
+          text: "compare",
+          region: "body" as const,
+          internal: true,
+        },
         { href: "https://example.com/nav", text: "nav", region: "nav" as const, internal: true },
       ],
     },
@@ -113,7 +118,12 @@ describe("buildRenderedGraph", () => {
       url: "https://example.com/compare",
       anchors: [
         { href: "https://example.com/", text: "home", region: "body" as const, internal: true },
-        { href: "https://example.com/orphan", text: "o", region: "footer" as const, internal: true },
+        {
+          href: "https://example.com/orphan",
+          text: "o",
+          region: "footer" as const,
+          internal: true,
+        },
       ],
     },
     {
@@ -230,11 +240,11 @@ describe("renderedGraphFromEdges", () => {
   it("keeps an edge-less rendered page as a node when its path set is supplied", () => {
     // A redirect target with no internal links: the live crawl knows it rendered,
     // but the edge list alone cannot see it.
-    const graph = renderedGraphFromEdges(
-      [{ from: "/", to: "/leaf", region: "nav" }],
+    const graph = renderedGraphFromEdges([{ from: "/", to: "/leaf", region: "nav" }], "/", [
       "/",
-      ["/", "/leaf", "/canonical"],
-    );
+      "/leaf",
+      "/canonical",
+    ]);
     expect(graph.nodes).toEqual(["/", "/leaf", "/canonical"]);
     expect(graph.orphans).toEqual(["/canonical"]);
   });

@@ -17,11 +17,13 @@ afterEach(() => {
   }
 });
 
-const report = (options: {
-  readonly generatedAt?: string;
-  readonly finding?: AuditFinding;
-  readonly evidence?: unknown;
-} = {}): AuditReport => {
+const report = (
+  options: {
+    readonly generatedAt?: string;
+    readonly finding?: AuditFinding;
+    readonly evidence?: unknown;
+  } = {},
+): AuditReport => {
   const findings = options.finding === undefined ? [] : [options.finding];
   return {
     schemaVersion: 1,
@@ -41,28 +43,17 @@ const report = (options: {
   };
 };
 
-const runDiff = (
-  before: AuditReport | string,
-  after: AuditReport | string,
-  json = true,
-) => {
+const runDiff = (before: AuditReport | string, after: AuditReport | string, json = true) => {
   const directory = mkdtempSync(join(tmpdir(), "seo-diff-test-"));
   temporaryDirectories.push(directory);
   const beforePath = join(directory, "before.json");
   const afterPath = join(directory, "after.json");
-  writeFileSync(
-    beforePath,
-    typeof before === "string" ? before : JSON.stringify(before),
-  );
-  writeFileSync(
-    afterPath,
-    typeof after === "string" ? after : JSON.stringify(after),
-  );
-  return spawnSync(
-    "bun",
-    [cli, "diff", beforePath, afterPath, ...(json ? ["--json"] : [])],
-    { encoding: "utf8", timeout: 10_000 },
-  );
+  writeFileSync(beforePath, typeof before === "string" ? before : JSON.stringify(before));
+  writeFileSync(afterPath, typeof after === "string" ? after : JSON.stringify(after));
+  return spawnSync("bun", [cli, "diff", beforePath, afterPath, ...(json ? ["--json"] : [])], {
+    encoding: "utf8",
+    timeout: 10_000,
+  });
 };
 
 const structuralFinding: AuditFinding = {
@@ -105,11 +96,7 @@ describe("seo diff", () => {
   });
 
   it("renders the human comparison on stdout", () => {
-    const result = runDiff(
-      report(),
-      report({ finding: structuralFinding }),
-      false,
-    );
+    const result = runDiff(report(), report({ finding: structuralFinding }), false);
 
     expect(result.status).toBe(1);
     expect(result.stdout).toContain("# SEO audit diff");

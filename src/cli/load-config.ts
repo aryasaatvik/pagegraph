@@ -23,7 +23,11 @@ import type { CoverageRule } from "../core/checks";
 import type { SeoGraph } from "../core/graph";
 import { SeoCliError } from "./output";
 
-const CONFIG_FILENAMES = ["pagegraph.config.ts", "pagegraph.config.js", "pagegraph.config.mjs"] as const;
+const CONFIG_FILENAMES = [
+  "pagegraph.config.ts",
+  "pagegraph.config.js",
+  "pagegraph.config.mjs",
+] as const;
 const LEGACY_CONFIG_FILENAMES = ["seo.config.ts", "seo.config.js", "seo.config.mjs"] as const;
 
 const messageOf = (cause: unknown): string =>
@@ -95,7 +99,9 @@ const isOgImagePolicy = (value: unknown): boolean =>
   Predicate.isObject(value) &&
   Object.keys(value).every((key) => key === "severity" || key === "publicDirectory") &&
   (value["severity"] === undefined ||
-    value["severity"] === "structural" || value["severity"] === "editorial" || value["severity"] === "off") &&
+    value["severity"] === "structural" ||
+    value["severity"] === "editorial" ||
+    value["severity"] === "off") &&
   (value["publicDirectory"] === undefined ||
     (Predicate.isString(value["publicDirectory"]) && value["publicDirectory"].trim().length > 0));
 
@@ -173,9 +179,10 @@ const loadConfigFile = (configPath: string): Effect.Effect<SeoCliConfig, SeoCliE
         ? Object.keys(module.default).find((key) => !CLI_CONFIG_FIELDS.has(key))
         : undefined;
       return yield* new SeoCliError({
-        message: duplicatedField === undefined
-          ? `${configPath} must default-export defineSeoConfig({ loadGraph }).`
-          : `${configPath} contains unsupported field "${duplicatedField}"; pagegraph.config.ts accepts only CLI fields, while site identity and plugin options belong to the graph loader and pagegraph() in vite.config.ts.`,
+        message:
+          duplicatedField === undefined
+            ? `${configPath} must default-export defineSeoConfig({ loadGraph }).`
+            : `${configPath} contains unsupported field "${duplicatedField}"; pagegraph.config.ts accepts only CLI fields, while site identity and plugin options belong to the graph loader and pagegraph() in vite.config.ts.`,
       });
     }
     return module.default;
@@ -253,7 +260,8 @@ export const acquireLoadedGraph = (
             disposeFailure = cause;
           }
         }
-        const contractError = "The graph loader must return { graph, site: { origin, indexable, robots }, dispose }.";
+        const contractError =
+          "The graph loader must return { graph, site: { origin, indexable, robots }, dispose }.";
         throw new Error(
           disposeFailure === undefined
             ? contractError
@@ -293,7 +301,8 @@ const isLoadedSeoGraph = (value: unknown): value is LoadedSeoGraph => {
     !Array.isArray(value["graph"]["edges"]) ||
     !Predicate.isFunction(value["dispose"]) ||
     !Predicate.isObject(value["site"])
-  ) return false;
+  )
+    return false;
   const site = value["site"];
   const robots = site["robots"];
   let canonicalOrigin = false;
@@ -301,8 +310,7 @@ const isLoadedSeoGraph = (value: unknown): value is LoadedSeoGraph => {
     try {
       const url = new URL(site["origin"]);
       canonicalOrigin =
-        (url.protocol === "http:" || url.protocol === "https:") &&
-        url.origin === site["origin"];
+        (url.protocol === "http:" || url.protocol === "https:") && url.origin === site["origin"];
     } catch {
       canonicalOrigin = false;
     }

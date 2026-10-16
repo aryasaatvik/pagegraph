@@ -33,7 +33,7 @@ const paper = tegami({
     },
   },
   packages: {
-    "pagegraph": {},
+    pagegraph: {},
   },
   plugins: [
     github({

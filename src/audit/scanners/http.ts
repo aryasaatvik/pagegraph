@@ -10,19 +10,8 @@ import * as Effect from "effect/Effect";
 
 import { checkPageContent, extractPageContent } from "../../core/content";
 import { extractAnchors } from "../../core/links";
-import type {
-  DocumentSignals,
-  HttpProbe,
-  ProbeKind,
-  ProbeOptions,
-  ProbeRequest,
-} from "../model";
-import {
-  networkHostname,
-  pinnedLookup,
-  resolveTargetUrl,
-  type HostResolver,
-} from "../network";
+import type { DocumentSignals, HttpProbe, ProbeKind, ProbeOptions, ProbeRequest } from "../model";
+import { networkHostname, pinnedLookup, resolveTargetUrl, type HostResolver } from "../network";
 import { ScannerFailure, type Scanner, type ScannerInput } from "../scanner";
 
 export class HttpProbeError extends Data.TaggedError("HttpProbeError")<{
@@ -117,34 +106,24 @@ export const buildProbeRequests = (
   return requests;
 };
 
-const responseHeaders = (
-  headers: IncomingHttpHeaders,
-): Readonly<Record<string, string>> => {
+const responseHeaders = (headers: IncomingHttpHeaders): Readonly<Record<string, string>> => {
   const values: Record<string, string> = {};
   for (const header of selectedHeaders) {
     const value = headers[header];
-    if (value !== undefined)
-      values[header] = Array.isArray(value) ? value.join(", ") : value;
+    if (value !== undefined) values[header] = Array.isArray(value) ? value.join(", ") : value;
   }
   return values;
 };
 
 const attribute = (tag: string, name: string): string | null => {
-  const match = new RegExp(
-    `${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s>]+))`,
-    "i",
-  ).exec(tag);
+  const match = new RegExp(`${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s>]+))`, "i").exec(tag);
   return match?.[1] ?? match?.[2] ?? match?.[3] ?? null;
 };
 
-const metaContent = (
-  html: string,
-  key: "description" | "robots",
-): string | null => {
+const metaContent = (html: string, key: "description" | "robots"): string | null => {
   for (const match of html.matchAll(/<meta\b[^>]*>/gi)) {
     const tag = match[0];
-    if (attribute(tag, "name")?.toLowerCase() === key)
-      return attribute(tag, "content");
+    if (attribute(tag, "name")?.toLowerCase() === key) return attribute(tag, "content");
   }
   return null;
 };
@@ -152,11 +131,7 @@ const metaContent = (
 const canonicalUrl = (html: string): string | null => {
   for (const match of html.matchAll(/<link\b[^>]*>/gi)) {
     const tag = match[0];
-    if (
-      (attribute(tag, "rel")?.toLowerCase().split(/\s+/) ?? []).includes(
-        "canonical",
-      )
-    )
+    if ((attribute(tag, "rel")?.toLowerCase().split(/\s+/) ?? []).includes("canonical"))
       return attribute(tag, "href");
   }
   return null;
@@ -173,14 +148,11 @@ export const extractDocumentSignals = (
 ): DocumentSignals => {
   const isHtml = contentType.includes("text/html") || contentType.includes("application/xhtml+xml");
   const isMarkdown = contentType.includes("text/markdown");
-  const looksJson =
-    contentType.includes("json") || requestedUrl.pathname.endsWith(".json");
+  const looksJson = contentType.includes("json") || requestedUrl.pathname.endsWith(".json");
   // Content rules judge the whole document; a truncated body could hide the H1
   // or FAQ answer they look for, so it gets no verdict at all.
   const content = isHtml && !bodyTruncated ? extractPageContent(body) : null;
-  const titleMatch = isHtml
-    ? /<title\b[^>]*>([\s\S]*?)<\/title>/i.exec(body)
-    : null;
+  const titleMatch = isHtml ? /<title\b[^>]*>([\s\S]*?)<\/title>/i.exec(body) : null;
   let jsonValid: boolean | null = null;
   if (looksJson && body.trim().length > 0) {
     try {
@@ -196,23 +168,14 @@ export const extractDocumentSignals = (
     canonicalUrl: isHtml ? canonicalUrl(body) : null,
     robots: isHtml ? metaContent(body, "robots") : null,
     jsonLdCount: isHtml
-      ? countMatches(
-          body,
-          /<script\b[^>]*type\s*=\s*["']application\/ld\+json["'][^>]*>/gi,
-        )
+      ? countMatches(body, /<script\b[^>]*type\s*=\s*["']application\/ld\+json["'][^>]*>/gi)
       : 0,
     modulePreloadCount: isHtml
-      ? countMatches(
-          body,
-          /<link\b[^>]*rel\s*=\s*["'][^"']*modulepreload[^"']*["'][^>]*>/gi,
-        )
+      ? countMatches(body, /<link\b[^>]*rel\s*=\s*["'][^"']*modulepreload[^"']*["'][^>]*>/gi)
       : 0,
     scriptCount: isHtml ? countMatches(body, /<script\b/gi) : 0,
     stylesheetCount: isHtml
-      ? countMatches(
-          body,
-          /<link\b[^>]*rel\s*=\s*["'][^"']*stylesheet[^"']*["'][^>]*>/gi,
-        )
+      ? countMatches(body, /<link\b[^>]*rel\s*=\s*["'][^"']*stylesheet[^"']*["'][^>]*>/gi)
       : 0,
     wordCount: isMarkdown
       ? body.trim().split(/\s+/).filter(Boolean).length
@@ -270,11 +233,7 @@ const requestPinned = async (
   request: ProbeRequest,
   options: ProbeOptions & { readonly resolve?: HostResolver },
 ): Promise<IncomingMessage> => {
-  const addresses = await resolveTargetUrl(
-    url,
-    options.allowPrivate,
-    options.resolve,
-  );
+  const addresses = await resolveTargetUrl(url, options.allowPrivate, options.resolve);
   const transport = url.protocol === "https:" ? requestHttps : requestHttp;
   const hostname = networkHostname(url.hostname);
   return new Promise((resolve, reject) => {
@@ -290,9 +249,10 @@ const requestPinned = async (
       },
       agent: false,
       lookup: pinnedLookup(addresses),
-      signal: options.signal === undefined
-        ? AbortSignal.timeout(options.timeoutMs)
-        : AbortSignal.any([options.signal, AbortSignal.timeout(options.timeoutMs)]),
+      signal:
+        options.signal === undefined
+          ? AbortSignal.timeout(options.timeoutMs)
+          : AbortSignal.any([options.signal, AbortSignal.timeout(options.timeoutMs)]),
       ...(url.protocol === "https:"
         ? {
             servername: isIP(hostname) === 0 ? hostname : undefined,
@@ -336,19 +296,17 @@ export const probeHttp = async (
       currentUrl = new URL(location, currentUrl);
       redirects.push(currentUrl.href);
     }
-    if (response === null)
-      throw new Error("Request did not produce a response");
+    if (response === null) throw new Error("Request did not produce a response");
     const bounded =
       request.method === "HEAD"
         ? { bytes: new Uint8Array(), truncated: false }
         : await readBoundedBody(response, options.maxBodyBytes);
     const contentType =
-      typeof response.headers["content-type"] === "string"
-        ? response.headers["content-type"]
-        : "";
+      typeof response.headers["content-type"] === "string" ? response.headers["content-type"] : "";
     const body = new TextDecoder().decode(bounded.bytes);
     const anchors =
-      options.captureAnchors === true && (contentType === "" || /text\/html|application\/xhtml\+xml/i.test(contentType))
+      options.captureAnchors === true &&
+      (contentType === "" || /text\/html|application\/xhtml\+xml/i.test(contentType))
         ? extractAnchors(body, currentUrl.href)
         : undefined;
     return {
@@ -363,10 +321,7 @@ export const probeHttp = async (
         response.statusCode !== undefined &&
         response.statusCode >= 200 &&
         response.statusCode < 300,
-      headersMs:
-        headersAt === null
-          ? null
-          : Math.round((headersAt - startedAt) * 10) / 10,
+      headersMs: headersAt === null ? null : Math.round((headersAt - startedAt) * 10) / 10,
       totalMs: Math.round((performance.now() - startedAt) * 10) / 10,
       responseHeaders: responseHeaders(response.headers),
       capturedBodyBytes: bounded.bytes.byteLength,
@@ -394,10 +349,7 @@ export const probeHttp = async (
       redirects,
       status: null,
       ok: false,
-      headersMs:
-        headersAt === null
-          ? null
-          : Math.round((headersAt - startedAt) * 10) / 10,
+      headersMs: headersAt === null ? null : Math.round((headersAt - startedAt) * 10) / 10,
       totalMs: Math.round((performance.now() - startedAt) * 10) / 10,
       responseHeaders: {},
       capturedBodyBytes: 0,
@@ -419,20 +371,15 @@ export const probeAll = async (
     length: requests.length,
   });
   const pending = requests.map((request, index) => ({ index, request }));
-  const workers = Array.from(
-    { length: Math.min(4, Math.max(1, pending.length)) },
-    async () => {
-      while (pending.length > 0) {
-        const item = pending.shift();
-        if (item !== undefined)
-          results[item.index] = await probeHttp(item.request, options);
-      }
-    },
-  );
+  const workers = Array.from({ length: Math.min(4, Math.max(1, pending.length)) }, async () => {
+    while (pending.length > 0) {
+      const item = pending.shift();
+      if (item !== undefined) results[item.index] = await probeHttp(item.request, options);
+    }
+  });
   await Promise.all(workers);
   return results.map((result, index) => {
-    if (result === undefined)
-      throw new Error(`Probe ${index} did not produce a result`);
+    if (result === undefined) throw new Error(`Probe ${index} did not produce a result`);
     return result;
   });
 };
@@ -444,8 +391,7 @@ export const probeHttpEffect = Effect.fn("SeoAudit.probeHttp")(function* (
 ) {
   return yield* Effect.tryPromise({
     try: () => probeHttp(request, options),
-    catch: (cause) =>
-      new HttpProbeError({ message: errorMessage(cause), cause }),
+    catch: (cause) => new HttpProbeError({ message: errorMessage(cause), cause }),
   });
 });
 
@@ -465,8 +411,7 @@ export const makeHttpScanner = (
     Effect.fn("SeoAudit.scanHttp")(function* () {
       const target = new URL(input.target.url);
       const evidence = yield* Effect.tryPromise({
-        try: () =>
-          probeAll(buildProbeRequests([target], options.discovery), options),
+        try: () => probeAll(buildProbeRequests([target], options.discovery), options),
         catch: (cause) =>
           new ScannerFailure({
             scanner: "http",

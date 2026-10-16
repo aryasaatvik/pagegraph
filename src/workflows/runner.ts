@@ -5,9 +5,17 @@ import type { AnyWorkflowSpec } from "./specs/types";
 
 export interface WorkflowRunner {
   readonly model: { readonly provider: string; readonly id: string };
-  research(spec: AnyWorkflowSpec, prompt: string, options: { readonly signal: AbortSignal }): Promise<RunnerResult>;
+  research(
+    spec: AnyWorkflowSpec,
+    prompt: string,
+    options: { readonly signal: AbortSignal },
+  ): Promise<RunnerResult>;
   /** Continue the research conversation to submit structured edits; the runner never writes source files. */
-  act(spec: AnyWorkflowSpec, prompt: string, options: { readonly signal: AbortSignal }): Promise<RunnerResult>;
+  act(
+    spec: AnyWorkflowSpec,
+    prompt: string,
+    options: { readonly signal: AbortSignal },
+  ): Promise<RunnerResult>;
   close(): Promise<void>;
 }
 

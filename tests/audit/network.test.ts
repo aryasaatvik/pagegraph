@@ -13,9 +13,7 @@ import {
 import { startAuditProxy, type AuditProxy } from "../../src/audit/proxy";
 
 const closeServer = (server: Server): Promise<void> =>
-  new Promise((resolve, reject) =>
-    server.close((error) => (error ? reject(error) : resolve())),
-  );
+  new Promise((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
 
 const listen = async (server: Server): Promise<number> => {
   await new Promise<void>((resolve, reject) => {
@@ -23,15 +21,11 @@ const listen = async (server: Server): Promise<number> => {
     server.listen(0, "127.0.0.1", resolve);
   });
   const address = server.address();
-  if (address === null || typeof address === "string")
-    throw new Error("Test server did not bind");
+  if (address === null || typeof address === "string") throw new Error("Test server did not bind");
   return address.port;
 };
 
-const requestThroughProxy = async (
-  proxyUrl: string,
-  targetUrl: string,
-): Promise<string> => {
+const requestThroughProxy = async (proxyUrl: string, targetUrl: string): Promise<string> => {
   const proxy = new URL(proxyUrl);
   return new Promise((resolve, reject) => {
     const request = requestHttp({
@@ -43,9 +37,7 @@ const requestThroughProxy = async (
     request.once("response", (response) => {
       const chunks: Array<Buffer> = [];
       response.on("data", (chunk: Buffer) => chunks.push(chunk));
-      response.once("end", () =>
-        resolve(Buffer.concat(chunks).toString("utf8")),
-      );
+      response.once("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
     });
     request.once("error", reject);
     request.end();
@@ -92,11 +84,7 @@ describe("SEO audit network boundary", () => {
         ? [{ address: "93.184.216.34", family: 4 }]
         : [{ address: "127.0.0.1", family: 4 }];
     };
-    const addresses = await resolveTargetUrl(
-      new URL("https://rebind.test"),
-      false,
-      resolve,
-    );
+    const addresses = await resolveTargetUrl(new URL("https://rebind.test"), false, resolve);
     const lookup = pinnedLookup(addresses);
     const pinned = await new Promise<unknown>((resolveLookup, reject) =>
       lookup("rebind.test", { all: true }, (error, address) =>
@@ -136,15 +124,10 @@ describe("SEO audit network boundary", () => {
       const socket = connect(Number(proxyAddress.port), proxyAddress.hostname);
       let received = "";
       socket.setEncoding("utf8");
-      socket.once("connect", () =>
-        socket.write(`CONNECT public.test:${port} HTTP/1.1\r\n\r\n`),
-      );
+      socket.once("connect", () => socket.write(`CONNECT public.test:${port} HTTP/1.1\r\n\r\n`));
       socket.on("data", (chunk: string) => {
         received += chunk;
-        if (
-          received.includes("200 Connection Established") &&
-          !received.includes("GET /tunnel")
-        ) {
+        if (received.includes("200 Connection Established") && !received.includes("GET /tunnel")) {
           socket.write(
             `GET /tunnel HTTP/1.1\r\nHost: public.test:${port}\r\nConnection: close\r\n\r\n`,
           );
@@ -171,22 +154,27 @@ describe("SEO audit network boundary", () => {
     });
     proxies.push(proxy);
 
-    await expect(
-      requestThroughProxy(proxy.url, `http://mapped.test:${port}/`),
-    ).resolves.toContain("Private target is not allowed");
+    await expect(requestThroughProxy(proxy.url, `http://mapped.test:${port}/`)).resolves.toContain(
+      "Private target is not allowed",
+    );
     expect(destinationRequests).toBe(0);
   });
 
   it("closes proxy clients while DNS resolution is pending without a direct fallback", async () => {
     let resolutionStarted!: () => void;
-    const resolving = new Promise<void>((resolve) => { resolutionStarted = resolve; });
+    const resolving = new Promise<void>((resolve) => {
+      resolutionStarted = resolve;
+    });
     let finishResolution!: () => void;
     const resolution = new Promise<Awaited<ReturnType<HostResolver>>>((resolve) => {
       finishResolution = () => resolve([{ address: "1.2.3.4", family: 4 }]);
     });
     const proxy = await startAuditProxy({
       allowPrivate: false,
-      resolve: () => { resolutionStarted(); return resolution; },
+      resolve: () => {
+        resolutionStarted();
+        return resolution;
+      },
     });
     proxies.push(proxy);
     const proxyAddress = new URL(proxy.url);
@@ -195,13 +183,15 @@ describe("SEO audit network boundary", () => {
     const clientClosed = new Promise<void>((resolveClose) => {
       const socket = connect(Number(proxyAddress.port), proxyAddress.hostname);
       socket.setEncoding("utf8");
-      socket.on("data", (chunk: string) => { received += chunk; });
-      socket.once("connect", () =>
-        socket.write("CONNECT public.test:65000 HTTP/1.1\r\n\r\n"),
-      );
+      socket.on("data", (chunk: string) => {
+        received += chunk;
+      });
+      socket.once("connect", () => socket.write("CONNECT public.test:65000 HTTP/1.1\r\n\r\n"));
       socket.once("close", () => resolveClose());
       // Abrupt shutdown may reset the TCP connection before emitting close.
-      socket.once("error", (error: NodeJS.ErrnoException) => { errors.push(error); });
+      socket.once("error", (error: NodeJS.ErrnoException) => {
+        errors.push(error);
+      });
     });
     try {
       await resolving;
@@ -209,7 +199,9 @@ describe("SEO audit network boundary", () => {
       await expect(clientClosed).resolves.toBeUndefined();
       expect(errors.map((error) => error.code).filter((code) => code !== "ECONNRESET")).toEqual([]);
       expect(received).not.toContain("200 Connection Established");
-    } finally { finishResolution(); }
+    } finally {
+      finishResolution();
+    }
   });
 
   it("forces Chrome traffic through the validating proxy without direct fallbacks", () => {
@@ -217,9 +209,7 @@ describe("SEO audit network boundary", () => {
     expect(flags).toContain("--proxy-server=http://127.0.0.1:43123");
     expect(flags).toContain("--proxy-bypass-list=<-loopback>");
     expect(flags).toContain("--disable-quic");
-    expect(flags).toContain(
-      "--force-webrtc-ip-handling-policy=disable_non_proxied_udp",
-    );
+    expect(flags).toContain("--force-webrtc-ip-handling-policy=disable_non_proxied_udp");
     expect(flags).not.toContain("direct://");
   });
 });

@@ -17,10 +17,24 @@ const SOURCE_COMPONENTS = new Set(["T", "Title", "Section", "Visual", "ForAgents
 
 const parse = Effect.fn("DocumentSource.parse")(function* (code: string, id: string) {
   return yield* Effect.try({
-    try: () => parseAst(code, { lang: id.endsWith(".tsx") ? "tsx" : id.endsWith(".ts") ? "ts" : id.endsWith(".jsx") ? "jsx" : "js" }, id),
-    catch: (cause) => new DocumentSourceError({
-      message: `Cannot parse document source ${id}: ${cause instanceof Error ? cause.message : String(cause)}`,
-    }),
+    try: () =>
+      parseAst(
+        code,
+        {
+          lang: id.endsWith(".tsx")
+            ? "tsx"
+            : id.endsWith(".ts")
+              ? "ts"
+              : id.endsWith(".jsx")
+                ? "jsx"
+                : "js",
+        },
+        id,
+      ),
+    catch: (cause) =>
+      new DocumentSourceError({
+        message: `Cannot parse document source ${id}: ${cause instanceof Error ? cause.message : String(cause)}`,
+      }),
   });
 });
 

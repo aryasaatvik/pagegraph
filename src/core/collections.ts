@@ -40,7 +40,11 @@ export function contentCollection<Page extends { readonly url: string }>(
     instances: entries.map(({ related: _related, ...instance }) => instance),
     edges: [
       ...entries.flatMap((entry) =>
-        [...new Set(entry.related ?? [])].map((to): SeoEdge => ({ from: entry.path, to, type: "related" })),
+        [...new Set(entry.related ?? [])].map((to): SeoEdge => ({
+          from: entry.path,
+          to,
+          type: "related",
+        })),
       ),
       ...(options.edges ?? []),
     ],

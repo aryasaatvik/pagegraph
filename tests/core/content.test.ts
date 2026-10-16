@@ -81,7 +81,10 @@ describe("extractPageContent", () => {
     const content = extractPageContent(
       page({
         jsonLd: [
-          { "@context": "https://schema.org", "@graph": [{ "@type": "WebPage", name: "Email API pricing" }] },
+          {
+            "@context": "https://schema.org",
+            "@graph": [{ "@type": "WebPage", name: "Email API pricing" }],
+          },
           [{ "@type": "Product", offers: { "@type": "Offer", price: 19 } }],
         ],
       }),
@@ -110,10 +113,15 @@ describe("checkPageContent — headings", () => {
 
   it("flags a skipped heading level, including an outline that starts below h2", () => {
     const skips = checkPageContent(
-      extractPageContent(page({ main: "<h1>Email API pricing</h1><h2>A</h2><h4>B</h4><h2>C</h2><h3>D</h3>" })),
+      extractPageContent(
+        page({ main: "<h1>Email API pricing</h1><h2>A</h2><h4>B</h4><h2>C</h2><h3>D</h3>" }),
+      ),
     ).filter((finding) => finding.rule === "heading-level-skip");
     expect(skips).toEqual([
-      expect.objectContaining({ severity: "editorial", message: expect.stringContaining('h2 → h4 "B"') }),
+      expect.objectContaining({
+        severity: "editorial",
+        message: expect.stringContaining('h2 → h4 "B"'),
+      }),
     ]);
     expect(rulesOf(page({ main: "<h3>Deep first</h3><h1>Email API pricing</h1>" }))).toContain(
       "heading-level-skip",
@@ -127,10 +135,17 @@ describe("checkPageContent — headings", () => {
   it("warns when the H1 shares no significant term with the title", () => {
     expect(rulesOf(page({ main: "<h1>Start free today</h1>" }))).toContain("h1-title-mismatch");
     // Stopwords and plural folding do not count as, or hide, a shared topic.
-    expect(rulesOf(page({ main: "<h1>The prices of emails</h1>" }))).not.toContain("h1-title-mismatch");
+    expect(rulesOf(page({ main: "<h1>The prices of emails</h1>" }))).not.toContain(
+      "h1-title-mismatch",
+    );
     // Word forms of one stem agree.
     expect(
-      rulesOf(page({ head: "<title>Authenticate the API | Example</title>", main: "<h1>Authentication</h1>" })),
+      rulesOf(
+        page({
+          head: "<title>Authenticate the API | Example</title>",
+          main: "<h1>Authentication</h1>",
+        }),
+      ),
     ).not.toContain("h1-title-mismatch");
   });
 });
@@ -140,7 +155,11 @@ describe("checkPageContent — structured data against visible text", () => {
     "@context": "https://schema.org",
     "@type": "FAQPage",
     mainEntity: [
-      { "@type": "Question", name: "Is there a free plan?", acceptedAnswer: { "@type": "Answer", text: answer } },
+      {
+        "@type": "Question",
+        name: "Is there a free plan?",
+        acceptedAnswer: { "@type": "Answer", text: answer },
+      },
     ],
   });
 
@@ -254,12 +273,19 @@ describe("checkPageContent — structured data against visible text", () => {
 
   it("warns when a WebPage name or description drifts from the head", () => {
     const main = "<h1>Email API pricing</h1>";
-    const agreeing = { "@type": "WebPage", name: "Email API pricing", description: "Plans for every volume." };
+    const agreeing = {
+      "@type": "WebPage",
+      name: "Email API pricing",
+      description: "Plans for every volume.",
+    };
     expect(rulesOf(page({ main, jsonLd: [agreeing] }))).toEqual([]);
 
     const findings = checkPageContent(
       extractPageContent(
-        page({ main, jsonLd: [{ "@type": "WebPage", name: "Old pricing", description: "Stale copy." }] }),
+        page({
+          main,
+          jsonLd: [{ "@type": "WebPage", name: "Old pricing", description: "Stale copy." }],
+        }),
       ),
     );
     expect(findings.map((finding) => [finding.rule, finding.severity])).toEqual([
@@ -297,7 +323,12 @@ describe("checkRenderedContent", () => {
     ),
     edges: [],
   };
-  const ok = (path: string, html: string): RenderedDocument => ({ path, ok: true, finalPath: path, html });
+  const ok = (path: string, html: string): RenderedDocument => ({
+    path,
+    ok: true,
+    finalPath: path,
+    html,
+  });
 
   it("targets sitemap pages and concrete noindex pages, not templates or redirects", () => {
     expect(renderedCheckTargets(graph)).toEqual(["/pricing", "/features", "/compare"]);
@@ -308,7 +339,9 @@ describe("checkRenderedContent", () => {
       ok("/pricing", page({})),
       ok(
         "/compare",
-        page({ head: '<title>Compare | Example</title><meta name="robots" content="noindex, follow">' }),
+        page({
+          head: '<title>Compare | Example</title><meta name="robots" content="noindex, follow">',
+        }),
       ),
     ]);
     expect(violations).toEqual([]);
@@ -319,7 +352,9 @@ describe("checkRenderedContent", () => {
       { path: "/pricing", ok: false, error: "HTTP 500" },
       { path: "/features", ok: true, finalPath: "/", html: page({}) },
     ]);
-    expect(violations.map((violation) => [violation.rule, violation.path, violation.severity])).toEqual([
+    expect(
+      violations.map((violation) => [violation.rule, violation.path, violation.severity]),
+    ).toEqual([
       ["rendered-page-unavailable", "/pricing", "structural"],
       ["rendered-page-unavailable", "/features", "structural"],
     ]);
@@ -327,13 +362,19 @@ describe("checkRenderedContent", () => {
 
   it("holds rendered robots meta to the declaration in both directions", () => {
     const violations = checkRenderedContent(graph, [
-      ok("/pricing", page({ head: `${'<meta name="robots" content="noindex">'}<link rel="canonical" href="/pricing"><title>Email API pricing</title>` })),
+      ok(
+        "/pricing",
+        page({
+          head: `${'<meta name="robots" content="noindex">'}<link rel="canonical" href="/pricing"><title>Email API pricing</title>`,
+        }),
+      ),
       ok("/compare", page({ path: "/compare" })),
     ]);
-    expect(violations.filter((violation) => violation.rule === "rendered-robots-mismatch").map((violation) => violation.path)).toEqual([
-      "/pricing",
-      "/compare",
-    ]);
+    expect(
+      violations
+        .filter((violation) => violation.rule === "rendered-robots-mismatch")
+        .map((violation) => violation.path),
+    ).toEqual(["/pricing", "/compare"]);
   });
 
   it("requires a self-referencing canonical, compared by path so any host can serve the check", () => {
@@ -362,7 +403,10 @@ describe("checkRenderedContent", () => {
         { path: "/nowhere/*", minWords: 10 },
       ],
     });
-    expect(violations.map((violation) => violation.rule)).toEqual(["content-rule-unmatched", "thin-content"]);
+    expect(violations.map((violation) => violation.rule)).toEqual([
+      "content-rule-unmatched",
+      "thin-content",
+    ]);
     expect(violations[1]?.message).toBe("Main content has 6 words (min 50).");
   });
 });

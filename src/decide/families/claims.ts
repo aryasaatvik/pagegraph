@@ -3,7 +3,13 @@ import type * as Decision from "effect/ai/Decision";
 
 import { globToRegExp } from "../../core/checks";
 import type { PageHead } from "../../core/page-heads";
-import { HEAD_SECTION_ID, hashDocument, type Message, type PageDocument, type SectionDocument } from "../../markdown/document";
+import {
+  HEAD_SECTION_ID,
+  hashDocument,
+  type Message,
+  type PageDocument,
+  type SectionDocument,
+} from "../../markdown/document";
 import type { Facts } from "../../markdown/facts";
 import { sectionMarkdown } from "../../markdown/markdown";
 import type { DecisionFamily } from "../run";
@@ -23,15 +29,22 @@ export const claimsInput = Schema.Struct({
     id: Schema.String,
     kind: Schema.String,
     markdown: Schema.String,
-    messages: Schema.Array(Schema.Struct({
-      hash: Schema.String, text: Schema.String, facts: Schema.Array(Schema.String),
-    })),
+    messages: Schema.Array(
+      Schema.Struct({
+        hash: Schema.String,
+        text: Schema.String,
+        facts: Schema.Array(Schema.String),
+      }),
+    ),
   }),
   facts: Schema.Record(Schema.String, FactDefinition),
   context: Schema.optionalKey(Schema.String),
 });
 export type ClaimsInput = typeof claimsInput.Type;
-export type ClaimsRules = Decision.Definition<typeof claimsInput, Record<string, Decision.Probability>>;
+export type ClaimsRules = Decision.Definition<
+  typeof claimsInput,
+  Record<string, Decision.Probability>
+>;
 export interface ClaimsOptions {
   readonly rules: ClaimsRules;
   readonly model: string;
@@ -45,7 +58,8 @@ const ClaimsAnswers = Schema.Record(Schema.String, Schema.Struct({ probability: 
 
 /** Claims use a single upper cutoff; probabilities below it pass without a review band. */
 export function claimsFamily(rules: ClaimsRules): DecisionFamily<ClaimsInput> {
-  if (Object.keys(rules.decisions).length === 0) throw new Error("Claims need at least one decision rule");
+  if (Object.keys(rules.decisions).length === 0)
+    throw new Error("Claims need at least one decision rule");
   if (Object.values(rules.decisions).some((rule) => rule._tag !== "Probability"))
     throw new Error("Claims rules must be probability decisions");
   return {
@@ -54,8 +68,11 @@ export function claimsFamily(rules: ClaimsRules): DecisionFamily<ClaimsInput> {
     definitionFor: () => rules,
     inputRef: (input) => `${input.path} › ${input.section.id}`,
     evaluate: (_input, answers, cutoff): ClaimsVerdict =>
-      Object.values(Schema.decodeUnknownSync(ClaimsAnswers)(answers))
-        .some((answer) => answer.probability >= cutoff) ? "violation" : "pass",
+      Object.values(Schema.decodeUnknownSync(ClaimsAnswers)(answers)).some(
+        (answer) => answer.probability >= cutoff,
+      )
+        ? "violation"
+        : "pass",
   };
 }
 
@@ -86,10 +103,10 @@ export function resolveClaimsDocuments(
 function sectionMessages(section: SectionDocument): ReadonlyArray<Message> {
   return [
     ...(section.title === undefined ? [] : [section.title]),
-    ...section.body.flatMap((entry) => entry.type === "message" ? [entry.message] : []),
+    ...section.body.flatMap((entry) => (entry.type === "message" ? [entry.message] : [])),
     ...section.items.flatMap((item) => [
       ...(item.title === undefined ? [] : [item.title]),
-      ...item.body.flatMap((entry) => entry.type === "message" ? [entry.message] : []),
+      ...item.body.flatMap((entry) => (entry.type === "message" ? [entry.message] : [])),
       ...item.cells,
     ]),
   ];
@@ -106,21 +123,37 @@ export function claimsInputs(
   return resolveClaimsDocuments(documents, heads, options.excludeHeads).flatMap((document) => {
     const sections: ReadonlyArray<SectionDocument> = [
       ...document.sections,
-      ...(excludes.some((pattern) => pattern.test(document.path)) ? [] : [{
-        id: HEAD_SECTION_ID, kind: "head", claimsMarkdown: `${document.title}\n\n${document.description}`,
-        body: [], items: [], source: document.path, audience: "all" as const,
-      }]),
+      ...(excludes.some((pattern) => pattern.test(document.path))
+        ? []
+        : [
+            {
+              id: HEAD_SECTION_ID,
+              kind: "head",
+              claimsMarkdown: `${document.title}\n\n${document.description}`,
+              body: [],
+              items: [],
+              source: document.path,
+              audience: "all" as const,
+            },
+          ]),
     ];
     return sections.map((section) => {
-      const evidence = document.sections.filter((entry) => entry.evidence === true && entry !== section)
-        .map((entry) => entry.claimsMarkdown ?? sectionMarkdown(entry, { includeHumans: true })).join("\n\n");
+      const evidence = document.sections
+        .filter((entry) => entry.evidence === true && entry !== section)
+        .map((entry) => entry.claimsMarkdown ?? sectionMarkdown(entry, { includeHumans: true }))
+        .join("\n\n");
       return Schema.decodeUnknownSync(claimsInput)({
         path: document.path,
         ...(evidence === "" ? {} : { evidence }),
         section: {
-          id: section.id, kind: section.kind,
+          id: section.id,
+          kind: section.kind,
           markdown: section.claimsMarkdown ?? sectionMarkdown(section, { includeHumans: true }),
-          messages: sectionMessages(section).map(({ hash, text, facts }) => ({ hash, text, facts })),
+          messages: sectionMessages(section).map(({ hash, text, facts }) => ({
+            hash,
+            text,
+            facts,
+          })),
         },
         facts,
         ...(options.context === undefined ? {} : { context: options.context }),

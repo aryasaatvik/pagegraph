@@ -6,7 +6,9 @@ export const claims = {
   rules: Decision.make({
     input: claimsInput,
     decisions: {
-      unsupportedPromise: Decision.probability({ instructions: "Does the section promise an unsupported capability?" }),
+      unsupportedPromise: Decision.probability({
+        instructions: "Does the section promise an unsupported capability?",
+      }),
     },
   }),
 };

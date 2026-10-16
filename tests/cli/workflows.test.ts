@@ -24,7 +24,7 @@ describe("page-backed workflow command surface", () => {
     {
       group: "research",
       leaf: "competitors",
-      example: '--competitor resend.com',
+      example: "--competitor resend.com",
       flags: ["--competitor"],
     },
     { group: "research", leaf: "authority", example: "--domain example.com", flags: ["--domain"] },

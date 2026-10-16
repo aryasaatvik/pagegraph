@@ -49,10 +49,7 @@ const fakeFamily: DecisionFamily<FakeInput> = {
 const probability = (value: number) => ({ _tag: "Probability" as const, probability: value });
 
 /** Deterministic `DecisionModel` backed by a lookup; never the network. */
-const mockModel = (
-  answers: (state: FakeInput) => number,
-  onDecide?: (state: FakeInput) => void,
-) =>
+const mockModel = (answers: (state: FakeInput) => number, onDecide?: (state: FakeInput) => void) =>
   Layer.effect(
     DecisionModel.DecisionModel,
     DecisionModel.make({
@@ -173,9 +170,24 @@ describe("validCachedAnswers", () => {
     expect(validCachedAnswers(decisions, {})).toBe(false);
     expect(validCachedAnswers(decisions, { ...valid, p: { probability: -1 } })).toBe(false);
     expect(validCachedAnswers(decisions, { ...valid, p: { probability: null } })).toBe(false);
-    expect(validCachedAnswers(decisions, { ...valid, c: { label: "z", probabilities: { a: 0.9, b: 0.1 } } })).toBe(false);
-    expect(validCachedAnswers(decisions, { ...valid, c: { label: "a", probabilities: { a: 0.9, b: 0.9 } } })).toBe(false);
-    expect(validCachedAnswers(decisions, { ...valid, r: { rating: 5, label: "high", probabilities: { low: 0.1, high: 0.9 } } })).toBe(false);
+    expect(
+      validCachedAnswers(decisions, {
+        ...valid,
+        c: { label: "z", probabilities: { a: 0.9, b: 0.1 } },
+      }),
+    ).toBe(false);
+    expect(
+      validCachedAnswers(decisions, {
+        ...valid,
+        c: { label: "a", probabilities: { a: 0.9, b: 0.9 } },
+      }),
+    ).toBe(false);
+    expect(
+      validCachedAnswers(decisions, {
+        ...valid,
+        r: { rating: 5, label: "high", probabilities: { low: 0.1, high: 0.9 } },
+      }),
+    ).toBe(false);
     // Extra labels would leak into evaluators that scan the distribution.
     expect(
       validCachedAnswers(decisions, {
@@ -205,12 +217,19 @@ describe("decodeFamilyInputs", () => {
 describe("runDecisions", () => {
   it("answers every input and routes the review band to review", async () => {
     const seen: Array<string> = [];
-    const layer = mockModel((state) => values[state.id]!, (state) => seen.push(state.id));
+    const layer = mockModel(
+      (state) => values[state.id]!,
+      (state) => seen.push(state.id),
+    );
 
     const report = await Effect.runPromise(
-      runDecisions({ family: fakeFamily, inputs, model: "mock", threshold: 0.7, concurrency: 1 }).pipe(
-        Effect.provide(layer),
-      ),
+      runDecisions({
+        family: fakeFamily,
+        inputs,
+        model: "mock",
+        threshold: 0.7,
+        concurrency: 1,
+      }).pipe(Effect.provide(layer)),
     );
 
     expect(report.counts).toEqual({ inputs: 3, resolved: 2, review: 1 });
@@ -267,7 +286,12 @@ describe("runDecisions", () => {
       decisions: fakeFamily.definitionFor(input).decisions,
       inputHash: inputHash(input),
     });
-    const payloads = ["{}", '{"okay":{"probability":null}}', '{"okay":{"probability":5}}', '{"okay":{}}'];
+    const payloads = [
+      "{}",
+      '{"okay":{"probability":null}}',
+      '{"okay":{"probability":5}}',
+      '{"okay":{}}',
+    ];
 
     for (const payload of payloads) {
       const cacheDir = temporaryDirectory();
@@ -281,7 +305,14 @@ describe("runDecisions", () => {
           model: "mock",
           threshold: 0.7,
           cache: { directory: cacheDir, policy: "scratch" },
-        }).pipe(Effect.provide(mockModel((state) => values[state.id]!, () => calls++))),
+        }).pipe(
+          Effect.provide(
+            mockModel(
+              (state) => values[state.id]!,
+              () => calls++,
+            ),
+          ),
+        ),
       );
 
       expect(calls).toBe(1);

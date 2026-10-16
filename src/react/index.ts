@@ -16,13 +16,7 @@ export type { JsonLdDocument, SeoFaq, SeoImage, SeoPageHead } from "../core/decl
 
 export type { OgImageNode, OgImageResolver } from "../core/graph";
 
-export type {
-  SeoConfig,
-  SeoOrganization,
-  SeoPostalAddress,
-  SeoSite,
-  SeoWebsite,
-} from "./site";
+export type { SeoConfig, SeoOrganization, SeoPostalAddress, SeoSite, SeoWebsite } from "./site";
 
 export type {
   ArticleParams,

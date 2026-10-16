@@ -44,11 +44,15 @@ beforeAll(async () => {
         return;
       case "/robots.txt":
         response.writeHead(200, { "content-type": "text/plain" });
-        response.end("User-agent: *\nAllow: /blocked\n\nUser-agent: Pagegraph\nDisallow: /blocked\n");
+        response.end(
+          "User-agent: *\nAllow: /blocked\n\nUser-agent: Pagegraph\nDisallow: /blocked\n",
+        );
         return;
       case "/sitemap.xml":
         response.writeHead(200, { "content-type": "application/xml" });
-        response.end(`<urlset><url><loc>${target}sitemap-only</loc></url><url><loc>${target}blocked</loc></url><url><loc>https://external.test/no</loc></url></urlset>`);
+        response.end(
+          `<urlset><url><loc>${target}sitemap-only</loc></url><url><loc>${target}blocked</loc></url><url><loc>https://external.test/no</loc></url></urlset>`,
+        );
         return;
       case "/legacy":
         response.writeHead(301, { location: "/current" });
@@ -87,10 +91,7 @@ interface CliResult {
 
 // Async spawn, not spawnSync: this test's fixture server shares the vitest event
 // loop, so a synchronous spawn would block it and deadlock the child.
-const runLinks = (
-  args: ReadonlyArray<string>,
-  cwd: string = tmpdir(),
-): Promise<CliResult> =>
+const runLinks = (args: ReadonlyArray<string>, cwd: string = tmpdir()): Promise<CliResult> =>
   new Promise((resolve, reject) => {
     const child = spawn("bun", [cli, "links", "verify", ...args], { cwd });
     let stdout = "";
@@ -186,9 +187,7 @@ describe("pagegraph links verify", () => {
       readonly warnings: ReadonlyArray<string>;
     };
     expect(report.declared?.edges).toBe(1);
-    expect(report.declared?.declaredNotRendered).toEqual([
-      { from: "/", to: "/declared-only" },
-    ]);
+    expect(report.declared?.declaredNotRendered).toEqual([{ from: "/", to: "/declared-only" }]);
     expect(report.warnings).toEqual([]);
   }, 20_000);
 
@@ -218,9 +217,7 @@ describe("pagegraph links verify", () => {
       readonly warnings: ReadonlyArray<string>;
     };
     expect(report.declared).toBeNull();
-    expect(report.warnings).toEqual([
-      expect.stringContaining("differs from crawled origin"),
-    ]);
+    expect(report.warnings).toEqual([expect.stringContaining("differs from crawled origin")]);
   }, 20_000);
 
   it("renders the human report on stdout", async () => {

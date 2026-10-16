@@ -16,9 +16,7 @@ export namespace ScannerRegistry {
   ) {}
 }
 
-export const makeScannerRegistry = (
-  scanners: Iterable<Scanner>,
-): ScannerRegistryShape => {
+export const makeScannerRegistry = (scanners: Iterable<Scanner>): ScannerRegistryShape => {
   const values = [...scanners];
   const byId = new Map(values.map((value) => [value.id, value]));
   return {

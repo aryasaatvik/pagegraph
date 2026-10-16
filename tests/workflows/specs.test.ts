@@ -10,7 +10,11 @@ describe("workflow prerequisite gates", () => {
   it("keeps architecture unchanged when ownership or hierarchy is unsupported", () => {
     expect(
       classifyArchitecture(
-        { ownership: { probability: 0.05 }, hierarchy: { probability: 0.95 }, action: action("move") },
+        {
+          ownership: { probability: 0.05 },
+          hierarchy: { probability: 0.95 },
+          action: action("move"),
+        },
         0.7,
       ),
     ).toBe("keep");

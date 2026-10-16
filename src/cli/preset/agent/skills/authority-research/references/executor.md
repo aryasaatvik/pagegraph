@@ -12,13 +12,13 @@ TypeScript input and result shapes:
 Pass a TypeScript snippet to `executor_execute`, replacing `discovered_namespace`, `discovered_tool`, and
 arguments with the returned names and required fields:
 
-~~~ts
+```ts
 return await tools.discovered_namespace.discovered_tool({
   targets: [ownedDomain, ...competitors],
   excludeInternal: true,
   limit: 100,
 });
-~~~
+```
 
 Record source URL, target domain, dates, limits, authority metrics, task status, errors, and cost.
 Provider metrics nominate prospects; current pages determine legitimacy. Do not discover personal

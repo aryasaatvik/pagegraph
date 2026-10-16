@@ -11,11 +11,16 @@ globalThis.fetch = async (input, init) => {
   if (request.url !== "https://api.typesafe.ai/v1/systemone" || request.method !== "POST")
     throw new Error(`Unscripted claims fixture request: ${request.method} ${request.url}`);
   const payload = Schema.decodeUnknownSync(TypeSafeSchema.SystemOneRequest)(await request.json());
-  if (payload.model !== "fixture-claims" || Object.values(payload.questions).some((question) => question.type !== "noul"))
+  if (
+    payload.model !== "fixture-claims" ||
+    Object.values(payload.questions).some((question) => question.type !== "noul")
+  )
     throw new Error("Unscripted claims fixture model or question");
   return Response.json({
     model: payload.model,
-    answers: Object.fromEntries(Object.keys(payload.questions).map((rule) => [rule, { type: "noul", noul: probability }])),
+    answers: Object.fromEntries(
+      Object.keys(payload.questions).map((rule) => [rule, { type: "noul", noul: probability }]),
+    ),
     usage: { input_tokens: 1, output_tokens: 1 },
   });
 };

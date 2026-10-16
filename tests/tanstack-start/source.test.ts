@@ -43,12 +43,17 @@ const page = [<T {...supplied}>Spread</T>, <T {...supplied} source="explicit-aut
     if (transformed === undefined) throw new Error("Expected JSX source injection");
     const compiled = await transformWithOxc(
       transformed.code.replace('import { T } from "pagegraph/react";', ""),
-      "page.tsx", { jsx: { runtime: "classic" } },
+      "page.tsx",
+      { jsx: { runtime: "classic" } },
     );
-    const elements: unknown = new Function("React", "T", `${compiled.code}; return page;`)(React, T);
+    const elements: unknown = new Function("React", "T", `${compiled.code}; return page;`)(
+      React,
+      T,
+    );
     if (!Array.isArray(elements)) throw new Error("Expected compiled JSX elements");
     const sources = elements.map((element) => {
-      if (!React.isValidElement<{ source?: string }>(element)) throw new Error("Expected a React element");
+      if (!React.isValidElement<{ source?: string }>(element))
+        throw new Error("Expected a React element");
       return element.props.source;
     });
     expect(sources).toEqual(["spread-authored", "explicit-authored", "src/page.tsx:3"]);

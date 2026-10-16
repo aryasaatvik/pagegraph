@@ -30,7 +30,11 @@ describe("inspectHtml", () => {
   });
 
   it("reports missing required tags as blocking issues", () => {
-    const report = inspectHtml("https://example.com/x", 200, headDoc("<title>Only a title</title>"));
+    const report = inspectHtml(
+      "https://example.com/x",
+      200,
+      headDoc("<title>Only a title</title>"),
+    );
     expect(report.issues).toContain("Missing meta description.");
     expect(report.issues).toContain("Missing canonical link.");
     expect(hasBlockingIssues(report)).toBe(true);

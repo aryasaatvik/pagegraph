@@ -50,13 +50,15 @@ const fitAnswer = (label: string, confidence = 0.9) => {
   return { label: answer.label, probabilities: answer.probabilities };
 };
 
-const verdictAnswers = (overrides: {
-  legitimate?: number;
-  spam?: number;
-  outreachWorth?: number;
-  fit?: string;
-  fitConfidence?: number;
-} = {}) => ({
+const verdictAnswers = (
+  overrides: {
+    legitimate?: number;
+    spam?: number;
+    outreachWorth?: number;
+    fit?: string;
+    fitConfidence?: number;
+  } = {},
+) => ({
   legitimate: { probability: overrides.legitimate ?? 0.9 },
   spam: { probability: overrides.spam ?? 0.05 },
   outreachWorth: { probability: overrides.outreachWorth ?? 0.9 },
@@ -67,7 +69,9 @@ describe("AuthorityInput", () => {
   it("decodes a target and rejects a malformed one", () => {
     expect(decodeFamilyInputs(authorityFamily, [sample])).toHaveLength(1);
     expect(() => decodeFamilyInputs(authorityFamily, [{ domain: 1 }])).toThrow();
-    expect(decodeFamilyInputs(authorityFamily, [{ ...sample, signals: undefined }])).toHaveLength(1);
+    expect(decodeFamilyInputs(authorityFamily, [{ ...sample, signals: undefined }])).toHaveLength(
+      1,
+    );
   });
 });
 

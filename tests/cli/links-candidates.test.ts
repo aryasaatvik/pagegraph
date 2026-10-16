@@ -171,18 +171,29 @@ describe("pagegraph links candidates", () => {
     expect(report.candidates.map((c) => `${c.source}→${c.destination}`)).not.toContain(
       "/blog/a→/blog/c",
     );
-    expect(report.candidates.map((c) => `${c.source}→${c.destination}`)).toContain("/blog/c→/blog/a");
+    expect(report.candidates.map((c) => `${c.source}→${c.destination}`)).toContain(
+      "/blog/c→/blog/a",
+    );
   });
 
   it("keeps nav-only and reverse-direction suggestions from a rendered artifact", () => {
     const directory = configDirectory(CONFIG);
     const renderedFile = join(directory, "rendered.json");
-    writeFileSync(renderedFile, JSON.stringify({ edges: [
-      { from: "/blog/a", to: "/blog/c", region: "nav" },
-      { from: "/blog/c", to: "/blog/b", region: "body" },
-    ] }));
-    const report = JSON.parse(run(["--rendered", renderedFile, "--json"], directory).stdout) as Report;
-    const suggestions = report.candidates.map((candidate) => `${candidate.source}→${candidate.destination}`);
+    writeFileSync(
+      renderedFile,
+      JSON.stringify({
+        edges: [
+          { from: "/blog/a", to: "/blog/c", region: "nav" },
+          { from: "/blog/c", to: "/blog/b", region: "body" },
+        ],
+      }),
+    );
+    const report = JSON.parse(
+      run(["--rendered", renderedFile, "--json"], directory).stdout,
+    ) as Report;
+    const suggestions = report.candidates.map(
+      (candidate) => `${candidate.source}→${candidate.destination}`,
+    );
     expect(suggestions).toContain("/blog/a→/blog/c");
     expect(suggestions).toContain("/blog/b→/blog/c");
     expect(suggestions).not.toContain("/blog/c→/blog/b");

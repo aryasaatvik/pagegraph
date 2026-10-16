@@ -94,7 +94,11 @@ export const Route = createFileRoute("/(marketing)/pricing")({
 });
 
 function PricingPage() {
-  return <main><h1>Pricing</h1></main>;
+  return (
+    <main>
+      <h1>Pricing</h1>
+    </main>
+  );
 }
 ```
 
@@ -332,9 +336,13 @@ name in the output directory.
 
 ```tsx
 // before
-head: (ctx) => seoHead(ctx, { title: `${ctx.loaderData.title} | Example Blog`, description })
+const before = {
+  head: (ctx) => seoHead(ctx, { title: `${ctx.loaderData.title} | Example Blog`, description }),
+};
 // after: staticData.seo.titleTemplate: "%s | Example Blog"
-head: (ctx) => seoHead(ctx, { title: ctx.loaderData.title, description })
+const after = {
+  head: (ctx) => seoHead(ctx, { title: ctx.loaderData.title, description }),
+};
 ```
 
 **`PageSeoInstance` is `SeoPageHead` and `FAQItem` is `SeoFaq`.** Both are exported from `pagegraph`

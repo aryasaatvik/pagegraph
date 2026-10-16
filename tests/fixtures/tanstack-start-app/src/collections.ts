@@ -7,6 +7,11 @@ export const collections = () => [
     route: "/blog/$slug",
     source: "blog",
     pages: posts,
-    entry: (post) => ({ title: post.title, description: post.description, publishedAt: post.date, related: ["/pricing"] }),
+    entry: (post) => ({
+      title: post.title,
+      description: post.description,
+      publishedAt: post.date,
+      related: ["/pricing"],
+    }),
   }),
 ];

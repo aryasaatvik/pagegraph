@@ -14,7 +14,7 @@ const root = fileURLToPath(new URL("../..", import.meta.url));
  */
 const externalImports = async (entry: string): Promise<Array<string>> => {
   const external = new Set<string>();
-  await build({
+  (await build({
     root,
     configFile: false,
     mode: "production",
@@ -30,19 +30,26 @@ const externalImports = async (entry: string): Promise<Array<string>> => {
         name: "collect-externals",
         enforce: "pre",
         resolveId(source, importer) {
-          if (importer === undefined || source.startsWith(".") || source.startsWith("/") || source.startsWith("\0")) return null;
+          if (
+            importer === undefined ||
+            source.startsWith(".") ||
+            source.startsWith("/") ||
+            source.startsWith("\0")
+          )
+            return null;
           if (libraryAlwaysBundle.some((pattern) => pattern.test(source))) return null;
           external.add(source);
           return { id: source, external: true };
         },
       },
     ],
-  }) as Rolldown.RolldownOutput;
+  })) as Rolldown.RolldownOutput;
   return [...external].sort();
 };
 
 /** Anything that cannot run in workerd or a browser. */
-const buildOnly = /^(node:|vite$|vite\/|@tanstack\/router-generator|@tanstack\/start-plugin-core|effect|@effect\/|lighthouse)|\.node$/;
+const buildOnly =
+  /^(node:|vite$|vite\/|@tanstack\/router-generator|@tanstack\/start-plugin-core|effect|@effect\/|lighthouse)|\.node$/;
 
 describe("runtime entries", () => {
   it("keeps non-bundled dependencies visible to the external-import assertions", async () => {
@@ -51,11 +58,39 @@ describe("runtime entries", () => {
 
   it.each([
     ["pagegraph", "src/core/index.ts", []],
-    ["pagegraph/react", "src/react/index.ts", ["@tanstack/react-router", "react", "react/jsx-runtime"]],
-    ["pagegraph/tanstack-start/server", "src/tanstack-start/server.ts", ["virtual:pagegraph/runtime"]],
-    ["pagegraph/tanstack-start/markdown", "src/tanstack-start/markdown.tsx", ["@tanstack/react-router", "@tanstack/react-router/ssr/server", "@tanstack/react-start/server", "react", "react-dom/server", "react/jsx-runtime", "virtual:pagegraph/runtime"]],
-    ["pagegraph/tanstack-start/react", "src/tanstack-start/react.tsx", ["@tanstack/react-router", "react", "react/jsx-runtime"]],
-    ["pagegraph/tanstack-start/prerender-worker", "src/tanstack-start/prerender-worker.ts", ["virtual:pagegraph/prerender-server"]],
+    [
+      "pagegraph/react",
+      "src/react/index.ts",
+      ["@tanstack/react-router", "react", "react/jsx-runtime"],
+    ],
+    [
+      "pagegraph/tanstack-start/server",
+      "src/tanstack-start/server.ts",
+      ["virtual:pagegraph/runtime"],
+    ],
+    [
+      "pagegraph/tanstack-start/markdown",
+      "src/tanstack-start/markdown.tsx",
+      [
+        "@tanstack/react-router",
+        "@tanstack/react-router/ssr/server",
+        "@tanstack/react-start/server",
+        "react",
+        "react-dom/server",
+        "react/jsx-runtime",
+        "virtual:pagegraph/runtime",
+      ],
+    ],
+    [
+      "pagegraph/tanstack-start/react",
+      "src/tanstack-start/react.tsx",
+      ["@tanstack/react-router", "react", "react/jsx-runtime"],
+    ],
+    [
+      "pagegraph/tanstack-start/prerender-worker",
+      "src/tanstack-start/prerender-worker.ts",
+      ["virtual:pagegraph/prerender-server"],
+    ],
   ] as const)("%s imports only its runtime peers", async (_name, entry, allowed) => {
     const imports = await externalImports(entry);
     expect(imports.filter((specifier) => buildOnly.test(specifier))).toEqual([]);
@@ -64,25 +99,37 @@ describe("runtime entries", () => {
 });
 
 describe("build entries", () => {
-  const manifest = JSON.parse(readFileSync(new URL("../../package.json", import.meta.url), "utf8")) as {
+  const manifest = JSON.parse(
+    readFileSync(new URL("../../package.json", import.meta.url), "utf8"),
+  ) as {
     readonly exports: Record<string, Record<string, string>>;
   };
 
-  it.each(["vite", "config", "audit", "tanstack-start", "oxlint", "claims"])("pagegraph/%s resolves to a throwing stub in runtime bundles", async (entry) => {
-    const conditions = manifest.exports[`./${entry}`];
-    for (const condition of ["workerd", "worker", "browser"]) {
-      expect(conditions?.[condition], condition).toBe(`./dist/build-only/${entry}.js`);
-    }
-    // Runtime conditions must precede `import`: export maps match in key order.
-    const keys = Object.keys(conditions ?? {});
-    expect(keys.indexOf("workerd")).toBeLessThan(keys.indexOf("import"));
-    await expect(import(`../../src/build-only/${entry}.ts`)).rejects.toThrow(
-      `"pagegraph/${entry}" is build-time only`,
-    );
-  });
+  it.each(["vite", "config", "audit", "tanstack-start", "oxlint", "claims"])(
+    "pagegraph/%s resolves to a throwing stub in runtime bundles",
+    async (entry) => {
+      const conditions = manifest.exports[`./${entry}`];
+      for (const condition of ["workerd", "worker", "browser"]) {
+        expect(conditions?.[condition], condition).toBe(`./dist/build-only/${entry}.js`);
+      }
+      // Runtime conditions must precede `import`: export maps match in key order.
+      const keys = Object.keys(conditions ?? {});
+      expect(keys.indexOf("workerd")).toBeLessThan(keys.indexOf("import"));
+      await expect(import(`../../src/build-only/${entry}.ts`)).rejects.toThrow(
+        `"pagegraph/${entry}" is build-time only`,
+      );
+    },
+  );
 
   it("keeps runtime entries free of build-only conditions", () => {
-    for (const entry of [".", "./react", "./tanstack-start/server", "./tanstack-start/markdown", "./tanstack-start/react", "./tanstack-start/prerender-worker"]) {
+    for (const entry of [
+      ".",
+      "./react",
+      "./tanstack-start/server",
+      "./tanstack-start/markdown",
+      "./tanstack-start/react",
+      "./tanstack-start/prerender-worker",
+    ]) {
       expect(Object.keys(manifest.exports[entry] ?? {})).toEqual(["types", "import"]);
     }
   });

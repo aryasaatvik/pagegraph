@@ -15,13 +15,25 @@ import { probeHttp } from "../audit/scanners/http";
 import type { SeoGraph } from "../core/graph";
 import { decodeLinksSuggestionReport, extractPageSentences } from "../core/link-suggestions";
 import type { DecisionBatchReport } from "../decide/record";
-import { serializeCause, createRunId, writeResearchCheckpoint, writeWorkflowFailure, writeRunBundle, writeWorkflowProgress } from "./artifact";
+import {
+  serializeCause,
+  createRunId,
+  writeResearchCheckpoint,
+  writeWorkflowFailure,
+  writeRunBundle,
+  writeWorkflowProgress,
+} from "./artifact";
 import { getWorkflowSpec } from "./catalog";
 import { collectWorkflowEvidence, selectGraph } from "./evidence";
 import { changedFiles } from "./git";
 import type { WorkflowMutationPolicy } from "./mutation";
 import { createWorkflowMutationPolicy } from "./mutation";
-import type { WorkflowId, WorkflowResearchCheckpointV2, WorkflowRunV2, WorkflowTargetOptions } from "./model";
+import type {
+  WorkflowId,
+  WorkflowResearchCheckpointV2,
+  WorkflowRunV2,
+  WorkflowTargetOptions,
+} from "./model";
 import actionPromptSource from "./prompts/action.md" with { type: "text" };
 import researchPromptSource from "./prompts/research.md" with { type: "text" };
 import type { AnyWorkflowSpec } from "./specs/types";
@@ -32,7 +44,12 @@ import type { WorkflowAgentArtifact } from "./model";
 import { inspectWorkflowGit, loadWorkflowResume, readRecordedWorkflowSources } from "./resume";
 import { resolveWorkflowRepositoryRoot } from "./repository-paths";
 import { TextTemplate } from "./template";
-import { applyWorkflowEdits, decodeActionState, workflowEditsArtifact, writeWorkflowEdits } from "./review";
+import {
+  applyWorkflowEdits,
+  decodeActionState,
+  workflowEditsArtifact,
+  writeWorkflowEdits,
+} from "./review";
 
 export { dropNulls } from "./state";
 
@@ -57,24 +74,53 @@ export interface WorkflowDependencies {
   ) => Promise<DecisionBatchReport>;
   readonly now?: () => Date;
   /** Test seam for current served-copy validation before an accepted link edit. */
-  readonly readSuggestionSentences?: (origin: string, path: string, allowPrivate: boolean, maxBodyBytes: number, signal?: AbortSignal) => Promise<ReadonlyArray<string>>;
+  readonly readSuggestionSentences?: (
+    origin: string,
+    path: string,
+    allowPrivate: boolean,
+    maxBodyBytes: number,
+    signal?: AbortSignal,
+  ) => Promise<ReadonlyArray<string>>;
 }
 
-const readCurrentSuggestionSentences = async (origin: string, path: string, allowPrivate: boolean, maxBodyBytes: number, signal?: AbortSignal): Promise<ReadonlyArray<string>> => {
+const readCurrentSuggestionSentences = async (
+  origin: string,
+  path: string,
+  allowPrivate: boolean,
+  maxBodyBytes: number,
+  signal?: AbortSignal,
+): Promise<ReadonlyArray<string>> => {
   const options = { sameOrigin: origin, allowPrivate, timeoutMs: 15_000, maxBodyBytes, signal };
-  const robots = await probeHttp({ kind: "robots", method: "GET", accept: "text/plain", url: new URL("/robots.txt", origin) }, { ...options, captureBody: true });
-  if ((!robots.ok && robots.status !== 404) || robots.bodyTruncated) throw new Error("Could not verify current robots policy for suggestion freshness");
+  const robots = await probeHttp(
+    { kind: "robots", method: "GET", accept: "text/plain", url: new URL("/robots.txt", origin) },
+    { ...options, captureBody: true },
+  );
+  if ((!robots.ok && robots.status !== 404) || robots.bodyTruncated)
+    throw new Error("Could not verify current robots policy for suggestion freshness");
   const rules = robots.ok ? robotsRules(robots.body ?? "").rules : [];
   const url = new URL(path, origin);
-  if (!allowedByRobots(`${url.pathname}${url.search}`, rules)) throw new Error(`Suggestion page is robots-disallowed: ${path}`);
-  const probe = await probeHttp({ kind: "page-html", method: "GET", accept: "text/html", url }, {
-    ...options, captureBody: true, allowUrl: (next) => allowedByRobots(`${next.pathname}${next.search}`, rules),
-  });
+  if (!allowedByRobots(`${url.pathname}${url.search}`, rules))
+    throw new Error(`Suggestion page is robots-disallowed: ${path}`);
+  const probe = await probeHttp(
+    { kind: "page-html", method: "GET", accept: "text/html", url },
+    {
+      ...options,
+      captureBody: true,
+      allowUrl: (next) => allowedByRobots(`${next.pathname}${next.search}`, rules),
+    },
+  );
   const contentType = probe.responseHeaders["content-type"];
-  if (!probe.ok || probe.bodyTruncated || !probe.body || !probe.finalUrl
-    || (contentType !== undefined && !/text\/html|application\/xhtml\+xml/i.test(contentType))
-    || new URL(probe.finalUrl).pathname.replace(/\/+$/, "") !== url.pathname.replace(/\/+$/, "")) {
-    throw new Error(`Could not verify current served copy for suggestion page ${path}: ${probe.error ?? "unreadable or redirected page"}`);
+  if (
+    !probe.ok ||
+    probe.bodyTruncated ||
+    !probe.body ||
+    !probe.finalUrl ||
+    (contentType !== undefined && !/text\/html|application\/xhtml\+xml/i.test(contentType)) ||
+    new URL(probe.finalUrl).pathname.replace(/\/+$/, "") !== url.pathname.replace(/\/+$/, "")
+  ) {
+    throw new Error(
+      `Could not verify current served copy for suggestion page ${path}: ${probe.error ?? "unreadable or redirected page"}`,
+    );
   }
   return extractPageSentences(probe.body);
 };
@@ -83,23 +129,38 @@ const readCurrentSuggestionSentences = async (origin: string, path: string, allo
 export const createFetchPageTool = async (
   report: Pick<LinksSuggestionReport, "origin" | "maxBodyBytes">,
   allowPrivate: boolean,
-  readSentences: NonNullable<WorkflowDependencies["readSuggestionSentences"]> = readCurrentSuggestionSentences,
+  readSentences: NonNullable<
+    WorkflowDependencies["readSuggestionSentences"]
+  > = readCurrentSuggestionSentences,
 ): Promise<AgentTool> => {
   const { Type } = await import("@earendil-works/pi-ai");
   return {
-    name: "fetch_page", label: "Read served page",
-    description: "Read extracted sentences from a served page on the suggestion report origin, respecting robots policy and the report body size bound.",
+    name: "fetch_page",
+    label: "Read served page",
+    description:
+      "Read extracted sentences from a served page on the suggestion report origin, respecting robots policy and the report body size bound.",
     parameters: Type.Object({ url: Type.String() }),
     execute: async (_id, args, signal) => {
       signal?.throwIfAborted();
-      if (typeof args !== "object" || args === null || !("url" in args) || typeof args.url !== "string") {
+      if (
+        typeof args !== "object" ||
+        args === null ||
+        !("url" in args) ||
+        typeof args.url !== "string"
+      ) {
         throw new Error("fetch_page requires a string url");
       }
       const url = new URL(args.url, report.origin);
       if (url.origin !== new URL(report.origin).origin || url.username || url.password) {
         throw new Error("fetch_page requires the suggestion report origin");
       }
-      const sentences = await readSentences(report.origin, `${url.pathname}${url.search}`, allowPrivate, report.maxBodyBytes, signal);
+      const sentences = await readSentences(
+        report.origin,
+        `${url.pathname}${url.search}`,
+        allowPrivate,
+        report.maxBodyBytes,
+        signal,
+      );
       signal?.throwIfAborted();
       return { content: [{ type: "text", text: JSON.stringify(sentences) }], details: undefined };
     },
@@ -175,9 +236,12 @@ const decisionArtifact = (
 ) => ({ family: spec.familyName, questions: spec.decisionQuestions(inputs), report });
 
 const failureRecovery = (stage: string, runDirectory: string): string => {
-  if (stage === "acquire") return "inspect that file; check the agent preset and Executor tools configuration";
-  if (stage === "decide") return `inspect that file and research.json; check the decision provider configuration and resume with --from ${runDirectory}`;
-  if (stage === "action") return `inspect the agent messages and repository; interrupted actions cannot be resumed safely. If ${runDirectory}/edits.json exists, \`pagegraph apply ${runDirectory} --check\` reports which edits remain`;
+  if (stage === "acquire")
+    return "inspect that file; check the agent preset and Executor tools configuration";
+  if (stage === "decide")
+    return `inspect that file and research.json; check the decision provider configuration and resume with --from ${runDirectory}`;
+  if (stage === "action")
+    return `inspect the agent messages and repository; interrupted actions cannot be resumed safely. If ${runDirectory}/edits.json exists, \`pagegraph apply ${runDirectory} --check\` reports which edits remain`;
   return `inspect the agent messages in that file; resume with --from ${runDirectory}, optionally --model <id>, or raise workflows.agent.timeoutMs`;
 };
 
@@ -187,16 +251,29 @@ export const runWorkflow = async (
 ): Promise<{ readonly run: WorkflowRunV2; readonly directory: string }> => {
   const workflows = input.config.workflows;
   if (workflows === undefined) {
-    throw new Error("pagegraph.config.ts has no workflows configuration; run `pagegraph init` and configure workflows.");
+    throw new Error(
+      "pagegraph.config.ts has no workflows configuration; run `pagegraph init` and configure workflows.",
+    );
   }
   const spec = getWorkflowSpec(input.workflow);
   const now = dependencies.now ?? (() => new Date());
   let runsDirectory = input.out ?? workflows.runsDirectory ?? ".pagegraph/runs";
-  const resumed = input.from === undefined ? undefined : await loadWorkflowResume(input.root, runsDirectory, input.from, spec.id);
+  const resumed =
+    input.from === undefined
+      ? undefined
+      : await loadWorkflowResume(input.root, runsDirectory, input.from, spec.id);
   if (resumed?.run !== undefined) return { run: resumed.run, directory: resumed.directory };
   if (resumed !== undefined) {
     runsDirectory = dirname(resumed.directory);
-    input = { ...input, options: { ...resumed.progress!.options, dryRun: resumed.progress!.options.dryRun || (resumed.progress!.action === undefined && input.options.dryRun) } };
+    input = {
+      ...input,
+      options: {
+        ...resumed.progress!.options,
+        dryRun:
+          resumed.progress!.options.dryRun ||
+          (resumed.progress!.action === undefined && input.options.dryRun),
+      },
+    };
   }
   const started = resumed?.progress === undefined ? now() : new Date(resumed.progress.startedAt);
   const id = resumed?.progress?.id ?? createRunId(started, spec.id);
@@ -216,84 +293,182 @@ export const runWorkflow = async (
     });
     if (spec.mutatesFiles) mutation.assertStartAllowed();
 
-    const repositoryRoot = progress?.repositoryRoot ?? await resolveWorkflowRepositoryRoot(input.root, workflows.repositoryRoot);
-    const evidence = progress?.evidence ?? await collectWorkflowEvidence(
-      input.graph,
-      input.options,
-      repositoryRoot,
-      spec.id,
-      workflows.context,
-      { runsDirectory: resolve(input.root, runsDirectory) },
-    );
-    const suggestionReport = progress?.evidence.suggestions ?? (input.options.suggestions === undefined ? undefined : (() => {
-      if (spec.id !== "improve.links") throw new Error("--suggestions is only valid for improve links");
-      const report = decodeLinksSuggestionReport(JSON.parse(readFileSync(resolve(input.root, input.options.suggestions), "utf8")), new URL(input.site.origin).origin);
-      const selectedSources = selectGraph(input.graph, input.options).nodes;
-      for (const candidate of report.candidates) {
-        if (!input.graph.nodes.has(candidate.source) || !input.graph.nodes.has(candidate.destination)) {
-          throw new Error(`Suggestion references a path absent from pagegraph.config.ts: ${candidate.source} → ${candidate.destination}`);
-        }
-        if (!selectedSources.has(candidate.source)) {
-          throw new Error(`Suggestion source is outside workflow page/kind/limit targets: ${candidate.source}`);
-        }
-      }
-      return report;
-    })());
-    const suppliedEvidence = suggestionReport === undefined ? evidence : { ...evidence, suggestions: suggestionReport };
+    const repositoryRoot =
+      progress?.repositoryRoot ??
+      (await resolveWorkflowRepositoryRoot(input.root, workflows.repositoryRoot));
+    const evidence =
+      progress?.evidence ??
+      (await collectWorkflowEvidence(
+        input.graph,
+        input.options,
+        repositoryRoot,
+        spec.id,
+        workflows.context,
+        { runsDirectory: resolve(input.root, runsDirectory) },
+      ));
+    const suggestionReport =
+      progress?.evidence.suggestions ??
+      (input.options.suggestions === undefined
+        ? undefined
+        : (() => {
+            if (spec.id !== "improve.links")
+              throw new Error("--suggestions is only valid for improve links");
+            const report = decodeLinksSuggestionReport(
+              JSON.parse(readFileSync(resolve(input.root, input.options.suggestions), "utf8")),
+              new URL(input.site.origin).origin,
+            );
+            const selectedSources = selectGraph(input.graph, input.options).nodes;
+            for (const candidate of report.candidates) {
+              if (
+                !input.graph.nodes.has(candidate.source) ||
+                !input.graph.nodes.has(candidate.destination)
+              ) {
+                throw new Error(
+                  `Suggestion references a path absent from pagegraph.config.ts: ${candidate.source} → ${candidate.destination}`,
+                );
+              }
+              if (!selectedSources.has(candidate.source)) {
+                throw new Error(
+                  `Suggestion source is outside workflow page/kind/limit targets: ${candidate.source}`,
+                );
+              }
+            }
+            return report;
+          })());
+    const suppliedEvidence =
+      suggestionReport === undefined ? evidence : { ...evidence, suggestions: suggestionReport };
     progress ??= {
-      kind: "pagegraph-workflow-progress", schemaVersion: 2, id, workflow: spec.id,
+      kind: "pagegraph-workflow-progress",
+      schemaVersion: 2,
+      id,
+      workflow: spec.id,
       startedAt: started.toISOString(),
-      project: { root: input.root, head: gitAtStart.head, dirtyAtStart: gitAtStart.dirty, filesAtStart: gitAtStart.files },
-      options: input.options, evidence: { ...suppliedEvidence, executor: { searches: [], calls: [] } }, repositoryRoot, git: gitAtStart,
+      project: {
+        root: input.root,
+        head: gitAtStart.head,
+        dirtyAtStart: gitAtStart.dirty,
+        filesAtStart: gitAtStart.files,
+      },
+      options: input.options,
+      evidence: { ...suppliedEvidence, executor: { searches: [], calls: [] } },
+      repositoryRoot,
+      git: gitAtStart,
     };
     const restoredAgent = progress.research?.agent ?? resumed?.failure?.agent;
     const restoredExecutor = progress.research?.evidence.executor ?? resumed?.failure?.executor;
-    if (!dependencies.decide && progress?.decisions === undefined && !process.env.TYPESAFE_API_KEY?.trim()) {
-      throw new Error("Missing decision provider credentials; set TYPESAFE_API_KEY before starting this workflow.");
+    if (
+      !dependencies.decide &&
+      progress?.decisions === undefined &&
+      !process.env.TYPESAFE_API_KEY?.trim()
+    ) {
+      throw new Error(
+        "Missing decision provider credentials; set TYPESAFE_API_KEY before starting this workflow.",
+      );
     }
     // Loading Pi at acquisition keeps unrelated CLI commands lightweight.
     pi = await import("./pi");
-    const runner: WorkflowRunner = progress.research !== undefined && (!spec.mutatesFiles || progress.action !== undefined)
-      ? {
-          model: progress.research.agent.model,
-          research: async () => { throw new Error("Recorded research must not be repeated."); },
-          act: async () => { throw new Error("Recorded action must not be repeated."); },
-          close: async () => {},
-        }
-      : await (dependencies.acquireRunner ?? pi.acquireWorkflowRunner)({
-      root: input.root, repositoryRoot, runDirectory, config: workflows.agent, model: input.model ?? (restoredAgent === undefined ? workflows.agent.models?.[spec.id] : `${restoredAgent.model.provider}/${restoredAgent.model.id}`),
-      limit: input.options.limit, executor: dependencies.executor, runsDirectory: resolve(input.root, runsDirectory),
-      ...(restoredAgent === undefined || restoredExecutor === undefined ? {} : { resume: { agent: restoredAgent, executor: restoredExecutor, phase: progress.research === undefined ? "research" as const : "action" as const } }),
-      additionalTools: spec.id === "improve.links" && suggestionReport !== undefined
-        ? [await createFetchPageTool(suggestionReport, input.options.allowPrivate === true, dependencies.readSuggestionSentences)] : [],
-    });
+    const runner: WorkflowRunner =
+      progress.research !== undefined && (!spec.mutatesFiles || progress.action !== undefined)
+        ? {
+            model: progress.research.agent.model,
+            research: async () => {
+              throw new Error("Recorded research must not be repeated.");
+            },
+            act: async () => {
+              throw new Error("Recorded action must not be repeated.");
+            },
+            close: async () => {},
+          }
+        : await (dependencies.acquireRunner ?? pi.acquireWorkflowRunner)({
+            root: input.root,
+            repositoryRoot,
+            runDirectory,
+            config: workflows.agent,
+            model:
+              input.model ??
+              (restoredAgent === undefined
+                ? workflows.agent.models?.[spec.id]
+                : `${restoredAgent.model.provider}/${restoredAgent.model.id}`),
+            limit: input.options.limit,
+            executor: dependencies.executor,
+            runsDirectory: resolve(input.root, runsDirectory),
+            ...(restoredAgent === undefined || restoredExecutor === undefined
+              ? {}
+              : {
+                  resume: {
+                    agent: restoredAgent,
+                    executor: restoredExecutor,
+                    phase:
+                      progress.research === undefined ? ("research" as const) : ("action" as const),
+                  },
+                }),
+            additionalTools:
+              spec.id === "improve.links" && suggestionReport !== undefined
+                ? [
+                    await createFetchPageTool(
+                      suggestionReport,
+                      input.options.allowPrivate === true,
+                      dependencies.readSuggestionSentences,
+                    ),
+                  ]
+                : [],
+          });
     const model = runner.model;
     selectedModel = model;
     const retainRunnerResult = (result: Omit<RunnerResult, "state">): void => {
       agentArtifact = { runtime: "pi", model, messages: result.messages, usage: result.usage };
       executorEvidence = result.executor;
     };
-    retainRunnerResult({ messages: [], usage: pi.totalUsage([]), executor: { searches: [], calls: [] } });
+    retainRunnerResult({
+      messages: [],
+      usage: pi.totalUsage([]),
+      executor: { searches: [], calls: [] },
+    });
     let turnFailed = false;
     try {
       stage = "research";
-      const researched: RunnerResult = progress.research === undefined
-        ? await runner.research(spec, `${resumed === undefined ? "" : "Resume the recorded research conversation. Reuse completed Executor calls and their evidence; finish only the remaining research and submission.\n\n"}${researchPrompt(spec, suppliedEvidence, input.options)}`,
-          { signal: AbortSignal.timeout(workflows.agent.timeoutMs ?? 180_000) })
-        : { state: progress.research.state, messages: progress.research.agent.messages, usage: progress.research.agent.usage,
-            executor: progress.research.evidence.executor, rejectedItems: progress.research.rejectedItems };
+      const researched: RunnerResult =
+        progress.research === undefined
+          ? await runner.research(
+              spec,
+              `${resumed === undefined ? "" : "Resume the recorded research conversation. Reuse completed Executor calls and their evidence; finish only the remaining research and submission.\n\n"}${researchPrompt(spec, suppliedEvidence, input.options)}`,
+              { signal: AbortSignal.timeout(workflows.agent.timeoutMs ?? 180_000) },
+            )
+          : {
+              state: progress.research.state,
+              messages: progress.research.agent.messages,
+              usage: progress.research.agent.usage,
+              executor: progress.research.evidence.executor,
+              rejectedItems: progress.research.rejectedItems,
+            };
       retainRunnerResult(researched);
       const assertResearchReadOnly = (): void => {
-        const researchFiles = changedFiles(gitAtStart, inspectWorkflowGit(input.root, runDirectory));
-        if (researchFiles.length > 0) throw new Error(`${spec.id} changed repository files during its read-only research turn: ${researchFiles.join(", ")}`);
+        const researchFiles = changedFiles(
+          gitAtStart,
+          inspectWorkflowGit(input.root, runDirectory),
+        );
+        if (researchFiles.length > 0)
+          throw new Error(
+            `${spec.id} changed repository files during its read-only research turn: ${researchFiles.join(", ")}`,
+          );
       };
       if (progress.action === undefined) assertResearchReadOnly();
       const state = decodeResearchState(spec, researched.state, input.options.limit);
       const decisionInputs = spec.decisionInputs(state);
       if (suggestionReport !== undefined) {
-        const valid = new Set(suggestionReport.candidates.map((item) => `${item.source}\u0000${item.destination}\u0000${item.anchor}\u0000${item.sentence}`));
+        const valid = new Set(
+          suggestionReport.candidates.map(
+            (item) =>
+              `${item.source}\u0000${item.destination}\u0000${item.anchor}\u0000${item.sentence}`,
+          ),
+        );
         for (const item of decisionInputs) {
-          const link = item as { from?: unknown; to?: unknown; anchor?: unknown; context?: unknown };
+          const link = item as {
+            from?: unknown;
+            to?: unknown;
+            anchor?: unknown;
+            context?: unknown;
+          };
           if (!valid.has(`${link.from}\u0000${link.to}\u0000${link.anchor}\u0000${link.context}`)) {
             throw new Error("Research proposed a link absent from the supplied suggestions");
           }
@@ -318,7 +493,9 @@ export const runWorkflow = async (
         state,
         decisionInputs,
         agent: agentArtifact!,
-        ...(researched.rejectedItems === undefined ? {} : { rejectedItems: researched.rejectedItems }),
+        ...(researched.rejectedItems === undefined
+          ? {}
+          : { rejectedItems: researched.rejectedItems }),
       };
       const checkpointPath = writeResearchCheckpoint(input.root, runsDirectory, checkpoint);
       const checkpointContents = readFileSync(checkpointPath, "utf8");
@@ -328,12 +505,17 @@ export const runWorkflow = async (
 
       stage = "decide";
       try {
-        const decisionReport = progress.decisions ?? await (dependencies.decide ?? defaultDecide)(decisionInputs, spec);
+        const decisionReport =
+          progress.decisions ??
+          (await (dependencies.decide ?? defaultDecide)(decisionInputs, spec));
         progress = { ...progress, decisions: decisionReport };
         writeWorkflowProgress(input.root, runsDirectory, progress);
-        const accepted = spec.id === "improve.links"
-          ? decisionReport.resolved.filter((record) => record.verdict === "add" || record.verdict === "update")
-          : undefined;
+        const accepted =
+          spec.id === "improve.links"
+            ? decisionReport.resolved.filter(
+                (record) => record.verdict === "add" || record.verdict === "update",
+              )
+            : undefined;
         const acceptedIndexes = new Set<number>();
         if (accepted !== undefined) {
           for (const record of accepted) {
@@ -346,31 +528,70 @@ export const runWorkflow = async (
             acceptedIndexes.add(index);
           }
         }
-        const actionItems = accepted === undefined ? undefined : (state as { items: ReadonlyArray<unknown> }).items.filter((_, index) => acceptedIndexes.has(index));
+        const actionItems =
+          accepted === undefined
+            ? undefined
+            : (state as { items: ReadonlyArray<unknown> }).items.filter((_, index) =>
+                acceptedIndexes.has(index),
+              );
         if (actionItems !== undefined && actionItems.length > 0 && suggestionReport !== undefined) {
-          const readSentences = dependencies.readSuggestionSentences ?? readCurrentSuggestionSentences;
+          const readSentences =
+            dependencies.readSuggestionSentences ?? readCurrentSuggestionSentences;
           const current = new Map<string, ReadonlyArray<string>>();
-          for (const item of actionItems as ReadonlyArray<{ from: string; to: string; anchor: string; context: string }>) {
-            const candidate = suggestionReport.candidates.find((entry) => entry.source === item.from && entry.destination === item.to
-              && entry.anchor === item.anchor && entry.sentence === item.context);
-            if (!candidate) throw new Error("Accepted link is absent from the supplied suggestions");
+          for (const item of actionItems as ReadonlyArray<{
+            from: string;
+            to: string;
+            anchor: string;
+            context: string;
+          }>) {
+            const candidate = suggestionReport.candidates.find(
+              (entry) =>
+                entry.source === item.from &&
+                entry.destination === item.to &&
+                entry.anchor === item.anchor &&
+                entry.sentence === item.context,
+            );
+            if (!candidate)
+              throw new Error("Accepted link is absent from the supplied suggestions");
             for (const path of [candidate.source, candidate.destination]) {
-              if (!current.has(path)) current.set(path, await readSentences(suggestionReport.origin, path, input.options.allowPrivate === true, suggestionReport.maxBodyBytes));
+              if (!current.has(path))
+                current.set(
+                  path,
+                  await readSentences(
+                    suggestionReport.origin,
+                    path,
+                    input.options.allowPrivate === true,
+                    suggestionReport.maxBodyBytes,
+                  ),
+                );
             }
-            if (!current.get(candidate.source)!.includes(candidate.sentence) || !current.get(candidate.destination)!.includes(candidate.targetSentence)) {
-              throw new Error(`Suggestion is stale; served copy changed for ${candidate.source} → ${candidate.destination}. Regenerate links candidates --site.`);
+            if (
+              !current.get(candidate.source)!.includes(candidate.sentence) ||
+              !current.get(candidate.destination)!.includes(candidate.targetSentence)
+            ) {
+              throw new Error(
+                `Suggestion is stale; served copy changed for ${candidate.source} → ${candidate.destination}. Regenerate links candidates --site.`,
+              );
             }
           }
         }
-        const actionState = actionItems === undefined ? state : { ...(state as Record<string, unknown>), items: actionItems };
-        const actionDecisions = accepted === undefined ? decisionReport : {
-          ...decisionReport,
-          resolved: accepted,
-          review: [],
-          counts: { inputs: accepted.length, resolved: accepted.length, review: 0 },
-          verdicts: { add: accepted.filter((record) => record.verdict === "add").length,
-            update: accepted.filter((record) => record.verdict === "update").length },
-        };
+        const actionState =
+          actionItems === undefined
+            ? state
+            : { ...(state as Record<string, unknown>), items: actionItems };
+        const actionDecisions =
+          accepted === undefined
+            ? decisionReport
+            : {
+                ...decisionReport,
+                resolved: accepted,
+                review: [],
+                counts: { inputs: accepted.length, resolved: accepted.length, review: 0 },
+                verdicts: {
+                  add: accepted.filter((record) => record.verdict === "add").length,
+                  update: accepted.filter((record) => record.verdict === "update").length,
+                },
+              };
         const mayAct = spec.mutatesFiles && (actionItems === undefined || actionItems.length > 0);
         if (mayAct) {
           stage = "action";
@@ -380,46 +601,101 @@ export const runWorkflow = async (
           }
         }
         const actionRecorded = progress.action !== undefined;
-        const acted = progress.action ?? (mayAct
-          ? await runner.act(spec, actionPrompt(spec, actionState, actionDecisions, mutation, relative(repositoryRoot, realpathSync(input.root)) || "."), {
-              signal: AbortSignal.timeout(workflows.agent.timeoutMs ?? 180_000),
-            })
-          : researched);
+        const acted =
+          progress.action ??
+          (mayAct
+            ? await runner.act(
+                spec,
+                actionPrompt(
+                  spec,
+                  actionState,
+                  actionDecisions,
+                  mutation,
+                  relative(repositoryRoot, realpathSync(input.root)) || ".",
+                ),
+                {
+                  signal: AbortSignal.timeout(workflows.agent.timeoutMs ?? 180_000),
+                },
+              )
+            : researched);
         retainRunnerResult(acted);
         if (readFileSync(checkpointPath, "utf8") !== checkpointContents) {
-          throw new Error(`${spec.id} changed repository files while running in read-only mode: ${checkpointPath}`);
+          throw new Error(
+            `${spec.id} changed repository files while running in read-only mode: ${checkpointPath}`,
+          );
         }
         // Agents never write files; only PageGraph applies recorded edits, and only in write mode.
         if (!actionRecorded) {
-          const agentFiles = changedFiles(gitAtCheckpoint, inspectWorkflowGit(input.root, runDirectory));
-          if (agentFiles.length > 0) throw new Error(`${spec.id} changed repository files while running in read-only mode: ${agentFiles.join(", ")}`);
+          const agentFiles = changedFiles(
+            gitAtCheckpoint,
+            inspectWorkflowGit(input.root, runDirectory),
+          );
+          if (agentFiles.length > 0)
+            throw new Error(
+              `${spec.id} changed repository files while running in read-only mode: ${agentFiles.join(", ")}`,
+            );
         }
-        const action = !spec.mutatesFiles ? undefined
-          : decodeActionState(mayAct ? acted.state : { summary: "No link suggestions accepted.", edits: [], reviewItems: [] });
-        const edits = action === undefined ? undefined : workflowEditsArtifact({
-          id, workflow: spec.id, mode: mutation.mode, root: input.root, action, decisions: decisionReport, decisionInputs,
-        });
+        const action = !spec.mutatesFiles
+          ? undefined
+          : decodeActionState(
+              mayAct
+                ? acted.state
+                : { summary: "No link suggestions accepted.", edits: [], reviewItems: [] },
+            );
+        const edits =
+          action === undefined
+            ? undefined
+            : workflowEditsArtifact({
+                id,
+                workflow: spec.id,
+                mode: mutation.mode,
+                root: input.root,
+                action,
+                decisions: decisionReport,
+                decisionInputs,
+              });
         if (edits !== undefined) {
           writeWorkflowEdits(runDirectory, edits);
           if (!actionRecorded && mutation.mode === "write" && edits.edits.length > 0) {
-            const writeOptions = { presetDirectory: resolve(input.root, workflows.agent.presetDirectory), runsDirectory: resolve(input.root, runsDirectory) };
-            const checked = await applyWorkflowEdits(input.root, edits.edits, { ...writeOptions, check: true });
+            const writeOptions = {
+              presetDirectory: resolve(input.root, workflows.agent.presetDirectory),
+              runsDirectory: resolve(input.root, runsDirectory),
+            };
+            const checked = await applyWorkflowEdits(input.root, edits.edits, {
+              ...writeOptions,
+              check: true,
+            });
             const refused = checked.filter((outcome) => outcome.status !== "applicable");
             if (refused.length > 0) {
-              throw new Error(`Recorded edits no longer apply: ${refused.map((outcome) => `${outcome.id} (${outcome.path}): ${outcome.reason}`).join("; ")}`);
+              throw new Error(
+                `Recorded edits no longer apply: ${refused.map((outcome) => `${outcome.id} (${outcome.path}): ${outcome.reason}`).join("; ")}`,
+              );
             }
-            const applied = await applyWorkflowEdits(input.root, edits.edits, { ...writeOptions, check: false });
+            const applied = await applyWorkflowEdits(input.root, edits.edits, {
+              ...writeOptions,
+              check: false,
+            });
             const failed = applied.filter((outcome) => outcome.status !== "applied");
             if (failed.length > 0) {
-              throw new Error(`Could not apply recorded edits: ${failed.map((outcome) => `${outcome.id} (${outcome.path}): ${outcome.reason}`).join("; ")}`);
+              throw new Error(
+                `Could not apply recorded edits: ${failed.map((outcome) => `${outcome.id} (${outcome.path}): ${outcome.reason}`).join("; ")}`,
+              );
             }
           }
         }
         const gitAfter = inspectWorkflowGit(input.root, runDirectory);
         const files = changedFiles(gitAtCheckpoint, gitAfter);
         if (mayAct) {
-          progress = { ...progress, action: acted, actionGit: gitAfter,
-            actionSources: await readRecordedWorkflowSources(repositoryRoot, progress.evidence.sources, resolve(input.root, runsDirectory)) };
+          progress = {
+            ...progress,
+            action: acted,
+            actionGit: gitAfter,
+            actionSources: await readRecordedWorkflowSources(
+              repositoryRoot,
+              progress.evidence.sources,
+              resolve(input.root, runsDirectory),
+            ),
+          };
           writeWorkflowProgress(input.root, runsDirectory, progress);
         }
         const run: WorkflowRunV2 = {
@@ -443,14 +719,24 @@ export const runWorkflow = async (
             files,
             providerCalls: acted.executor.calls.map((call) => call.tool),
           },
-          result: edits === undefined ? state : {
-            summary: edits.summary,
-            outcome: edits.edits.length === 0 ? "no-change" : edits.mode === "write" ? "applied" : "dry-run",
-            edits: edits.edits,
-            reviewItems: edits.reviewItems,
-          },
+          result:
+            edits === undefined
+              ? state
+              : {
+                  summary: edits.summary,
+                  outcome:
+                    edits.edits.length === 0
+                      ? "no-change"
+                      : edits.mode === "write"
+                        ? "applied"
+                        : "dry-run",
+                  edits: edits.edits,
+                  reviewItems: edits.reviewItems,
+                },
           agent: agentArtifact!,
-          ...(researched.rejectedItems === undefined ? {} : { rejectedItems: researched.rejectedItems }),
+          ...(researched.rejectedItems === undefined
+            ? {}
+            : { rejectedItems: researched.rejectedItems }),
         };
         return { run, directory: writeRunBundle(input.root, runsDirectory, run) };
       } catch (cause) {
@@ -473,7 +759,12 @@ export const runWorkflow = async (
     while (current instanceof Error && !seen.has(current)) {
       seen.add(current);
       if (pi !== undefined && current instanceof pi.WorkflowRunnerError && selectedModel) {
-        agentArtifact = { runtime: "pi", model: selectedModel, messages: current.result.messages, usage: current.result.usage };
+        agentArtifact = {
+          runtime: "pi",
+          model: selectedModel,
+          messages: current.result.messages,
+          usage: current.result.usage,
+        };
         executorEvidence = current.result.executor;
         break;
       }
@@ -484,16 +775,23 @@ export const runWorkflow = async (
     try {
       if (progress !== undefined) writeWorkflowProgress(input.root, runsDirectory, progress);
       path = writeWorkflowFailure(input.root, runsDirectory, id, {
-        kind: "pagegraph-workflow-failure", schemaVersion: 2, id, workflow: spec.id,
-        stage, ...(agentArtifact === undefined ? {} : { agent: agentArtifact }),
-        ...(executorEvidence === undefined ? {} : { executor: executorEvidence }), cause: serializeCause(cause),
+        kind: "pagegraph-workflow-failure",
+        schemaVersion: 2,
+        id,
+        workflow: spec.id,
+        stage,
+        ...(agentArtifact === undefined ? {} : { agent: agentArtifact }),
+        ...(executorEvidence === undefined ? {} : { executor: executorEvidence }),
+        cause: serializeCause(cause),
       });
     } catch (writeError) {
       if (cause instanceof Error) {
         cause.message += `\nCould not write failure artifact: ${writeError instanceof Error ? writeError.message : String(writeError)}`;
         throw cause;
       }
-      throw new Error(`${message}\nCould not write failure artifact: ${String(writeError)}`, { cause });
+      throw new Error(`${message}\nCould not write failure artifact: ${String(writeError)}`, {
+        cause,
+      });
     }
     const next = failureRecovery(stage, runDirectory);
     throw new Error(`${message}\nFailure artifact: ${path}\nNext: ${next}`, { cause });

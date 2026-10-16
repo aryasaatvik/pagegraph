@@ -37,28 +37,47 @@ markdown document without rendering its children during capture.
 import { renderToStaticMarkup } from "react-dom/server";
 import { defineFacts, fact, documentMarkdown } from "pagegraph";
 import {
-  DocumentProvider, T, Title, Section, Fact, createCollector, finishDocument,
+  DocumentProvider,
+  T,
+  Title,
+  Section,
+  Fact,
+  createCollector,
+  finishDocument,
 } from "pagegraph/react";
 
 const facts = defineFacts({ attempts: fact.number(8) });
 declare module "pagegraph" {
-  interface Register { facts: typeof facts }
+  interface Register {
+    facts: typeof facts;
+  }
 }
 
 const collector = createCollector({ path: "/email", site: "https://example.com", facts });
 const page = (
   <DocumentProvider collector={collector}>
     <Section kind="prose" id="intro">
-      <h1><Title>Email delivery</Title></h1>
-      <p><T>Retry up to <Fact id="attempts" /> times.</T></p>
+      <h1>
+        <Title>Email delivery</Title>
+      </h1>
+      <p>
+        <T>
+          Retry up to <Fact id="attempts" /> times.
+        </T>
+      </p>
     </Section>
   </DocumentProvider>
 );
 // Your SSR renderer supplies completed HTML, whose markers determine document order.
 const html = renderToStaticMarkup(page);
-const document = finishDocument(collector, {
-  title: "Email delivery", description: "Reliable delivery with retries.",
-}, html);
+const document = finishDocument(
+  collector,
+  {
+    title: "Email delivery",
+    description: "Reliable delivery with retries.",
+  },
+  html,
+);
 const markdown = documentMarkdown(document, "https://example.com");
 ```
 
@@ -69,8 +88,8 @@ and `table`:
 import { defineSectionKind } from "pagegraph";
 const comparison = defineSectionKind({
   kind: "comparison",
-  markdown: (section, md) => md.heading(2, section.title)
-    + md.table(section.items.map((item) => item.cells)),
+  markdown: (section, md) =>
+    md.heading(2, section.title) + md.table(section.items.map((item) => item.cells)),
 }); // pass kind={comparison} to Section
 ```
 
@@ -96,12 +115,18 @@ export const Route = createFileRoute("/pricing")({
     markdown: "rendered",
     llms: "Product",
   },
-  head: () => ({ meta: [{ title: "Pricing" }, { name: "description", content: "Plans for your team." }] }),
+  head: () => ({
+    meta: [{ title: "Pricing" }, { name: "description", content: "Plans for your team." }],
+  }),
   component: () => (
     <DocumentProvider>
       <Section kind="prose" id="plans">
-        <h1><Title>Plans for your team</Title></h1>
-        <Link to="/"><T>Back home</T></Link>
+        <h1>
+          <Title>Plans for your team</Title>
+        </h1>
+        <Link to="/">
+          <T>Back home</T>
+        </Link>
       </Section>
     </DocumentProvider>
   ),
@@ -163,7 +188,7 @@ import { markdownRequest } from "pagegraph/tanstack-start/markdown";
 
 export default {
   async fetch(request: Request) {
-    return await markdownRequest(request) ?? handler.fetch(request);
+    return (await markdownRequest(request)) ?? handler.fetch(request);
   },
 };
 ```
@@ -200,21 +225,21 @@ Every entry belongs to one place. Runtime entries use portable graph and documen
 the framework peers listed below; the capture adapter runs on a Start server. Build entries
 load your app through Vite, parse routes natively, or drive Node I/O.
 
-| Entry              | Runs in                       | Exports                                                                                                   | Peers                             |
-| ------------------ | ----------------------------- | --------------------------------------------------------------------------------------------------------- | --------------------------------- |
-| `pagegraph`        | runtime (Worker, SSR, browser) | `buildSeoGraph`, `contentCollection`, `renderSitemap`, `renderRobots`, `pageHeads`, `graphToJson`/`graphFromJson`, checks, `inspectHtml`, document types, facts, markdown and locks | —                                 |
-| `pagegraph/react`  | runtime                       | `createSeo` → `seo.head`, `seoHead`, `Breadcrumbs`, JSON-LD generators, authored page primitives                                    | `react`, `@tanstack/react-router` |
-| `pagegraph/tanstack-start/server` | runtime (Start server routes) | `robotsTxt`, `sitemapXml`, `llmsTxt`, `llmsSection`, `seoGraph`, `seoSite`                                           | the `pagegraph()` plugin          |
-| `pagegraph/tanstack-start/markdown` | runtime (Start server) | `markdownRequest`, `markdownPagePaths` | `react`, `react-dom`, `@tanstack/react-start`, `@tanstack/react-router` |
-| `pagegraph/tanstack-start/react` | runtime | capture-aware `Link` | `react`, `@tanstack/react-router` |
-| `pagegraph/tanstack-start/prerender-worker` | non-deployed prerender Worker | compiled Start server | the `pagegraph()` plugin |
-| `pagegraph/tanstack-start` | build (`vite.config.ts`, `pagegraph.config.ts`) | `pagegraph()` Vite plugin, `tanstackStartGraph`, `evaluateAppGraph`                        | `vite`, `@tanstack/router-generator`, `effect` |
-| `pagegraph/vite`   | build (`vite.config.ts`)      | `seoRouteConfig` coverage gate                                                                            | `vite`, `@tanstack/router-generator` |
-| `pagegraph/config` | build (`pagegraph.config.ts`, CLI)  | `defineSeoConfig`, `viteGraphLoader`, `loadPageHeads`                                                     | `vite`                            |
-| `pagegraph/claims` | build / CLI (Node or Bun) | `claimsInput`, `claimsFamily`, document resolution, committed claims checks | `effect` |
-| `pagegraph/audit`  | build / CLI (Node or Bun)     | Audit services, scanner protocol, rules, and report schemas                                               | `effect`                          |
-| `pagegraph/oxlint` | build (oxlint)               | `pagegraph` plugin: `no-bare-text`, `t-children`                                                        | —                                 |
-| `pagegraph` bin    | CLI (Bun)                     | CLI over the same graph                                                                                   | bundled                           |
+| Entry                                       | Runs in                                         | Exports                                                                                                                                                                             | Peers                                                                   |
+| ------------------------------------------- | ----------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| `pagegraph`                                 | runtime (Worker, SSR, browser)                  | `buildSeoGraph`, `contentCollection`, `renderSitemap`, `renderRobots`, `pageHeads`, `graphToJson`/`graphFromJson`, checks, `inspectHtml`, document types, facts, markdown and locks | —                                                                       |
+| `pagegraph/react`                           | runtime                                         | `createSeo` → `seo.head`, `seoHead`, `Breadcrumbs`, JSON-LD generators, authored page primitives                                                                                    | `react`, `@tanstack/react-router`                                       |
+| `pagegraph/tanstack-start/server`           | runtime (Start server routes)                   | `robotsTxt`, `sitemapXml`, `llmsTxt`, `llmsSection`, `seoGraph`, `seoSite`                                                                                                          | the `pagegraph()` plugin                                                |
+| `pagegraph/tanstack-start/markdown`         | runtime (Start server)                          | `markdownRequest`, `markdownPagePaths`                                                                                                                                              | `react`, `react-dom`, `@tanstack/react-start`, `@tanstack/react-router` |
+| `pagegraph/tanstack-start/react`            | runtime                                         | capture-aware `Link`                                                                                                                                                                | `react`, `@tanstack/react-router`                                       |
+| `pagegraph/tanstack-start/prerender-worker` | non-deployed prerender Worker                   | compiled Start server                                                                                                                                                               | the `pagegraph()` plugin                                                |
+| `pagegraph/tanstack-start`                  | build (`vite.config.ts`, `pagegraph.config.ts`) | `pagegraph()` Vite plugin, `tanstackStartGraph`, `evaluateAppGraph`                                                                                                                 | `vite`, `@tanstack/router-generator`, `effect`                          |
+| `pagegraph/vite`                            | build (`vite.config.ts`)                        | `seoRouteConfig` coverage gate                                                                                                                                                      | `vite`, `@tanstack/router-generator`                                    |
+| `pagegraph/config`                          | build (`pagegraph.config.ts`, CLI)              | `defineSeoConfig`, `viteGraphLoader`, `loadPageHeads`                                                                                                                               | `vite`                                                                  |
+| `pagegraph/claims`                          | build / CLI (Node or Bun)                       | `claimsInput`, `claimsFamily`, document resolution, committed claims checks                                                                                                         | `effect`                                                                |
+| `pagegraph/audit`                           | build / CLI (Node or Bun)                       | Audit services, scanner protocol, rules, and report schemas                                                                                                                         | `effect`                                                                |
+| `pagegraph/oxlint`                          | build (oxlint)                                  | `pagegraph` plugin: `no-bare-text`, `t-children`                                                                                                                                    | —                                                                       |
+| `pagegraph` bin                             | CLI (Bun)                                       | CLI over the same graph                                                                                                                                                             | bundled                                                                 |
 
 Build entries resolve to a stub under the `workerd`, `worker`, and `browser` export conditions.
 A Worker or browser bundle that reaches one fails at import with an error naming the entry,
@@ -383,7 +408,7 @@ export const ogImage: OgImageResolver = (node) => ({
 });
 
 // vite.config.ts
-pagegraph({ origin: "https://example.com", ogImage, /* other plugin options */ });
+pagegraph({ origin: "https://example.com", ogImage /* other plugin options */ });
 
 // src/lib/seo.ts
 createSeo({ origin: "https://example.com", ogImage, site, organization, website });
@@ -557,7 +582,9 @@ fields and rows the workflow needs, for example:
 
 ```ts
 return rows.slice(0, 50).map(({ keyword, searchVolume, keywordDifficulty }) => ({
-  keyword, searchVolume, keywordDifficulty,
+  keyword,
+  searchVolume,
+  keywordDifficulty,
 }));
 ```
 
@@ -588,19 +615,19 @@ agent loop; repeated rejected submissions fail the run. Every error after run cr
 chain. The error reports the artifact path and a next step; a failed artifact write preserves the
 original error with a note.
 
-| Command | Result |
-| --- | --- |
-| `research keywords` | Query demand, intent, and page ownership opportunities |
-| `research competitors` | Competitor topics, pages, and positioning evidence |
-| `research authority` | Qualified editorial, directory, partner, and community opportunities |
-| `analyze serp` | Search-result intent and page-shape fit |
-| `analyze content` | Substance, answer quality, and intent overlap |
-| `analyze ai-search` | Citation readiness and answer-engine coverage |
-| `plan architecture` | A page-backed information-architecture plan |
-| `improve content` | Evidence-backed source copy edits |
-| `improve metadata` | Title and description edits at the owning source |
-| `improve schema` | Structured-data edits justified by visible content |
-| `improve links` | Contextual internal-link edits from graph and page evidence |
+| Command                | Result                                                               |
+| ---------------------- | -------------------------------------------------------------------- |
+| `research keywords`    | Query demand, intent, and page ownership opportunities               |
+| `research competitors` | Competitor topics, pages, and positioning evidence                   |
+| `research authority`   | Qualified editorial, directory, partner, and community opportunities |
+| `analyze serp`         | Search-result intent and page-shape fit                              |
+| `analyze content`      | Substance, answer quality, and intent overlap                        |
+| `analyze ai-search`    | Citation readiness and answer-engine coverage                        |
+| `plan architecture`    | A page-backed information-architecture plan                          |
+| `improve content`      | Evidence-backed source copy edits                                    |
+| `improve metadata`     | Title and description edits at the owning source                     |
+| `improve schema`       | Structured-data edits justified by visible content                   |
+| `improve links`        | Contextual internal-link edits from graph and page evidence          |
 
 The common selectors are repeatable `--page`, `--query`, and `--kind`, plus `--limit`, `--market`,
 `--language`, `--refresh`, `--model`, `--preset-directory`, and `--out`. Relevant workflows also
@@ -618,13 +645,13 @@ origins, respecting robots rules and the response size limit.
 The agent never writes files. Its action turn submits `edits` and `reviewItems` through
 `submit_result`:
 
-| Field | Meaning |
-| --- | --- |
-| `edits[].path` | File to change, as `read_file` names it; it must be inside the app root |
-| `edits[].oldText` | Exact current text; it must match once. Omit it to create a new file |
-| `edits[].newText` | Replacement text |
-| `edits[].reason`, `edits[].evidence` | Why the change is justified, with repository and provider evidence |
-| `reviewItems[]` | `path`, `reason`, and `evidence` for a change a human must make |
+| Field                                | Meaning                                                                 |
+| ------------------------------------ | ----------------------------------------------------------------------- |
+| `edits[].path`                       | File to change, as `read_file` names it; it must be inside the app root |
+| `edits[].oldText`                    | Exact current text; it must match once. Omit it to create a new file    |
+| `edits[].newText`                    | Replacement text                                                        |
+| `edits[].reason`, `edits[].evidence` | Why the change is justified, with repository and provider evidence      |
+| `reviewItems[]`                      | `path`, `reason`, and `evidence` for a change a human must make         |
 
 PageGraph rejects a submission whose edits do not apply to the current files and returns the reasons
 to the agent. Accepted edits are written to the run directory:
@@ -636,10 +663,10 @@ to the agent. Accepted edits are written to the run directory:
 
 The two modes differ only in who applies the edits:
 
-| Mode | Source files | Next step |
-| --- | --- | --- |
-| Write (default) | PageGraph applies every edit after recording it | Review the uncommitted diff |
-| `--dry-run` | Unchanged | Review `review.md`, then run `pagegraph apply` |
+| Mode            | Source files                                    | Next step                                      |
+| --------------- | ----------------------------------------------- | ---------------------------------------------- |
+| Write (default) | PageGraph applies every edit after recording it | Review the uncommitted diff                    |
+| `--dry-run`     | Unchanged                                       | Review `review.md`, then run `pagegraph apply` |
 
 A write run is equivalent to a dry run followed by `pagegraph apply`. Writes reject paths outside the
 app root, including symlink escapes, hard-linked files, and paths under `.git`, `node_modules`, the
@@ -834,7 +861,10 @@ import { routeConfig } from "./src/lib/route-config";
 
 export default defineSeoConfig({
   // Fail `check` unless each named money page has enough contextual links.
-  coverage: [{ path: "/pricing", minInbound: 2 }, { path: "/features/*", minInbound: 1 }],
+  coverage: [
+    { path: "/pricing", minInbound: 2 },
+    { path: "/features/*", minInbound: 1 },
+  ],
   loadGraph: viteGraphLoader({
     root: import.meta.dirname,
     entry: "/lib/seo/graph.ts",
@@ -842,7 +872,10 @@ export default defineSeoConfig({
     site: {
       origin: "https://example.com",
       indexable: true,
-      robots: { disallow: routeConfig.robotsExclusions, contentSignal: "search=yes, ai-input=yes, ai-train=yes" },
+      robots: {
+        disallow: routeConfig.robotsExclusions,
+        contentSignal: "search=yes, ai-input=yes, ai-train=yes",
+      },
     },
   }),
 });
@@ -935,7 +968,13 @@ and the provenance a gate needs to trust it:
     "bodyTruncated": false,
     "truncatedPages": [],
     "failures": [],
-    "nonHtml": [{ "url": "https://example.com/auth.md", "finalUrl": "https://example.com/auth.md", "contentType": "text/markdown" }],
+    "nonHtml": [
+      {
+        "url": "https://example.com/auth.md",
+        "finalUrl": "https://example.com/auth.md",
+        "contentType": "text/markdown",
+      },
+    ],
     "discoveryFailures": [],
     "skipped": [],
     "sitemapTruncated": false,
@@ -1063,18 +1102,18 @@ pagegraph check --site http://localhost:3000 --allow-private
 pagegraph check --site https://staging.example.com --json | jq '.violations'
 ```
 
-| Rule | Severity | Fails when |
-| --- | --- | --- |
-| `rendered-page-unavailable` | structural | The page errors, is not HTML, is truncated, or redirects off its declared path |
-| `rendered-robots-mismatch` | structural | An indexable page renders a `noindex` robots meta, or a `noindex` declaration renders none |
-| `rendered-canonical-mismatch` | structural | The canonical is missing or its path is not the declared path |
-| `missing-h1`, `multiple-h1`, `empty-h1` | structural | The page does not have exactly one H1 with text |
-| `faq-not-visible` | structural | A FAQPage question or answer is not in the rendered text |
-| `offer-price-not-visible` | structural | An Offer or AggregateOffer price does not appear on the page |
-| `heading-level-skip` | editorial | The main-content outline skips a level (h2 → h4) |
-| `h1-title-mismatch` | editorial | The H1 and `<title>` share no significant term |
-| `webpage-head-mismatch` | editorial | A WebPage `name` or `description` disagrees with the head |
-| `thin-content` | editorial | Main content is under the page's `content.minWords` floor |
+| Rule                                    | Severity   | Fails when                                                                                 |
+| --------------------------------------- | ---------- | ------------------------------------------------------------------------------------------ |
+| `rendered-page-unavailable`             | structural | The page errors, is not HTML, is truncated, or redirects off its declared path             |
+| `rendered-robots-mismatch`              | structural | An indexable page renders a `noindex` robots meta, or a `noindex` declaration renders none |
+| `rendered-canonical-mismatch`           | structural | The canonical is missing or its path is not the declared path                              |
+| `missing-h1`, `multiple-h1`, `empty-h1` | structural | The page does not have exactly one H1 with text                                            |
+| `faq-not-visible`                       | structural | A FAQPage question or answer is not in the rendered text                                   |
+| `offer-price-not-visible`               | structural | An Offer or AggregateOffer price does not appear on the page                               |
+| `heading-level-skip`                    | editorial  | The main-content outline skips a level (h2 → h4)                                           |
+| `h1-title-mismatch`                     | editorial  | The H1 and `<title>` share no significant term                                             |
+| `webpage-head-mismatch`                 | editorial  | A WebPage `name` or `description` disagrees with the head                                  |
+| `thin-content`                          | editorial  | Main content is under the page's `content.minWords` floor                                  |
 
 Google requires structured data to describe content the page visibly shows, so
 a FAQ answer that exists only in JSON-LD or in hydration data (an accordion that
@@ -1161,11 +1200,11 @@ pagegraph diff .audit/before/<report>.json .audit/after/<report>.json
 pagegraph diff .audit/before/<report>.json .audit/after/<report>.json --json | jq
 ```
 
-| Change | Outcome | Exit |
-| --- | --- | ---: |
-| Timestamp, warning text, or raw scanner evidence only | `unchanged` | 0 |
-| Editorial finding or improvement | `changed` | 0 |
-| Structural finding, scanner degradation, or lost coverage | `regressed` | 1 |
+| Change                                                    | Outcome     | Exit |
+| --------------------------------------------------------- | ----------- | ---: |
+| Timestamp, warning text, or raw scanner evidence only     | `unchanged` |    0 |
+| Editorial finding or improvement                          | `changed`   |    0 |
+| Structural finding, scanner degradation, or lost coverage | `regressed` |    1 |
 
 Inputs must satisfy the published `AuditReport` schema version 1. JSON mode
 emits a separately versioned `audit-diff` document even when a regression makes

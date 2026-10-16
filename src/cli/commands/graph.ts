@@ -24,7 +24,10 @@ export const graphCommand = Command.make("graph", {
   Command.withDescription("Render the SEO graph as a tree, a Mermaid diagram, or JSON"),
   Command.withExamples([
     { command: "pagegraph graph", description: "The graph as an indented path tree" },
-    { command: "pagegraph graph --format mermaid", description: "A Mermaid diagram of nodes and edges" },
+    {
+      command: "pagegraph graph --format mermaid",
+      description: "A Mermaid diagram of nodes and edges",
+    },
     { command: "pagegraph graph --orphans", description: "Only nodes with no incoming edge" },
     { command: "pagegraph graph --format json", description: "The serialized graph on stdout" },
   ]),

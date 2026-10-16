@@ -314,7 +314,11 @@ describe("renderSitemap", () => {
     const graph = buildSeoGraph({
       routeTree: tree,
       collections: [
-        { route: "/blog/$slug", source: "blog", instances: [{ path: "/blog/undated", title: "Undated" }] },
+        {
+          route: "/blog/$slug",
+          source: "blog",
+          instances: [{ path: "/blog/undated", title: "Undated" }],
+        },
       ],
     });
     const sitemap = renderSitemap(graph, { origin: ORIGIN, indexable: true });
@@ -516,12 +520,20 @@ describe("declared heads, collections, and the wire format", () => {
       seo: {
         kind: "page",
         sitemap: { priority: 0.9, changeFrequency: "monthly" },
-        head: { title: "Pricing | Example", description: "Pricing.", faqs: [{ question: "Q", answer: "A", extra: 1 }] },
+        head: {
+          title: "Pricing | Example",
+          description: "Pricing.",
+          faqs: [{ question: "Q", answer: "A", extra: 1 }],
+        },
       },
     }),
     route({
       path: "/blog/$slug",
-      seo: { kind: "article", titleTemplate: "%s | Blog", sitemap: { priority: 0.7, changeFrequency: "weekly" } },
+      seo: {
+        kind: "article",
+        titleTemplate: "%s | Blog",
+        sitemap: { priority: 0.7, changeFrequency: "weekly" },
+      },
     }),
   ]) as AnyRoute;
   const blog = contentCollection({
@@ -531,7 +543,11 @@ describe("declared heads, collections, and the wire format", () => {
       { url: "/blog/b", title: "B", body: "" },
       { url: "/blog/a", title: "A", body: "" },
     ],
-    entry: (page) => ({ title: page.title, description: `${page.title} post`, related: ["/pricing", "/pricing"] }),
+    entry: (page) => ({
+      title: page.title,
+      description: `${page.title} post`,
+      related: ["/pricing", "/pricing"],
+    }),
   });
   const graph = buildSeoGraph({ routeTree: tree, collections: [blog] });
 
@@ -570,14 +586,17 @@ describe("title templates", () => {
       route({ path: "/foo", seo: { kind: "hub", crumb: "Foo", titleTemplate: "%s | Layout" } }, [
         route({
           path: "/",
-          seo: { kind: "page", sitemap: { priority: 0.5, changeFrequency: "monthly" }, head: { title: "Index", description: "The index." } },
+          seo: {
+            kind: "page",
+            sitemap: { priority: 0.5, changeFrequency: "monthly" },
+            head: { title: "Index", description: "The index." },
+          },
         }),
       ]),
     ]) as AnyRoute;
     expect(buildSeoGraph({ routeTree: tree }).nodes.get("/foo")?.head?.title).toBe("Index");
   });
 });
-
 
 describe("route document declarations", () => {
   const graph = buildSeoGraph({
@@ -586,23 +605,46 @@ describe("route document declarations", () => {
       children: [
         { options: { path: "standalone", staticData: { markdown: "rendered", llms: "Pages" } } },
         {
-          options: { path: "blog/$slug", staticData: {
-            seo: { kind: "article", sitemap: { priority: 0.7, changeFrequency: "weekly" } },
-            markdown: "rendered", llms: "Blog",
-          } },
+          options: {
+            path: "blog/$slug",
+            staticData: {
+              seo: { kind: "article", sitemap: { priority: 0.7, changeFrequency: "weekly" } },
+              markdown: "rendered",
+              llms: "Blog",
+            },
+          },
         },
         {
-          options: { path: "guide", staticData: { seo: { kind: "hub" }, markdown: "source", llms: "Guides" } },
-          children: [{ options: { path: "/", staticData: { markdown: "rendered", llms: "Pages" } } }],
+          options: {
+            path: "guide",
+            staticData: { seo: { kind: "hub" }, markdown: "source", llms: "Guides" },
+          },
+          children: [
+            { options: { path: "/", staticData: { markdown: "rendered", llms: "Pages" } } },
+          ],
         },
       ],
     },
-    collections: [{ route: "/blog/$slug", source: "blog", instances: [{ path: "/blog/first", title: "First" }] }],
+    collections: [
+      {
+        route: "/blog/$slug",
+        source: "blog",
+        instances: [{ path: "/blog/first", title: "First" }],
+      },
+    ],
   });
 
   it("records named declarations with or without SEO and lets the index override its layout", () => {
-    expect(graph.nodes.get("/standalone")).toMatchObject({ kind: "page", markdown: "rendered", llms: "Pages" });
-    expect(graph.nodes.get("/guide")).toMatchObject({ kind: "hub", markdown: "rendered", llms: "Pages" });
+    expect(graph.nodes.get("/standalone")).toMatchObject({
+      kind: "page",
+      markdown: "rendered",
+      llms: "Pages",
+    });
+    expect(graph.nodes.get("/guide")).toMatchObject({
+      kind: "hub",
+      markdown: "rendered",
+      llms: "Pages",
+    });
   });
 
   it("inherits the collection route's declarations on each concrete instance", () => {
@@ -611,12 +653,17 @@ describe("route document declarations", () => {
 
   it("round-trips document declarations through the JSON wire format", () => {
     const restored = graphFromJson(JSON.parse(JSON.stringify(graphToJson(graph))));
-    expect(restored.nodes.get("/standalone")).toMatchObject({ markdown: "rendered", llms: "Pages" });
+    expect(restored.nodes.get("/standalone")).toMatchObject({
+      markdown: "rendered",
+      llms: "Pages",
+    });
     expect(restored.nodes.get("/blog/first")).toMatchObject({ markdown: "rendered", llms: "Blog" });
   });
 
   it("keeps parameter routes as inheritance sources and never selects them as pages", () => {
     expect(graph.nodes.has("/blog/$slug")).toBe(true);
-    expect(selectPageHeadNodes(graph, { indexable: false }).map((node) => node.path)).toEqual(["/blog/first"]);
+    expect(selectPageHeadNodes(graph, { indexable: false }).map((node) => node.path)).toEqual([
+      "/blog/first",
+    ]);
   });
 });

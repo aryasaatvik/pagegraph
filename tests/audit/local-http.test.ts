@@ -27,8 +27,7 @@ beforeAll(async () => {
     server.listen(0, "127.0.0.1", resolve);
   });
   const address = server.address();
-  if (address === null || typeof address === "string")
-    throw new Error("Fixture did not bind");
+  if (address === null || typeof address === "string") throw new Error("Fixture did not bind");
   target = `http://127.0.0.1:${address.port}/`;
 });
 
@@ -52,8 +51,7 @@ describe("local HTTP audit fixture", () => {
                 status: response.status,
                 body,
                 title: "Fixture documentation page",
-                description:
-                  "A local fixture page with enough descriptive copy for audit rules.",
+                description: "A local fixture page with enough descriptive copy for audit rules.",
                 canonical: requestTarget.url,
               },
             };

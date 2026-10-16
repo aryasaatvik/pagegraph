@@ -12,14 +12,14 @@ TypeScript input and result shapes:
 Pass a TypeScript snippet to `executor_execute`, replacing `discovered_namespace`, `discovered_tool`, and
 arguments with the returned names and required fields:
 
-~~~ts
+```ts
 return await tools.discovered_namespace.discovered_tool({
   query,
   market,
   language,
   device,
 });
-~~~
+```
 
 Record market, language, device, dates, limits, task status, errors, and cost. Search evidence may
 support a source edit only after the host evaluates it; never edit during research or write to an

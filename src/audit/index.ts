@@ -38,12 +38,7 @@ export { defaultAuditOptions, evaluateRules, pageRules } from "./rules";
 export { makeScannerRegistry, ScannerRegistryLive } from "./scanner-registry";
 export type { ScannerRegistryShape } from "./scanner-registry";
 export { ScannerFailure, scanner } from "./scanner";
-export type {
-  Scanner,
-  ScannerInput,
-  ScannerObservation,
-  ScannerRule,
-} from "./scanner";
+export type { Scanner, ScannerInput, ScannerObservation, ScannerRule } from "./scanner";
 export { renderAuditDiff, renderAuditMarkdown, writeAuditFiles } from "./render";
 export { makeHttpScanner } from "./scanners/http";
 export {

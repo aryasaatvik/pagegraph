@@ -1,11 +1,6 @@
 import { Data, Schema } from "effect";
 
-import {
-  AuditFinding,
-  FindingSeverity,
-  ScannerStatus,
-  type AuditReport,
-} from "./model";
+import { AuditFinding, FindingSeverity, ScannerStatus, type AuditReport } from "./model";
 
 const DiffFindingGroup = Schema.Struct({
   target: Schema.String,
@@ -68,11 +63,7 @@ export const AuditDiffChange = Schema.Union([
 ]).pipe(Schema.toTaggedUnion("_tag"));
 export type AuditDiffChange = typeof AuditDiffChange.Type;
 
-export const AuditDiffOutcome = Schema.Literals([
-  "unchanged",
-  "changed",
-  "regressed",
-] as const);
+export const AuditDiffOutcome = Schema.Literals(["unchanged", "changed", "regressed"] as const);
 export type AuditDiffOutcome = typeof AuditDiffOutcome.Type;
 
 export const AuditDiffSummary = Schema.Struct({
@@ -137,22 +128,14 @@ const canonicalize = (value: unknown): unknown => {
   return value;
 };
 
-const canonicalJson = (value: unknown): string =>
-  JSON.stringify(canonicalize(value));
+const canonicalJson = (value: unknown): string => JSON.stringify(canonicalize(value));
 
-const tupleKey = (...parts: ReadonlyArray<string>): string =>
-  JSON.stringify(parts);
+const tupleKey = (...parts: ReadonlyArray<string>): string => JSON.stringify(parts);
 
-const severityOf = (
-  findings: ReadonlyArray<AuditFinding>,
-): FindingSeverity =>
-  findings.some((finding) => finding.severity === "structural")
-    ? "structural"
-    : "editorial";
+const severityOf = (findings: ReadonlyArray<AuditFinding>): FindingSeverity =>
+  findings.some((finding) => finding.severity === "structural") ? "structural" : "editorial";
 
-const findingsByIdentity = (
-  findings: ReadonlyArray<AuditFinding>,
-): Map<string, FindingGroup> => {
+const findingsByIdentity = (findings: ReadonlyArray<AuditFinding>): Map<string, FindingGroup> => {
   const groups = new Map<string, AuditFinding[]>();
   for (const finding of findings) {
     const key = tupleKey(finding.target, finding.scanner, finding.rule);
@@ -181,10 +164,7 @@ const findingsByIdentity = (
   );
 };
 
-const validateReport = (
-  label: "before" | "after",
-  report: AuditReport,
-): ReadonlyArray<string> => {
+const validateReport = (label: "before" | "after", report: AuditReport): ReadonlyArray<string> => {
   const issues: string[] = [];
   const targets = new Set<string>();
   for (const target of report.targets) {
@@ -201,9 +181,7 @@ const validateReport = (
     }
     const key = tupleKey(result.target, result.scanner);
     if (results.has(key)) {
-      issues.push(
-        `${label}: duplicate scanner result ${result.scanner} for ${result.target}`,
-      );
+      issues.push(`${label}: duplicate scanner result ${result.scanner} for ${result.target}`);
     }
     results.add(key);
     for (const finding of result.findings) {
@@ -228,23 +206,13 @@ const validateReport = (
 };
 
 const resultMap = (report: AuditReport) =>
-  new Map(
-    report.results.map((result) => [
-      tupleKey(result.target, result.scanner),
-      result,
-    ]),
-  );
+  new Map(report.results.map((result) => [tupleKey(result.target, result.scanner), result]));
 
 const changeSortKey = (change: AuditDiffChange): string => {
   switch (change._tag) {
     case "FindingAdded":
     case "FindingRemoved":
-      return tupleKey(
-        change.group.target,
-        change.group.scanner,
-        change.group.rule,
-        change._tag,
-      );
+      return tupleKey(change.group.target, change.group.scanner, change.group.rule, change._tag);
     case "FindingChanged":
       return tupleKey(change.target, change.scanner, change.rule, change._tag);
     case "ScannerAdded":
@@ -277,15 +245,9 @@ const summarize = (changes: ReadonlyArray<AuditDiffChange>): AuditDiffSummary =>
         improvements++;
         break;
       case "FindingChanged":
-        if (
-          change.beforeSeverity === "editorial" &&
-          change.afterSeverity === "structural"
-        ) {
+        if (change.beforeSeverity === "editorial" && change.afterSeverity === "structural") {
           structuralRegressions++;
-        } else if (
-          change.beforeSeverity === "structural" &&
-          change.afterSeverity === "editorial"
-        ) {
+        } else if (change.beforeSeverity === "structural" && change.afterSeverity === "editorial") {
           improvements++;
         } else {
           informationalChanges++;
@@ -337,10 +299,7 @@ export const compareAuditReports = (
   before: AuditReport,
   after: AuditReport,
 ): AuditComparisonResult => {
-  const issues = [
-    ...validateReport("before", before),
-    ...validateReport("after", after),
-  ];
+  const issues = [...validateReport("before", before), ...validateReport("after", after)];
   if (issues.length > 0) return AuditComparisonResult.InvalidReport({ issues });
 
   const changes: AuditDiffChange[] = [];
@@ -394,9 +353,7 @@ export const compareAuditReports = (
     const next = afterFindings.get(key);
     if (next === undefined) {
       changes.push({ _tag: "FindingRemoved", group });
-    } else if (
-      canonicalJson(group.findings) !== canonicalJson(next.findings)
-    ) {
+    } else if (canonicalJson(group.findings) !== canonicalJson(next.findings)) {
       changes.push({
         _tag: "FindingChanged",
         target: group.target,
@@ -415,9 +372,7 @@ export const compareAuditReports = (
     }
   }
 
-  changes.sort((left, right) =>
-    compareStrings(changeSortKey(left), changeSortKey(right)),
-  );
+  changes.sort((left, right) => compareStrings(changeSortKey(left), changeSortKey(right)));
   const summary = summarize(changes);
   const targets = (report: AuditReport) => report.targets.toSorted(compareStrings);
   return AuditComparisonResult.Success({

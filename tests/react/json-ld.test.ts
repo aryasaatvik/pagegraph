@@ -1,13 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { inspectHtml } from "../../src/core/inspect-html";
-import {
-  createSeo,
-  defineJsonLd,
-  extendJsonLd,
-  jsonLdGraph,
-  jsonLdRef,
-} from "../../src/react";
+import { createSeo, defineJsonLd, extendJsonLd, jsonLdGraph, jsonLdRef } from "../../src/react";
 
 describe("Organization JSON-LD", () => {
   it("renders optional legal identity and mailing address", () => {
@@ -173,9 +167,7 @@ describe("site identity references", () => {
           }),
         ],
         transform: (entry, context) => {
-          expect(context.entityIds.organization).toBe(
-            "https://example.com/#organization",
-          );
+          expect(context.entityIds.organization).toBe("https://example.com/#organization");
           if (entry.kind === "organization") {
             return extendJsonLd(entry.document, {
               slogan: "Ship with confidence.",

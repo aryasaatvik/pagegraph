@@ -10,7 +10,9 @@ import type { SeoEdge, SeoGraph, SeoNode, SeoSource } from "./graph";
 export interface SeoGraphJson {
   readonly nodes: ReadonlyArray<SeoNode>;
   readonly edges: ReadonlyArray<SeoEdge>;
-  readonly collisions?: ReadonlyArray<{ readonly path: string; readonly sources: ReadonlyArray<SeoSource> }> | undefined;
+  readonly collisions?:
+    | ReadonlyArray<{ readonly path: string; readonly sources: ReadonlyArray<SeoSource> }>
+    | undefined;
 }
 
 export function graphToJson(graph: SeoGraph): SeoGraphJson {

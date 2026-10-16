@@ -5,7 +5,10 @@ import { join } from "node:path";
 import type { BeforeToolCallContext } from "@earendil-works/pi-agent-core";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { createRepositoryTools, guardRepositoryToolCall } from "../../src/workflows/repository-tools";
+import {
+  createRepositoryTools,
+  guardRepositoryToolCall,
+} from "../../src/workflows/repository-tools";
 import { applyWorkflowEdits } from "../../src/workflows/review";
 
 const directories: Array<string> = [];
@@ -25,10 +28,21 @@ const context = (name: string, path: string): BeforeToolCallContext => ({
   args: { path },
   context: { messages: [] },
   assistantMessage: {
-    role: "assistant", content: [], api: "openai-completions", provider: "openai", model: "test", timestamp: 0,
+    role: "assistant",
+    content: [],
+    api: "openai-completions",
+    provider: "openai",
+    model: "test",
+    timestamp: 0,
     stopReason: "toolUse",
-    usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0,
-      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
+    usage: {
+      input: 0,
+      output: 0,
+      cacheRead: 0,
+      cacheWrite: 0,
+      totalTokens: 0,
+      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+    },
   },
 });
 
@@ -39,7 +53,9 @@ const tool = (root: string, name: string) => {
 };
 
 afterEach(async () => {
-  await Promise.all(directories.splice(0).map((directory) => rm(directory, { recursive: true, force: true })));
+  await Promise.all(
+    directories.splice(0).map((directory) => rm(directory, { recursive: true, force: true })),
+  );
 });
 
 describe("repository tools", () => {
@@ -63,7 +79,9 @@ describe("repository tools", () => {
       { type: "text", text: "project evidence\nsecond line\n" },
     ]);
     await expect(read.execute("call", { path: "escape.txt" })).rejects.toThrow("symlink");
-    await expect(read.execute("call", { path: "../outside.txt" })).rejects.toThrow("escapes project root");
+    await expect(read.execute("call", { path: "../outside.txt" })).rejects.toThrow(
+      "escapes project root",
+    );
   });
 
   it("lists and searches scoped files without traversing symlinks", async () => {
@@ -73,8 +91,16 @@ describe("repository tools", () => {
     await symlink(parent, join(root, "outside-directory"));
     const listed = await tool(root, "list_files").execute("call", { path: ".", recursive: true });
     expect(listed.content).toEqual([{ type: "text", text: "inside.txt\nnested/details.txt" }]);
-    const searched = await tool(root, "search_text").execute("call", { path: ".", text: "evidence" });
-    expect(searched.content).toEqual([{ type: "text", text: "inside.txt:1:project evidence\nnested/details.txt:1:project evidence details" }]);
+    const searched = await tool(root, "search_text").execute("call", {
+      path: ".",
+      text: "evidence",
+    });
+    expect(searched.content).toEqual([
+      {
+        type: "text",
+        text: "inside.txt:1:project evidence\nnested/details.txt:1:project evidence details",
+      },
+    ]);
   });
 
   it("bounds file reads and observes abort signals", async () => {
@@ -82,14 +108,20 @@ describe("repository tools", () => {
     await writeFile(join(root, "large.txt"), "a".repeat(100_000));
     const read = tool(root, "read_file");
     const result = await read.execute("call", { path: "large.txt" });
-    expect(result.content[0]).toEqual({ type: "text", text: "a".repeat(64 * 1024) + "\n[File truncated; continue with read_file offset=65536]" });
-    await expect(read.execute("call", { path: "inside.txt" }, AbortSignal.abort())).rejects.toThrow();
+    expect(result.content[0]).toEqual({
+      type: "text",
+      text: "a".repeat(64 * 1024) + "\n[File truncated; continue with read_file offset=65536]",
+    });
+    await expect(
+      read.execute("call", { path: "inside.txt" }, AbortSignal.abort()),
+    ).rejects.toThrow();
   });
 });
 
 describe("workflow edit write policy", () => {
   const options = { presetDirectory: "preset", runsDirectory: "runs", check: false };
-  const write = (root: string, path: string) => applyWorkflowEdits(root, [{ id: "e1", path, newText: "blocked" }], options);
+  const write = (root: string, path: string) =>
+    applyWorkflowEdits(root, [{ id: "e1", path, newText: "blocked" }], options);
 
   it("blocks protected directories, outside paths, symlink escapes and dangling symlinks", async () => {
     const { root, parent } = await fixture();
@@ -97,7 +129,19 @@ describe("workflow edit write policy", () => {
     await symlink(join(parent, "not-created.txt"), join(root, "dangling.txt"));
     await mkdir(join(root, "preset"));
     await symlink(join(root, "preset"), join(root, "preset-alias"));
-    for (const path of [".git/config", "node_modules/pkg/file", "nested/node_modules/file", "runs/id/run.json", "preset/AGENTS.md", "preset-alias/new.txt", "../outside.txt", join(parent, "outside.txt"), "escape.txt", "outside-directory/new.txt", "dangling.txt"]) {
+    for (const path of [
+      ".git/config",
+      "node_modules/pkg/file",
+      "nested/node_modules/file",
+      "runs/id/run.json",
+      "preset/AGENTS.md",
+      "preset-alias/new.txt",
+      "../outside.txt",
+      join(parent, "outside.txt"),
+      "escape.txt",
+      "outside-directory/new.txt",
+      "dangling.txt",
+    ]) {
       expect((await write(root, path))[0]?.status).toBe("failed");
     }
     expect(await readFile(join(parent, "outside.txt"), "utf8")).toBe("outside evidence");
@@ -109,16 +153,30 @@ describe("workflow edit write policy", () => {
     await symlink(join(root, "storage"), join(root, "alias"));
     const aliased = { presetDirectory: "alias/preset", runsDirectory: "alias/runs", check: false };
     for (const path of ["storage/preset/file", "storage/runs/file"]) {
-      const [outcome] = await applyWorkflowEdits(root, [{ id: "e1", path, newText: "blocked" }], aliased);
-      expect(outcome).toMatchObject({ status: "failed", reason: expect.stringContaining("protected") });
+      const [outcome] = await applyWorkflowEdits(
+        root,
+        [{ id: "e1", path, newText: "blocked" }],
+        aliased,
+      );
+      expect(outcome).toMatchObject({
+        status: "failed",
+        reason: expect.stringContaining("protected"),
+      });
     }
   });
 
   it("refuses to write through a hard link shared with a file outside the project", async () => {
     const { root, parent } = await fixture();
     await link(join(parent, "outside.txt"), join(root, "shared.txt"));
-    const [outcome] = await applyWorkflowEdits(root, [{ id: "e1", path: "shared.txt", oldText: "outside", newText: "changed" }], options);
-    expect(outcome).toMatchObject({ status: "failed", reason: expect.stringContaining("hard-linked") });
+    const [outcome] = await applyWorkflowEdits(
+      root,
+      [{ id: "e1", path: "shared.txt", oldText: "outside", newText: "changed" }],
+      options,
+    );
+    expect(outcome).toMatchObject({
+      status: "failed",
+      reason: expect.stringContaining("hard-linked"),
+    });
     expect(await readFile(join(parent, "outside.txt"), "utf8")).toBe("outside evidence");
   });
 });

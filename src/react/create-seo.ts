@@ -54,9 +54,7 @@ export interface Seo extends JsonLd {
 
 /** Strip a trailing slash from a pathname, keeping the root "/" intact. */
 function normalizePathname(pathname: string): string {
-  return pathname.length > 1 && pathname.endsWith("/")
-    ? pathname.slice(0, -1)
-    : pathname;
+  return pathname.length > 1 && pathname.endsWith("/") ? pathname.slice(0, -1) : pathname;
 }
 
 export function createSeo(config: SeoConfig): Seo {
@@ -67,20 +65,24 @@ export function createSeo(config: SeoConfig): Seo {
     const canonical = `${origin}${instance.canonicalPath ?? normalizePathname(ctx.match.pathname)}`;
     const title = applyTitleTemplate(ctx.match.staticData.seo?.titleTemplate, instance.title);
     const resolvedOgTitle = instance.ogTitle ?? title;
-    const resolvedOgDescription =
-      instance.ogDescription ?? instance.description;
+    const resolvedOgDescription = instance.ogDescription ?? instance.description;
     const routeSeo = ctx.match.staticData.seo;
     const { article } = instance;
-    const image = resolveOgImage({
-      path: instance.canonicalPath ?? normalizePathname(ctx.match.pathname),
-      kind: routeSeo?.kind ?? "page",
-      head: {
-        title,
-        description: instance.description,
-        faqs: instance.faqs?.map(({ question, answer }) => ({ question, answer })),
-        image: instance.image ?? (article?.image === undefined ? undefined : { url: article.image }),
+    const image = resolveOgImage(
+      {
+        path: instance.canonicalPath ?? normalizePathname(ctx.match.pathname),
+        kind: routeSeo?.kind ?? "page",
+        head: {
+          title,
+          description: instance.description,
+          faqs: instance.faqs?.map(({ question, answer }) => ({ question, answer })),
+          image:
+            instance.image ?? (article?.image === undefined ? undefined : { url: article.image }),
+        },
       },
-    }, origin, config.ogImage);
+      origin,
+      config.ogImage,
+    );
     const jsonLdEntries: Array<JsonLdEntry> = [];
 
     const meta: Array<MetaDescriptor> = [
@@ -114,9 +116,14 @@ export function createSeo(config: SeoConfig): Seo {
     }
 
     if (image !== undefined) {
-      meta.push({ property: "og:image", content: image.url }, { name: "twitter:image", content: image.url });
-      if (image.width !== undefined) meta.push({ property: "og:image:width", content: String(image.width) });
-      if (image.height !== undefined) meta.push({ property: "og:image:height", content: String(image.height) });
+      meta.push(
+        { property: "og:image", content: image.url },
+        { name: "twitter:image", content: image.url },
+      );
+      if (image.width !== undefined)
+        meta.push({ property: "og:image:width", content: String(image.width) });
+      if (image.height !== undefined)
+        meta.push({ property: "og:image:height", content: String(image.height) });
       if (image.alt !== undefined) meta.push({ property: "og:image:alt", content: image.alt });
     }
 
@@ -164,10 +171,7 @@ export function createSeo(config: SeoConfig): Seo {
       jsonLdEntries.push({
         kind: "item-list",
         source: "generated",
-        document: jsonLd.generateItemListSchema(
-          instance.itemList.name,
-          instance.itemList.items,
-        ),
+        document: jsonLd.generateItemListSchema(instance.itemList.name, instance.itemList.items),
       });
     }
 
@@ -175,9 +179,7 @@ export function createSeo(config: SeoConfig): Seo {
     // owns the BreadcrumbList; otherwise each parent repeats a progressively stale
     // trail alongside the leaf's canonical trail on nested pages.
     const isLeafMatch = ctx.matches.at(-1)?.id === ctx.match.id;
-    const trail = isLeafMatch
-      ? (instance.breadcrumbs ?? resolveCrumbTrail(ctx.matches))
-      : [];
+    const trail = isLeafMatch ? (instance.breadcrumbs ?? resolveCrumbTrail(ctx.matches)) : [];
     if (trail.length >= 2) {
       jsonLdEntries.push({
         kind: "breadcrumb",
@@ -190,13 +192,11 @@ export function createSeo(config: SeoConfig): Seo {
 
     if (instance.jsonLd) {
       jsonLdEntries.push(
-        ...instance.jsonLd.map(
-          (document): JsonLdEntry => ({
-            kind: "custom",
-            source: "page",
-            document,
-          }),
-        ),
+        ...instance.jsonLd.map((document): JsonLdEntry => ({
+          kind: "custom",
+          source: "page",
+          document,
+        })),
       );
     }
 

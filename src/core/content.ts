@@ -189,7 +189,8 @@ const collectTyped = (value: unknown, into: Array<JsonLdNode>): void => {
   for (const child of Object.values(value)) collectTyped(child, into);
 };
 
-const JSON_LD = /<script\b[^>]*type\s*=\s*["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script\s*>/gi;
+const JSON_LD =
+  /<script\b[^>]*type\s*=\s*["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script\s*>/gi;
 
 /** Parse every JSON-LD block. A block that does not parse is `inspectHtml`'s finding, not ours. */
 const jsonLdOf = (html: string): Array<JsonLdNode> => {
@@ -253,7 +254,8 @@ export const extractPageContent = (html: string): PageContent => {
 const typesOf = (node: JsonLdNode): Array<string> => {
   const type = node["@type"];
   if (typeof type === "string") return [type];
-  if (Array.isArray(type)) return type.filter((entry): entry is string => typeof entry === "string");
+  if (Array.isArray(type))
+    return type.filter((entry): entry is string => typeof entry === "string");
   return [];
 };
 
@@ -627,9 +629,7 @@ export const renderedCheckTargets = (graph: SeoGraph): Array<string> =>
     .filter(
       (node) =>
         isSitemapEligible(node) ||
-        (declaresNoindex(node) &&
-          node.policy.redirectTo === undefined &&
-          !node.path.includes("$")),
+        (declaresNoindex(node) && node.policy.redirectTo === undefined && !node.path.includes("$")),
     )
     .map((node) => node.path);
 
@@ -726,7 +726,7 @@ export function checkRenderedContent(
           "structural",
           document.path,
           `Declared robots "${node.policy.robots}" but the rendered page has ${content.robots ? `robots "${content.robots}"` : "no robots meta"}.`,
-          "Render the declared robots value in the page's <meta name=\"robots\">.",
+          'Render the declared robots value in the page\'s <meta name="robots">.',
         );
       }
       continue;

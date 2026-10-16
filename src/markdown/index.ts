@@ -1,4 +1,12 @@
-export type { InlineNode, Message, VisualDocument, BodyEntry, SectionItem, SectionDocument, PageDocument } from "./document";
+export type {
+  InlineNode,
+  Message,
+  VisualDocument,
+  BodyEntry,
+  SectionItem,
+  SectionDocument,
+  PageDocument,
+} from "./document";
 export { hashDocument } from "./document";
 export { contentHash } from "./hash";
 export { defineFacts, fact, resolveFact } from "./facts";

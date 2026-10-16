@@ -3,12 +3,7 @@ import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 
-import type {
-  AuditFinding,
-  AuditOptions,
-  AuditReport,
-  ScannerResult,
-} from "./model";
+import type { AuditFinding, AuditOptions, AuditReport, ScannerResult } from "./model";
 import { evaluateRules, pageRules } from "./rules";
 import { ScannerRegistry } from "./scanner-registry";
 import type { Scanner, ScannerInput } from "./scanner";
@@ -27,20 +22,14 @@ export interface AuditRequest {
 }
 
 export interface AuditService {
-  readonly run: (
-    request: AuditRequest,
-  ) => Effect.Effect<AuditReport, AuditError>;
+  readonly run: (request: AuditRequest) => Effect.Effect<AuditReport, AuditError>;
 }
 
 export namespace Audit {
-  export class Service extends Context.Service<Service, AuditService>()(
-    "pagegraph/Audit",
-  ) {}
+  export class Service extends Context.Service<Service, AuditService>()("pagegraph/Audit") {}
 }
 
-const validateTarget = (
-  target: string,
-): Effect.Effect<{ readonly url: string }, InvalidTarget> =>
+const validateTarget = (target: string): Effect.Effect<{ readonly url: string }, InvalidTarget> =>
   Effect.try({
     try: () => {
       const url = new URL(target);
@@ -70,19 +59,14 @@ const runOne = Effect.fn("Audit.runScanner")(function* (
       scanner: scanner.id,
       target: target.url,
       status: "ok" as const,
-      ...(observation.evidence === undefined
-        ? {}
-        : { evidence: observation.evidence }),
+      ...(observation.evidence === undefined ? {} : { evidence: observation.evidence }),
       // Page metadata rules apply to the HTTP page evidence only. Lighthouse
       // and hosted scanners have different evidence domains and must not emit
       // false missing-title/description findings.
       findings: [
         ...(observation.findings ?? []),
         ...evaluateRules(
-          [
-            ...(scanner.rules ?? []),
-            ...(scanner.id === "http" ? pageRules : []),
-          ],
+          [...(scanner.rules ?? []), ...(scanner.id === "http" ? pageRules : [])],
           observation,
           input,
         ),
@@ -116,9 +100,7 @@ const runAudit = Effect.fn("Audit.run")(function* (
     request.scanners === undefined
       ? available
       : available.filter((scanner) => request.scanners!.includes(scanner.id));
-  const pairs = targets.flatMap((target) =>
-    scanners.map((scanner) => ({ target, scanner })),
-  );
+  const pairs = targets.flatMap((target) => scanners.map((scanner) => ({ target, scanner })));
   const results = yield* Effect.forEach(
     pairs,
     ({ target, scanner }) => runOne(scanner, target, options),
@@ -132,9 +114,7 @@ const runAudit = Effect.fn("Audit.run")(function* (
         `${result.scanner} failed for ${result.target}: ${result.error ?? "unknown error"}`,
     );
   const generatedAt = yield* Effect.clockWith((clock) =>
-    Effect.map(clock.currentTimeMillis, (millis) =>
-      new Date(millis).toISOString(),
-    ),
+    Effect.map(clock.currentTimeMillis, (millis) => new Date(millis).toISOString()),
   );
   return {
     schemaVersion: 1 as const,
@@ -157,9 +137,7 @@ const defaultOptions: Required<Pick<AuditOptions, "concurrency" | "policy">> = {
   },
 };
 
-export const makeAudit = (
-  registry: ScannerRegistry.Service["Service"],
-): AuditService => ({
+export const makeAudit = (registry: ScannerRegistry.Service["Service"]): AuditService => ({
   run: (request) => runAudit(registry, request),
 });
 

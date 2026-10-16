@@ -62,7 +62,11 @@ export interface AnyWorkflowSpec {
     readonly inputs: ReadonlyArray<unknown>;
     readonly model: string;
     readonly threshold: number;
-  }) => Effect.Effect<DecisionBatchReport, AiError.AiError | DecisionCacheInvalid, DecisionModel.DecisionModel>;
+  }) => Effect.Effect<
+    DecisionBatchReport,
+    AiError.AiError | DecisionCacheInvalid,
+    DecisionModel.DecisionModel
+  >;
 }
 
 export const defineWorkflow = <State, Input>(

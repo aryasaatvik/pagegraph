@@ -43,7 +43,6 @@ export interface ServiceParams {
   areaServed?: string | undefined;
 }
 
-
 export interface BreadcrumbItem {
   name: string;
   url: string;
@@ -76,9 +75,7 @@ export interface JsonLd {
   generateWebsiteSchema: () => WithContext<WebSite>;
   generateServiceSchema: (params: ServiceParams) => WithContext<Service>;
   generateFAQPageSchema: (faqs: SeoFaq[]) => WithContext<FAQPage>;
-  generateBreadcrumbSchema: (
-    items: BreadcrumbItem[],
-  ) => WithContext<BreadcrumbList>;
+  generateBreadcrumbSchema: (items: BreadcrumbItem[]) => WithContext<BreadcrumbList>;
   /** Describe a visibly rendered, ordered collection of canonical pages. */
   generateItemListSchema: (
     name: string,
@@ -105,9 +102,7 @@ export function createJsonLd(config: SeoConfig): JsonLd {
     "@type": "Organization",
     "@id": organizationId,
     name: site.name,
-    ...(organization.legalName === undefined
-      ? {}
-      : { legalName: organization.legalName }),
+    ...(organization.legalName === undefined ? {} : { legalName: organization.legalName }),
     url: origin,
     logo: absoluteUrl(origin, site.logo),
     description: organization.description,
@@ -144,9 +139,7 @@ export function createJsonLd(config: SeoConfig): JsonLd {
     },
   });
 
-  const generateServiceSchema = (
-    params: ServiceParams,
-  ): WithContext<Service> => ({
+  const generateServiceSchema = (params: ServiceParams): WithContext<Service> => ({
     "@context": "https://schema.org",
     "@type": "Service",
     name: params.name,
@@ -154,9 +147,7 @@ export function createJsonLd(config: SeoConfig): JsonLd {
     serviceType: params.serviceType,
     provider: {
       "@type": "Organization",
-      ...(params.provider === undefined
-        ? { "@id": organizationId, url: origin }
-        : {}),
+      ...(params.provider === undefined ? { "@id": organizationId, url: origin } : {}),
       name: params.provider ?? site.name,
     },
     areaServed: params.areaServed ?? "Worldwide",
@@ -179,9 +170,7 @@ export function createJsonLd(config: SeoConfig): JsonLd {
     };
   };
 
-  const generateBreadcrumbSchema = (
-    items: BreadcrumbItem[],
-  ): WithContext<BreadcrumbList> => ({
+  const generateBreadcrumbSchema = (items: BreadcrumbItem[]): WithContext<BreadcrumbList> => ({
     "@context": "https://schema.org",
     "@type": "BreadcrumbList",
     itemListElement: items.map((item, index) => ({
@@ -208,9 +197,7 @@ export function createJsonLd(config: SeoConfig): JsonLd {
     })),
   });
 
-  const generateArticleSchema = (
-    params: ArticleParams,
-  ): WithContext<Article> => {
+  const generateArticleSchema = (params: ArticleParams): WithContext<Article> => {
     const authorSchema: Person = {
       "@type": "Person",
       name: params.author.name,
@@ -250,9 +237,7 @@ export function createJsonLd(config: SeoConfig): JsonLd {
       {
         origin,
         entityIds,
-        ...(context.canonical === undefined
-          ? {}
-          : { canonical: context.canonical }),
+        ...(context.canonical === undefined ? {} : { canonical: context.canonical }),
       },
       config.jsonLd?.transform,
     );
@@ -273,13 +258,11 @@ export function createJsonLd(config: SeoConfig): JsonLd {
         source: "generated",
         document: generateWebsiteSchema(),
       },
-      ...configuredSite.map(
-        (document): JsonLdEntry => ({
-          kind: "custom",
-          source: "site",
-          document,
-        }),
-      ),
+      ...configuredSite.map((document): JsonLdEntry => ({
+        kind: "custom",
+        source: "site",
+        document,
+      })),
     ];
     const documents = composeJsonLd(entries);
     return documents.length === 0 ? undefined : jsonLdGraph(documents);

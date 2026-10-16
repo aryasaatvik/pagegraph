@@ -2,7 +2,12 @@ import { randomUUID } from "node:crypto";
 import { mkdirSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
 import { basename, dirname, resolve } from "node:path";
 
-import type { WorkflowFailureV2, WorkflowProgressV2, WorkflowResearchCheckpointV2, WorkflowRunV2 } from "./model";
+import type {
+  WorkflowFailureV2,
+  WorkflowProgressV2,
+  WorkflowResearchCheckpointV2,
+  WorkflowRunV2,
+} from "./model";
 import summaryTemplate from "./prompts/summary.md" with { type: "text" };
 import { TextTemplate } from "./template";
 
@@ -10,13 +15,20 @@ import { TextTemplate } from "./template";
 export const writeJsonArtifact = (path: string, value: unknown): void => {
   const temporary = resolve(dirname(path), `.${basename(path)}.${randomUUID()}.tmp`);
   try {
-    writeFileSync(temporary, `${JSON.stringify(value, null, 2)}\n`, { encoding: "utf8", flag: "wx" });
+    writeFileSync(temporary, `${JSON.stringify(value, null, 2)}\n`, {
+      encoding: "utf8",
+      flag: "wx",
+    });
     renameSync(temporary, path);
   } catch (cause) {
-    try { unlinkSync(temporary); }
-    catch (cleanup) {
+    try {
+      unlinkSync(temporary);
+    } catch (cleanup) {
       if (!(cleanup instanceof Error && "code" in cleanup && cleanup.code === "ENOENT")) {
-        throw new AggregateError([cause, cleanup], `Could not write artifact or remove its temporary file: ${path}`);
+        throw new AggregateError(
+          [cause, cleanup],
+          `Could not write artifact or remove its temporary file: ${path}`,
+        );
       }
     }
     throw cause;
@@ -56,11 +68,7 @@ const summary = (run: WorkflowRunV2): string => {
     .render();
 };
 
-export const writeRunBundle = (
-  root: string,
-  runsDirectory: string,
-  run: WorkflowRunV2,
-): string => {
+export const writeRunBundle = (root: string, runsDirectory: string, run: WorkflowRunV2): string => {
   const directory = resolve(root, runsDirectory, run.id);
   mkdirSync(directory, { recursive: true });
   writeJsonArtifact(resolve(directory, "run.json"), run);
@@ -97,13 +105,22 @@ export const serializeCause = (value: unknown, top = true, seen = new Set<unknow
   if (seen.has(value)) return { name: "CircularCause", message: "Circular error cause" };
   if (value !== null && typeof value === "object") {
     seen.add(value);
-    const message = value instanceof Error ? value.message : "message" in value ? String(value.message) : JSON.stringify(value);
-    const name = value instanceof Error ? value.name : "name" in value ? String(value.name) : "Error";
+    const message =
+      value instanceof Error
+        ? value.message
+        : "message" in value
+          ? String(value.message)
+          : JSON.stringify(value);
+    const name =
+      value instanceof Error ? value.name : "name" in value ? String(value.name) : "Error";
     return {
-      message, name,
+      message,
+      name,
       ...(top && value instanceof Error ? { stack: value.stack } : {}),
       ...("cause" in value ? { cause: serializeCause(value.cause, false, seen) } : {}),
-      ...(value instanceof AggregateError ? { errors: value.errors.map((error) => serializeCause(error, false, new Set(seen))) } : {}),
+      ...(value instanceof AggregateError
+        ? { errors: value.errors.map((error) => serializeCause(error, false, new Set(seen))) }
+        : {}),
     };
   }
   return { name: "Error", message: String(value) };

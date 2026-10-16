@@ -63,7 +63,11 @@ export const Route = createFileRoute("/(marketing)/pricing")({
       sitemap: { priority: 0.9, changeFrequency: "monthly" },
       related: ["/features"],
       link: { title: "Pricing", description: "Simple volume pricing." },
-      head: { title: "Pricing — Example", description: "Simple volume pricing.", faqs: pricingFaqs },
+      head: {
+        title: "Pricing — Example",
+        description: "Simple volume pricing.",
+        faqs: pricingFaqs,
+      },
     },
   },
   head: seo.head,
@@ -83,9 +87,16 @@ export const Route = createFileRoute("/(marketing)/pricing")({
 ```tsx
 export const Route = createFileRoute("/(marketing)/blog/$slug")({
   staticData: {
-    seo: { kind: "article", titleTemplate: "%s | Example Blog", sitemap: { priority: 0.7, changeFrequency: "weekly" } },
+    seo: {
+      kind: "article",
+      titleTemplate: "%s | Example Blog",
+      sitemap: { priority: 0.7, changeFrequency: "weekly" },
+    },
   },
-  head: (ctx) => (ctx.loaderData ? seoHead(ctx, { title: ctx.loaderData.title, description: ctx.loaderData.description }) : {}),
+  head: (ctx) =>
+    ctx.loaderData
+      ? seoHead(ctx, { title: ctx.loaderData.title, description: ctx.loaderData.description })
+      : {},
 });
 ```
 
@@ -183,15 +194,15 @@ export default defineSeoConfig({
 
 ## Verify
 
-| Changed | Run | Proves |
-| --- | --- | --- |
-| Declarations, collections, the plugin, `pagegraph.config.ts` | `pagegraph check` | No structural violations (exit 1 otherwise); editorial findings are reported but do not fail |
-| Headings, JSON-LD, robots meta, canonicals, page copy | `pagegraph check --site <url>` against a running server | Every declared page's rendered HTML matches its declaration and its structured data |
-| `modifiedAt` dates, `freshness` policy | `pagegraph stale` | The refresh queue and which pages are undated |
-| Graph shape | `pagegraph graph`, `pagegraph inspect /path` | Nodes, edges, and a page's sitemap status |
-| Sitemap or robots wiring | `pagegraph sitemap`, `pagegraph robots` | The projections from the declared graph |
-| Declared heads, `seoHead` input, document shell | `pagegraph inspect <full-url> --live` against a running server | The served `<head>` and JSON-LD |
-| Rendered links vs `related` | `pagegraph links verify <url>` (add `--assert-coverage` for `coverage` rules) | What a crawler receives, not what was declared |
-| Coverage gate | `vite build` | Every enforced page leaf declares SEO |
+| Changed                                                      | Run                                                                           | Proves                                                                                       |
+| ------------------------------------------------------------ | ----------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| Declarations, collections, the plugin, `pagegraph.config.ts` | `pagegraph check`                                                             | No structural violations (exit 1 otherwise); editorial findings are reported but do not fail |
+| Headings, JSON-LD, robots meta, canonicals, page copy        | `pagegraph check --site <url>` against a running server                       | Every declared page's rendered HTML matches its declaration and its structured data          |
+| `modifiedAt` dates, `freshness` policy                       | `pagegraph stale`                                                             | The refresh queue and which pages are undated                                                |
+| Graph shape                                                  | `pagegraph graph`, `pagegraph inspect /path`                                  | Nodes, edges, and a page's sitemap status                                                    |
+| Sitemap or robots wiring                                     | `pagegraph sitemap`, `pagegraph robots`                                       | The projections from the declared graph                                                      |
+| Declared heads, `seoHead` input, document shell              | `pagegraph inspect <full-url> --live` against a running server                | The served `<head>` and JSON-LD                                                              |
+| Rendered links vs `related`                                  | `pagegraph links verify <url>` (add `--assert-coverage` for `coverage` rules) | What a crawler receives, not what was declared                                               |
+| Coverage gate                                                | `vite build`                                                                  | Every enforced page leaf declares SEO                                                        |
 
 A passing `check` without `--site` says nothing about served HTML. Verify head and content changes with `check --site`, `inspect --live`, or a rendered-HTML test. Add `--json` when a script consumes the output. Stdout carries the data and stderr carries status. Check the exit code as well as the output.

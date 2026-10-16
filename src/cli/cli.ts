@@ -42,7 +42,7 @@ export const cli = Command.make("pagegraph").pipe(
     { command: "pagegraph skills get core", description: "Read bundled agent guidance" },
     { command: "pagegraph sitemap", description: "Render sitemap.xml" },
     {
-      command: "pagegraph research keywords --query \"transactional email api\" --market us",
+      command: 'pagegraph research keywords --query "transactional email api" --market us',
       description: "Run bounded page-backed keyword research",
     },
   ]),

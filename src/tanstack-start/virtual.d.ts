@@ -10,7 +10,6 @@ declare module "virtual:pagegraph/runtime" {
   export const facts: Facts | undefined;
 }
 
-
 declare module "virtual:pagegraph/prerender-server" {
   const server: { fetch(request: Request): Response | Promise<Response> };
   export default server;

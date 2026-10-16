@@ -11,9 +11,18 @@ import { persistMarkdownCapture } from "../../src/tanstack-start/persist-markdow
 import { pagegraph } from "../../src/tanstack-start/plugin";
 
 const roots: Array<string> = [];
-afterEach(async () => { await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true }))); });
+afterEach(async () => {
+  await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
+});
 const document = (path: string): PageDocument => {
-  const content = { path, title: "Captured title", description: "Captured description", sections: [], messages: [], facts: [] };
+  const content = {
+    path,
+    title: "Captured title",
+    description: "Captured description",
+    sections: [],
+    messages: [],
+    facts: [],
+  };
   return { ...content, hash: hashDocument(content) };
 };
 const fixture = async () => {
@@ -25,13 +34,20 @@ const fixture = async () => {
   await writeFile(capture, "private capture");
   return { root, out, capture, documents: join(root, ".pagegraph/documents") };
 };
-const bundle = (documents: ReadonlyArray<PageDocument>) => JSON.stringify({ origin: "https://example.com", documents,
-  heads: [{ path: "/plain", title: "Plain title", description: "Plain description" }] });
+const bundle = (documents: ReadonlyArray<PageDocument>) =>
+  JSON.stringify({
+    origin: "https://example.com",
+    documents,
+    heads: [{ path: "/plain", title: "Plain title", description: "Plain description" }],
+  });
 
 describe("Markdown prerender persistence", () => {
   it("exposes one private Start page only when rendered Markdown is configured", () => {
     expect(pagegraph({ origin: "https://example.com" }).prerenderPages).toEqual([]);
-    const pages = pagegraph({ origin: "https://example.com", markdown: { origin: "https://example.com" } }).prerenderPages;
+    const pages = pagegraph({
+      origin: "https://example.com",
+      markdown: { origin: "https://example.com" },
+    }).prerenderPages;
     expect(pages).toHaveLength(1);
     expect(pages[0]?.path).toBe("/__pagegraph/markdown.json");
     expect(pages[0]?.sitemap).toEqual({ exclude: true });
@@ -46,7 +62,9 @@ describe("Markdown prerender persistence", () => {
     expect(JSON.parse(await readFile(join(documents, "index.json"), "utf8"))).toEqual(home);
     expect(JSON.parse(await readFile(join(documents, "guides/first.json"), "utf8"))).toEqual(guide);
     expect(await readFile(join(out, "index.md"), "utf8")).toContain("# Captured title");
-    expect(await readFile(join(out, "guides/first.md"), "utf8")).toContain("https://example.com/guides/first");
+    expect(await readFile(join(out, "guides/first.md"), "utf8")).toContain(
+      "https://example.com/guides/first",
+    );
     expect(JSON.parse(await readFile(join(root, ".pagegraph/heads.json"), "utf8"))).toEqual([
       { path: "/plain", title: "Plain title", description: "Plain description" },
     ]);
@@ -60,7 +78,9 @@ describe("Markdown prerender persistence", () => {
     for (const path of paths) {
       expect(JSON.parse(await readFile(join(documents, `${path}.json`), "utf8")).path).toBe(path);
       expect(await readFile(join(out, `${path}.md`), "utf8")).toContain("# Captured title");
-      await expect(readFile(join(out, `${encodeURIComponent(path.slice(1))}.md`))).rejects.toMatchObject({ code: "ENOENT" });
+      await expect(
+        readFile(join(out, `${encodeURIComponent(path.slice(1))}.md`)),
+      ).rejects.toMatchObject({ code: "ENOENT" });
     }
   });
 
@@ -72,7 +92,10 @@ describe("Markdown prerender persistence", () => {
     await writeFile(join(documents, "misplaced.json"), JSON.stringify(stale));
     await writeFile(join(documents, "malformed.json"), "not JSON");
     await writeFile(join(documents, "unrelated.json"), JSON.stringify({ memo: "retain" }));
-    await writeFile(join(documents, "changed.json"), JSON.stringify({ ...document("/changed"), title: "Tampered" }));
+    await writeFile(
+      join(documents, "changed.json"),
+      JSON.stringify({ ...document("/changed"), title: "Tampered" }),
+    );
     const outside = join(root, "outside.json");
     await writeFile(outside, JSON.stringify(document("/linked")));
     await symlink(outside, join(documents, "linked.json"));
@@ -87,13 +110,33 @@ describe("Markdown prerender persistence", () => {
 
   it("validates the entire bundle before deleting or writing files", async () => {
     const { root, out, capture } = await fixture();
-    for (const path of ["/../outside", "/$slug", "/foo?query=1", "/foo/", "//elsewhere", "/foo//bar", "/foo/./bar", "/foo\\bar", "/control\u0000"]) {
-      await expect(persistMarkdownCapture(bundle([document(path)]), root, out)).rejects.toThrow("Invalid captured document path");
+    for (const path of [
+      "/../outside",
+      "/$slug",
+      "/foo?query=1",
+      "/foo/",
+      "//elsewhere",
+      "/foo//bar",
+      "/foo/./bar",
+      "/foo\\bar",
+      "/control\u0000",
+    ]) {
+      await expect(persistMarkdownCapture(bundle([document(path)]), root, out)).rejects.toThrow(
+        "Invalid captured document path",
+      );
     }
-    await expect(persistMarkdownCapture(bundle([{ ...document("/"), hash: "wrong" }]), root, out)).rejects.toThrow("Invalid captured document hash");
-    await expect(persistMarkdownCapture(bundle([document("/"), document("/")]), root, out)).rejects.toThrow("Duplicate captured document path");
-    await expect(persistMarkdownCapture(bundle([document("/"), document("/index")]), root, out)).rejects.toThrow("share the output name");
-    await expect(persistMarkdownCapture('{"origin":"https://example.com","documents":[]}', root, out)).rejects.toThrow();
+    await expect(
+      persistMarkdownCapture(bundle([{ ...document("/"), hash: "wrong" }]), root, out),
+    ).rejects.toThrow("Invalid captured document hash");
+    await expect(
+      persistMarkdownCapture(bundle([document("/"), document("/")]), root, out),
+    ).rejects.toThrow("Duplicate captured document path");
+    await expect(
+      persistMarkdownCapture(bundle([document("/"), document("/index")]), root, out),
+    ).rejects.toThrow("share the output name");
+    await expect(
+      persistMarkdownCapture('{"origin":"https://example.com","documents":[]}', root, out),
+    ).rejects.toThrow();
     expect(await readFile(capture, "utf8")).toBe("private capture");
   });
 });

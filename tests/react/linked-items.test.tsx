@@ -12,7 +12,15 @@ import { renderToStaticMarkup } from "react-dom/server";
 
 import { hashDocument } from "../../src/core/index";
 import { documentMarkdown } from "../../src/core/index";
-import { DocumentProvider, ForHumans, Section, T, Title, createCollector, finishDocument } from "../../src/react/index";
+import {
+  DocumentProvider,
+  ForHumans,
+  Section,
+  T,
+  Title,
+  createCollector,
+  finishDocument,
+} from "../../src/react/index";
 import { CaptureAnchor } from "../../src/react/document";
 
 const CardLink = createLink(Section.Item.Link);

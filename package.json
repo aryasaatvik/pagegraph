@@ -3,19 +3,19 @@
   "version": "0.15.1",
   "description": "Route-declared SEO graph, audit, and agentic workflow toolkit for TanStack Start.",
   "keywords": [
-    "seo",
-    "tanstack",
-    "tanstack-start",
-    "tanstack-router",
-    "sitemap",
-    "robots",
-    "json-ld",
-    "internal-links",
-    "link-graph",
     "audit",
+    "internal-links",
+    "jev",
+    "json-ld",
     "lighthouse",
-    "vite",
-    "jev"
+    "link-graph",
+    "robots",
+    "seo",
+    "sitemap",
+    "tanstack",
+    "tanstack-router",
+    "tanstack-start",
+    "vite"
   ],
   "homepage": "https://github.com/aryasaatvik/pagegraph#readme",
   "bugs": {
@@ -119,7 +119,9 @@
     "version:packages": "bun run tegami version",
     "release:check": "bun run typecheck && bun run test && bun run release:validate",
     "release:validate": "bun run scripts/validate-release.ts",
-    "release": "bun run release:check && bun run tegami publish"
+    "release": "bun run release:check && bun run tegami publish",
+    "format": "oxfmt --write .",
+    "format:check": "oxfmt --check ."
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "^1.62.5",
@@ -140,6 +142,7 @@
     "@vitejs/plugin-react": "^6.0.6",
     "effect": "4.0.0",
     "lighthouse": "13.4.1",
+    "oxfmt": "0.72.0",
     "oxlint": "^1.83.0",
     "react": "19.2.8",
     "react-dom": "19.2.8",
@@ -154,13 +157,13 @@
     "@effect/ai-typesafe": "^4.0.0",
     "@effect/platform-bun": "^4.0.0",
     "@tanstack/react-router": "^1.170.0",
+    "@tanstack/react-start": "^1.168.56",
     "@tanstack/router-generator": "^1.167.21",
     "effect": "^4.0.0",
     "lighthouse": ">=13.0.0",
     "react": "^19.0.0",
-    "vite": "^8.0.0",
-    "@tanstack/react-start": "^1.168.56",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "vite": "^8.0.0"
   },
   "peerDependenciesMeta": {
     "@effect/ai-typesafe": {

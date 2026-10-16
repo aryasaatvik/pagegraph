@@ -12,7 +12,12 @@ import {
   finishDocument,
 } from "../../src/react/document";
 
-vi.mock("virtual:pagegraph/runtime", () => ({ graph: null, site: null, markdown: null, facts: undefined }));
+vi.mock("virtual:pagegraph/runtime", () => ({
+  graph: null,
+  site: null,
+  markdown: null,
+  facts: undefined,
+}));
 import { markdownRequest } from "../../src/tanstack-start/markdown";
 
 const metadata = { title: "Native page", description: "Native capture" };

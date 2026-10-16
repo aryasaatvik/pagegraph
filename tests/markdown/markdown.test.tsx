@@ -3,9 +3,29 @@ import { describe, expect, it } from "vitest";
 import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 
-import { HEAD_SECTION_ID, RESERVED_SECTION_ID_PREFIX, type BodyEntry, type SectionDocument } from "../../src/markdown/document";
-import { DocumentProvider, ForAgents, ForHumans, Section, T, Title, Visual, createCollector, finishDocument } from "../../src/react/document";
-import { defineSectionKind, documentMarkdown, llmsMarkdown, sectionMarkdown } from "../../src/markdown/index";
+import {
+  HEAD_SECTION_ID,
+  RESERVED_SECTION_ID_PREFIX,
+  type BodyEntry,
+  type SectionDocument,
+} from "../../src/markdown/document";
+import {
+  DocumentProvider,
+  ForAgents,
+  ForHumans,
+  Section,
+  T,
+  Title,
+  Visual,
+  createCollector,
+  finishDocument,
+} from "../../src/react/document";
+import {
+  defineSectionKind,
+  documentMarkdown,
+  llmsMarkdown,
+  sectionMarkdown,
+} from "../../src/markdown/index";
 
 const custom = defineSectionKind({
   kind: "cost-table",
@@ -39,7 +59,9 @@ const customHeading = defineSectionKind({
 });
 function renderedMarkdown(children: ReactNode): string {
   const collector = createCollector({ path: "/guide", site: "https://example.com" });
-  const html = renderToStaticMarkup(<DocumentProvider collector={collector}>{children}</DocumentProvider>);
+  const html = renderToStaticMarkup(
+    <DocumentProvider collector={collector}>{children}</DocumentProvider>,
+  );
   return documentMarkdown(
     finishDocument(collector, { title: "Guide", description: "Guide copy" }, html),
     "https://example.com",
@@ -372,7 +394,6 @@ describe("markdown twins", () => {
     expect(text).toBe(
       "## Solutions\n\n- [Email for SaaS](https://example.com/solutions/saas.md): Send product email.\n",
     );
-
   });
 });
 
@@ -400,13 +421,26 @@ describe("card descriptions", () => {
   });
 });
 
-
 describe("reserved section ids", () => {
-  it.each([HEAD_SECTION_ID, `${RESERVED_SECTION_ID_PREFIX}custom`])("rejects authored %s during capture", (id) => {
-    expect(() => renderedMarkdown(<Section kind="prose" id={id}><T>Authored copy</T></Section>))
-      .toThrow(`uses reserved prefix "${RESERVED_SECTION_ID_PREFIX}"`);
-  });
+  it.each([HEAD_SECTION_ID, `${RESERVED_SECTION_ID_PREFIX}custom`])(
+    "rejects authored %s during capture",
+    (id) => {
+      expect(() =>
+        renderedMarkdown(
+          <Section kind="prose" id={id}>
+            <T>Authored copy</T>
+          </Section>,
+        ),
+      ).toThrow(`uses reserved prefix "${RESERVED_SECTION_ID_PREFIX}"`);
+    },
+  );
   it("continues to capture an authored head section", () => {
-    expect(renderedMarkdown(<Section kind="prose" id="head"><T>Authored copy</T></Section>)).toContain("Authored copy");
+    expect(
+      renderedMarkdown(
+        <Section kind="prose" id="head">
+          <T>Authored copy</T>
+        </Section>,
+      ),
+    ).toContain("Authored copy");
   });
 });

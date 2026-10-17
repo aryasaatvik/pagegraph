@@ -2,10 +2,12 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+import * as ConfigProvider from "effect/ConfigProvider";
+import * as FetchHttpClient from "effect/http/FetchHttpClient";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import { Decision, DecisionModel } from "effect/ai";
-import { afterAll, describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it, vi } from "vitest";
 
 import {
   claimsInput,
@@ -16,6 +18,7 @@ import {
   runClaims,
   type ClaimsOptions,
 } from "../../src/claims";
+import { decisionModelLayer } from "../../src/decide/provider";
 import { HEAD_SECTION_ID, hashDocument, type PageDocument } from "../../src/markdown/document";
 
 const directories: Array<string> = [];
@@ -83,6 +86,49 @@ const run = (
   );
 
 describe("claims", () => {
+  it("reuses TypeSafe claims answers after switching to OpenRouter", async () => {
+    const root = directory();
+    const config = { ...options, model: "typesafe/jev" };
+    const fetch = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      const request = new Request(input, init);
+      expect(request.url).toBe("https://api.typesafe.ai/v1/systemone");
+      const payload = await request.json();
+      return Response.json({
+        model: "jev-latest",
+        answers: Object.fromEntries(
+          Object.keys(payload.questions).map((key) => [key, { type: "noul", noul: 0.1 }]),
+        ),
+        usage: { input_tokens: 1, output_tokens: 1 },
+      });
+    });
+    const ask = () =>
+      Effect.runPromise(
+        runClaims(root, [document], [], {}, config).pipe(
+          Effect.provide(decisionModelLayer(config.model)),
+          Effect.provideService(
+            FetchHttpClient.Fetch,
+            Object.assign(fetch, {
+              preconnect: () => {
+                throw new Error("Unscripted fetch.preconnect");
+              },
+            }),
+          ),
+          Effect.provideService(ConfigProvider.ConfigProvider, ConfigProvider.fromEnv()),
+        ),
+      );
+    try {
+      vi.stubEnv("OPENROUTER_API_KEY", "");
+      vi.stubEnv("TYPESAFE_API_KEY", "offline-key");
+      expect((await ask()).asked).toBeGreaterThan(0);
+      const calls = fetch.mock.calls.length;
+      vi.stubEnv("OPENROUTER_API_KEY", "router-key");
+      expect(await ask()).toMatchObject({ asked: 0, cached: 2 });
+      expect(fetch).toHaveBeenCalledTimes(calls);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
   it("uses a one-sided cutoff with inclusive violation boundary and preserves explicit zero", async () => {
     const root = directory();
     expect((await run(root, 0.79)).findings).toEqual([]);

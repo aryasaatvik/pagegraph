@@ -9,7 +9,8 @@ import { findEnvKeys, getEnvApiKey, streamSimple } from "@earendil-works/pi-ai/c
 import { builtinModels } from "@earendil-works/pi-ai/providers/all";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import type { SeoWorkflowAgentConfig } from "../config";
+import { openRouterHeaders } from "../decide/provider";
+import type { OpenRouterConfig, SeoWorkflowAgentConfig } from "../config";
 import {
   createExecutorToolset,
   executorEvidence,
@@ -94,6 +95,7 @@ export class WorkflowRunnerError extends Error {
 }
 
 export interface PiRunnerOptions {
+  readonly openrouter?: OpenRouterConfig | undefined;
   readonly root: string;
   readonly repositoryRoot?: string;
   readonly presetDirectory: string;
@@ -295,7 +297,17 @@ export const createPiRunner = (options: PiRunnerOptions): WorkflowRunner => {
           tools,
           ...(resume === undefined ? {} : { messages: [...resume.agent.messages] }),
         },
-        streamFn: options.streamFn ?? streamSimple,
+        streamFn: (model, context, streamOptions) =>
+          (options.streamFn ?? streamSimple)(
+            model,
+            context,
+            model.provider === "openrouter"
+              ? {
+                  ...streamOptions,
+                  headers: { ...streamOptions?.headers, ...openRouterHeaders(options.openrouter) },
+                }
+              : streamOptions,
+          ),
         getApiKey: getEnvApiKey,
         toolExecution: "sequential",
       });
@@ -397,6 +409,7 @@ export const createPiRunner = (options: PiRunnerOptions): WorkflowRunner => {
 };
 
 export const acquireWorkflowRunner = async (options: {
+  readonly openrouter?: OpenRouterConfig | undefined;
   readonly root: string;
   readonly repositoryRoot?: string;
   readonly config: SeoWorkflowAgentConfig;
@@ -450,6 +463,7 @@ export const acquireWorkflowRunner = async (options: {
     root: options.root,
     presetDirectory: resolve(options.root, options.config.presetDirectory),
     model,
+    openrouter: options.openrouter,
     limit: options.limit,
     ...(options.runsDirectory === undefined ? {} : { runsDirectory: options.runsDirectory }),
     ...(options.repositoryRoot === undefined ? {} : { repositoryRoot: options.repositoryRoot }),

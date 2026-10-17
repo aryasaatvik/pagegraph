@@ -138,6 +138,12 @@ const isWorkflowConfig = (value: unknown): boolean => {
   );
 };
 
+const isOpenRouterConfig = (value: unknown): boolean =>
+  Predicate.isObject(value) &&
+  Object.keys(value).every((key) => key === "referer" || key === "title") &&
+  (value["referer"] === undefined || Predicate.isString(value["referer"])) &&
+  (value["title"] === undefined || Predicate.isString(value["title"]));
+
 const CLI_CONFIG_FIELDS = new Set([
   "loadGraph",
   "transform",
@@ -146,6 +152,7 @@ const CLI_CONFIG_FIELDS = new Set([
   "content",
   "freshness",
   "workflows",
+  "openrouter",
 ]);
 
 /**
@@ -161,7 +168,8 @@ const isSeoCliConfig = (value: unknown): value is SeoCliConfig =>
   (value["content"] === undefined || isContentPolicy(value["content"])) &&
   (value["ogImage"] === undefined || isOgImagePolicy(value["ogImage"])) &&
   (value["freshness"] === undefined || isFreshnessPolicy(value["freshness"])) &&
-  (value["workflows"] === undefined || isWorkflowConfig(value["workflows"]));
+  (value["workflows"] === undefined || isWorkflowConfig(value["workflows"])) &&
+  (value["openrouter"] === undefined || isOpenRouterConfig(value["openrouter"]));
 
 /** Import and validate one config path. */
 const loadConfigFile = (configPath: string): Effect.Effect<SeoCliConfig, SeoCliError> =>

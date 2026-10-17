@@ -81,6 +81,7 @@ const fixture = (runsDirectory = ".pagegraph/runs") => {
         ...process.env,
         NO_COLOR: "1",
         TYPESAFE_API_KEY: "",
+        OPENROUTER_API_KEY: "",
         EXECUTOR_BASE_URL: "",
         EXECUTOR_TOKEN: "",
         OPENAI_API_KEY: "",

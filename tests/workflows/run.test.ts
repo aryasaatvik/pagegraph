@@ -251,6 +251,7 @@ const edit = (testCase: (typeof mutationCases)[number]) => ({
 
 beforeEach(() => {
   vi.stubEnv("TYPESAFE_API_KEY", "offline-test-key");
+  vi.stubEnv("OPENROUTER_API_KEY", "");
 });
 
 afterEach(() => {

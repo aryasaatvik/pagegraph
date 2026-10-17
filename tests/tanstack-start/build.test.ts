@@ -54,6 +54,7 @@ async function checkFixtureClaims(directory: string, probability?: number) {
         PAGEGRAPH_FIXTURE_CLAIMS: "1",
         PAGEGRAPH_FIXTURE_PROBABILITY: String(probability),
         TYPESAFE_API_KEY: probability === undefined ? undefined : "fixture-key",
+        OPENROUTER_API_KEY: undefined,
       },
       timeout: 30_000,
     },

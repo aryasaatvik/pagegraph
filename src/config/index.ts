@@ -69,7 +69,14 @@ export interface SeoWorkflowConfig {
   readonly runsDirectory?: string | undefined;
 }
 
+export interface OpenRouterConfig {
+  readonly referer?: string | undefined;
+  readonly title?: string | undefined;
+}
+
 export interface SeoCliConfig {
+  /** App attribution for OpenRouter decision and agent requests. */
+  readonly openrouter?: OpenRouterConfig | undefined;
   /** OG image checks: defaults to structural errors and assets in public/. */
   readonly ogImage?: OgImagePolicy | undefined;
   /**

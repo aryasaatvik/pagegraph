@@ -56,6 +56,30 @@ describe("Agent timeout configuration", () => {
   });
 });
 
+describe("OpenRouter attribution configuration", () => {
+  const graph =
+    'loadGraph: async () => ({ graph: { nodes: new Map(), edges: [] }, site: { origin: "https://example.com", indexable: true, robots: { disallow: [] } }, dispose: async () => {} })';
+
+  it("loads referer and title overrides", async () => {
+    const { project } = loadFixtureConfig(
+      `export default { ${graph}, openrouter: { referer: "https://example.com", title: "My app" } };`,
+    );
+
+    expect((await project).config.openrouter).toEqual({
+      referer: "https://example.com",
+      title: "My app",
+    });
+  });
+
+  it.each(["{ referer: 1 }", "{ title: false }", '{ categories: "cli-agent" }', '"Pagegraph"'])(
+    "rejects malformed openrouter %s",
+    async (value) => {
+      const { project } = loadFixtureConfig(`export default { ${graph}, openrouter: ${value} };`);
+      await expect(project).rejects.toThrow("must default-export");
+    },
+  );
+});
+
 describe("config filename migration", () => {
   it("explains the breaking rename when only seo.config.* exists", async () => {
     const root = mkdtempSync(join(tmpdir(), "pagegraph-legacy-config-"));

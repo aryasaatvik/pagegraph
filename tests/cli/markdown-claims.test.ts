@@ -98,7 +98,9 @@ function run(root: string, args: ReadonlyArray<string>) {
     encoding: "utf8",
     timeout: 30_000,
     env: Object.fromEntries(
-      Object.entries(process.env).filter(([key]) => key !== "TYPESAFE_API_KEY"),
+      Object.entries(process.env).filter(
+        ([key]) => key !== "TYPESAFE_API_KEY" && key !== "OPENROUTER_API_KEY",
+      ),
     ),
   });
 }
@@ -108,7 +110,9 @@ function runAsync(root: string, args: ReadonlyArray<string>) {
       const child = spawn("bun", [cli, ...args], {
         cwd: root,
         env: Object.fromEntries(
-          Object.entries(process.env).filter(([key]) => key !== "TYPESAFE_API_KEY"),
+          Object.entries(process.env).filter(
+            ([key]) => key !== "TYPESAFE_API_KEY" && key !== "OPENROUTER_API_KEY",
+          ),
         ),
       });
       let stdout = "";

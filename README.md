@@ -640,6 +640,31 @@ explicitly want edits applied alongside existing changes. There is no shell tool
 `improve links`, `fetch_page` reads extracted sentences from served pages on suggestion-report
 origins, respecting robots rules and the response size limit.
 
+### OpenRouter decisions and app attribution
+
+Jev uses `OPENROUTER_API_KEY` when set, sending bearer-authenticated requests to
+`https://openrouter.ai/api/v1/systemone`. Otherwise it uses `TYPESAFE_API_KEY` and the
+TypeSafe endpoint. A failed OpenRouter request does not fall back to TypeSafe.
+`jev` and `jev-latest` route as `~typesafe/jev-latest`; explicit OpenRouter model IDs
+are accepted. Claims cache keys retain the configured logical model string, so changing
+credentials or transport does not invalidate committed answers.
+
+Every OpenRouter Jev request and Pi agent call whose selected provider is `openrouter`
+sends `HTTP-Referer: https://github.com/aryasaatvik/pagegraph` and
+`X-OpenRouter-Title: Pagegraph`. Other providers receive neither header.
+Override either value in `pagegraph.config.ts`:
+
+```ts
+export default defineSeoConfig({
+  ...config, // your existing Pagegraph configuration
+  openrouter: { referer: "https://example.com", title: "My app" },
+});
+```
+
+The optional override applies to both claims and workflows; Vite-only claims configuration
+uses Pagegraph's default identity. See OpenRouter's [Jev SDK contract](https://openrouter.ai/docs/guides/community/typesafe-sdk)
+and [app attribution](https://openrouter.ai/docs/app-attribution).
+
 ### Review and apply edits
 
 The agent never writes files. Its action turn submits `edits` and `reviewItems` through
@@ -1258,28 +1283,3 @@ MIT
 ## Contributing
 
 See [CONTRIBUTING.md](./CONTRIBUTING.md) for setup, validation commands, and the gated release path.
-
-### OpenRouter decisions and app attribution
-
-Jev uses `OPENROUTER_API_KEY` when set, sending bearer-authenticated requests to
-`https://openrouter.ai/api/v1/systemone`. Otherwise it uses `TYPESAFE_API_KEY` and the
-TypeSafe endpoint. A failed OpenRouter request does not fall back to TypeSafe.
-`jev` and `jev-latest` route as `~typesafe/jev-latest`; explicit OpenRouter model IDs
-are accepted. Claims cache keys retain the configured logical model string, so changing
-credentials or transport does not invalidate committed answers.
-
-Every OpenRouter Jev request and Pi agent call whose selected provider is `openrouter`
-sends `HTTP-Referer: https://github.com/aryasaatvik/pagegraph` and
-`X-OpenRouter-Title: Pagegraph`. Other providers receive neither header.
-Override either value in `pagegraph.config.ts`:
-
-```ts
-export default defineSeoConfig({
-  openrouter: { referer: "https://example.com", title: "My app" },
-  loadGraph: /* your existing graph loader */,
-});
-```
-
-The optional override applies to both claims and workflows; Vite-only claims configuration
-uses Pagegraph's default identity. See OpenRouter's [Jev SDK contract](https://openrouter.ai/docs/guides/community/typesafe-sdk)
-and [app attribution](https://openrouter.ai/docs/app-attribution).

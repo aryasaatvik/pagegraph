@@ -105,7 +105,14 @@ describe("claims", () => {
       Effect.runPromise(
         runClaims(root, [document], [], {}, config).pipe(
           Effect.provide(decisionModelLayer(config.model)),
-          Effect.provideService(FetchHttpClient.Fetch, fetch),
+          Effect.provideService(
+            FetchHttpClient.Fetch,
+            Object.assign(fetch, {
+              preconnect: () => {
+                throw new Error("Unscripted fetch.preconnect");
+              },
+            }),
+          ),
           Effect.provideService(ConfigProvider.ConfigProvider, ConfigProvider.fromEnv()),
         ),
       );

@@ -1,10 +1,10 @@
 core:changelogs:
-  - content: "---\npackages:\n  pagegraph:\n    type: patch\n---\n\n### Capture Markdown in dev when Vite pre-bundles dependencies\n\n`pagegraph()` now keeps `pagegraph` and `pagegraph/react` out of dependency pre-bundling, next to\nthe runtime entries. A pre-bundled copy gave pages their own document context and `defineFacts`\nregistry, so every dev capture (`/__pagegraph/markdown.json`, `<page>.md`, `claims check --dev`)\nfailed with `recorded no <Section>` or `Unknown document fact`.\n"
-    filename: 2026-10-10-dev-capture-module-state.md
+  - content: "---\npackages:\n  npm:pagegraph:\n    type: minor\n---\n\n### Use OpenRouter for Jev decisions with Pagegraph attribution\n\nJev now prefers OPENROUTER_API_KEY and falls back to TYPESAFE_API_KEY when no OpenRouter key is set.\nOpenRouter decisions and workflow agent calls identify the Pagegraph app for rankings and analytics.\nSet openrouter.referer and openrouter.title in pagegraph.config.ts to override the identity.\nExisting committed claims answers remain valid when switching providers.\n"
+    filename: 2026-10-17-openrouter-attribution.md
     v: 0.0.0
 core:packages:
   - changelogIds:
-      - 2026-10-10-dev-capture-module-state.md
+      - 2026-10-17-openrouter-attribution.md
     id: npm:pagegraph
     updated: true
 npm:packages:

@@ -6,6 +6,7 @@ import {
   fauxAssistantMessage,
   fauxToolCall,
   registerFauxProvider,
+  streamSimple,
   type FauxProviderRegistration,
   type JsonObject,
 } from "@earendil-works/pi-ai/compat";
@@ -93,6 +94,34 @@ const research = (runner: WorkflowRunner, signal = AbortSignal.timeout(2000)) =>
   runner.research(spec, "Research email APIs.", { signal });
 
 describe("Pi workflow runner", () => {
+  it.each(["openrouter", "other"])("attributes only %s model calls", async (providerName) => {
+    const { root, presetDirectory, provider, executor } = fixture();
+    provider.setResponses([submit(validState)]);
+    const streamFn = vi.fn(streamSimple);
+    const runner = createPiRunner({
+      root,
+      presetDirectory,
+      executor,
+      limit: 1,
+      model: { ...provider.getModel(), provider: providerName },
+      streamFn,
+      openrouter: { referer: "https://example.com", title: "Example" },
+    });
+    runners.push(runner);
+    await research(runner);
+    expect(streamFn).toHaveBeenCalled();
+    for (const call of streamFn.mock.calls) {
+      expect(call[2]?.headers).toEqual(
+        providerName === "openrouter"
+          ? {
+              "HTTP-Referer": "https://example.com",
+              "X-OpenRouter-Title": "Example",
+            }
+          : undefined,
+      );
+    }
+  });
+
   it("accepts a valid first submission and retains message usage and total cost", async () => {
     const { runner, provider } = fixture();
     provider.setResponses([submit(validState)]);

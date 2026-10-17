@@ -1,13 +1,10 @@
 import type { AgentTool } from "@earendil-works/pi-agent-core";
 import type { LinksSuggestionReport } from "../core/link-suggestions";
 
-import { TypeSafeClient, TypeSafeDecisionModel } from "@effect/ai-typesafe";
-import * as Config from "effect/Config";
 import * as Effect from "effect/Effect";
-import * as Layer from "effect/Layer";
 import { readFileSync, realpathSync } from "node:fs";
 import { dirname, relative, resolve } from "node:path";
-import * as FetchHttpClient from "effect/http/FetchHttpClient";
+import { decisionModelLayer } from "../decide/provider";
 
 import type { SeoCliConfig, SiteRuntime } from "../config";
 import { allowedByRobots, robotsRules } from "../audit/crawl";
@@ -170,16 +167,12 @@ export const createFetchPageTool = async (
 const defaultDecide = async (
   inputs: ReadonlyArray<unknown>,
   spec: AnyWorkflowSpec,
+  config: SeoCliConfig,
 ): Promise<DecisionBatchReport> => {
-  const layer = TypeSafeDecisionModel.model("jev-latest").pipe(
-    Layer.provide(TypeSafeClient.layerConfig()),
-    Layer.provide(FetchHttpClient.layer),
-  );
   return Effect.runPromise(
-    Effect.gen(function* () {
-      yield* Config.Redacted("TYPESAFE_API_KEY");
-      return yield* spec.runDecisions({ inputs, model: "jev-latest", threshold: 0.7 });
-    }).pipe(Effect.provide(layer)),
+    spec
+      .runDecisions({ inputs, model: "jev-latest", threshold: 0.7 })
+      .pipe(Effect.provide(decisionModelLayer("jev-latest", config.openrouter))),
   );
 };
 
@@ -359,10 +352,11 @@ export const runWorkflow = async (
     if (
       !dependencies.decide &&
       progress?.decisions === undefined &&
-      !process.env.TYPESAFE_API_KEY?.trim()
+      !process.env.TYPESAFE_API_KEY?.trim() &&
+      !process.env.OPENROUTER_API_KEY?.trim()
     ) {
       throw new Error(
-        "Missing decision provider credentials; set TYPESAFE_API_KEY before starting this workflow.",
+        "Missing decision provider credentials; set OPENROUTER_API_KEY or TYPESAFE_API_KEY before starting this workflow.",
       );
     }
     // Loading Pi at acquisition keeps unrelated CLI commands lightweight.
@@ -384,6 +378,7 @@ export const runWorkflow = async (
             repositoryRoot,
             runDirectory,
             config: workflows.agent,
+            openrouter: input.config.openrouter,
             model:
               input.model ??
               (restoredAgent === undefined
@@ -507,7 +502,9 @@ export const runWorkflow = async (
       try {
         const decisionReport =
           progress.decisions ??
-          (await (dependencies.decide ?? defaultDecide)(decisionInputs, spec));
+          (await (
+            dependencies.decide ?? ((inputs, spec) => defaultDecide(inputs, spec, input.config))
+          )(decisionInputs, spec));
         progress = { ...progress, decisions: decisionReport };
         writeWorkflowProgress(input.root, runsDirectory, progress);
         const accepted =

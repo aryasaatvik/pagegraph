@@ -1,9 +1,7 @@
-import { TypeSafeClient, TypeSafeDecisionModel } from "@effect/ai-typesafe";
 import * as Effect from "effect/Effect";
-import * as Layer from "effect/Layer";
 import * as Command from "effect/cli/Command";
 import * as Flag from "effect/cli/Flag";
-import * as FetchHttpClient from "effect/http/FetchHttpClient";
+import { decisionModelLayer } from "../../decide/provider";
 
 import { replayClaims, runClaims, type ClaimsReport } from "../../claims";
 import { readMarkdownCapture } from "../../markdown/documents";
@@ -53,7 +51,7 @@ const checkCommand = Command.make("check", {
   Command.withDescription("Check authored claims; ask the configured model only for cache misses"),
   Command.withHandler(
     Effect.fnUntraced(function* ({ refresh, dev, json }) {
-      const { root, options, markdown, facts } = yield* markdownSettings(dev);
+      const { root, options, markdown, facts, openrouter } = yield* markdownSettings(dev);
       const claims = options.claims;
       if (claims === undefined)
         return yield* new SeoCliError({
@@ -61,13 +59,7 @@ const checkCommand = Command.make("check", {
         });
       const capture = yield* markdownCapture(root, markdown.origin, dev);
       const ask = Effect.suspend(() => {
-        const id = claims.model.startsWith("typesafe/")
-          ? claims.model.slice("typesafe/".length)
-          : claims.model;
-        const layer = TypeSafeDecisionModel.model(id === "jev" ? "jev-latest" : id).pipe(
-          Layer.provide(TypeSafeClient.layerConfig()),
-          Layer.provide(FetchHttpClient.layer),
-        );
+        const layer = decisionModelLayer(claims.model, openrouter);
         return runClaims(root, capture.documents, capture.heads, facts, claims, { refresh }).pipe(
           Effect.provide(layer),
         );

@@ -62,7 +62,7 @@ export const markdownSettings = Effect.fn("CLI.markdownSettings")(function* (
         message: "Markdown capture is not configured in the graph loader's app.",
       });
     const { root, options, facts } = settings;
-    return { root, options, markdown, facts };
+    return { root, options, markdown, facts, openrouter: config.openrouter };
   }
   const root = findViteRoot();
   if (root === undefined)
@@ -78,7 +78,7 @@ export const markdownSettings = Effect.fn("CLI.markdownSettings")(function* (
     return yield* new SeoCliError({
       message: "Markdown capture is not configured in pagegraph() in the Vite config.",
     });
-  return { root: settings.root, options, markdown: options.markdown, facts };
+  return { root: settings.root, options, markdown: options.markdown, facts, openrouter: undefined };
 });
 
 export const markdownCapture = (root: string, origin: string, dev: Option.Option<string>) =>

@@ -181,6 +181,7 @@ describe("workflow resume", () => {
       throw new Error("must not decide");
     });
     vi.stubEnv("TYPESAFE_API_KEY", "");
+    vi.stubEnv("OPENROUTER_API_KEY", "");
     const resumed = await runWorkflow(
       { ...f.input, from: first.directory },
       { acquireRunner: acquire, decide },
@@ -211,7 +212,7 @@ describe("workflow resume", () => {
         cwd: f.input.root,
         encoding: "utf8",
         timeout: 10_000,
-        env: { ...process.env, TYPESAFE_API_KEY: "", NO_COLOR: "1" },
+        env: { ...process.env, TYPESAFE_API_KEY: "", OPENROUTER_API_KEY: "", NO_COLOR: "1" },
       },
     );
     expect(command.status, command.stderr).toBe(0);
@@ -526,8 +527,9 @@ describe("workflow resume", () => {
   it("refuses missing decision credentials before acquiring a runner or making a model call", async () => {
     const f = fixture();
     vi.stubEnv("TYPESAFE_API_KEY", "");
+    vi.stubEnv("OPENROUTER_API_KEY", "");
     await expect(runWorkflow(f.input, { acquireRunner: f.acquireRunner })).rejects.toThrow(
-      "set TYPESAFE_API_KEY before starting",
+      "set OPENROUTER_API_KEY or TYPESAFE_API_KEY before starting",
     );
     expect(f.acquireRunner).not.toHaveBeenCalled();
     expect(f.research).not.toHaveBeenCalled();

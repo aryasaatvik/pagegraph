@@ -1,6 +1,6 @@
 # Contributing
 
-Use Bun 1.4.3, pinned in `package.json`, and Node.js 24 for the packed-consumer checks.
+Use Bun 1.4.4, pinned in `package.json`, and Node.js 24 for the packed-consumer checks.
 
 ```sh
 bun install --frozen-lockfile

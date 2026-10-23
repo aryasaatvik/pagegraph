@@ -8,9 +8,10 @@ import { stills } from "../src/cuts";
  * it, and HyperFrames' layout check does not follow text inside a box that itself fits.
  */
 let browser: Awaited<ReturnType<typeof openBrowser>> | undefined;
+// Longer than `openBrowser`'s startup deadline, so a Chrome that never starts reports why.
 beforeAll(async () => {
   browser = await openBrowser();
-});
+}, 30_000);
 afterAll(async () => {
   await browser?.close();
 });

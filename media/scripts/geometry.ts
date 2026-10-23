@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
+import type { Subprocess } from "bun";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { Size } from "../src/scene";
 import { markups } from "../src/scenes/markup";
@@ -121,8 +122,34 @@ export async function findChrome({
   );
 }
 
-/** A headless Chrome serving each scene's static markup with the bundled stylesheet and fonts. */
-export async function openBrowser() {
+/** `promise`, or a rejection naming `what` if it has not settled within `ms`. */
+function within<T>(promise: Promise<T>, ms: number, what: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`${what} did not open within ${ms / 1000}s`)), ms);
+  });
+  return Promise.race([promise, deadline]).finally(() => clearTimeout(timer));
+}
+
+/** The DevTools address Chrome prints once it is ready, or its log when it exits first. */
+async function devtoolsAddress(stderr: ReadableStream<Uint8Array>): Promise<string> {
+  const decoder = new TextDecoder();
+  let log = "";
+  for await (const chunk of stderr) {
+    log += decoder.decode(chunk);
+    const port = /DevTools listening on ws:\/\/[^:]+:(\d+)\//.exec(log)?.[1];
+    if (port !== undefined) return `127.0.0.1:${port}`;
+  }
+  throw new Error(`Chrome exited before DevTools was ready:\n${log}`);
+}
+
+/**
+ * A headless Chrome serving each scene's static markup with the bundled stylesheet and fonts. A
+ * Chrome that fails to start, or does not open DevTools within `startupTimeout` ms, rejects after
+ * its process, server, and profile are released.
+ */
+export async function openBrowser({ startupTimeout = 20_000 }: { startupTimeout?: number } = {}) {
+  const executable = await findChrome();
   const stylesheet = await readFile(join(app, "src/styles.css"), "utf8");
   const server = Bun.serve({
     port: 0,
@@ -144,33 +171,42 @@ export async function openBrowser() {
       );
     },
   });
-  const profile = await mkdtemp(join(tmpdir(), "pagegraph-media-chrome-"));
-  const child = Bun.spawn(
-    [
-      await findChrome(),
-      "--headless",
-      "--disable-gpu",
-      // Hosted Linux runners restrict the namespaces Chrome's sandbox needs; the page is our own.
-      ...(process.env.CI ? ["--no-sandbox"] : []),
-      "--no-first-run",
-      "--no-default-browser-check",
-      "--hide-scrollbars",
-      "--remote-debugging-port=0",
-      `--user-data-dir=${profile}`,
-      "about:blank",
-    ],
-    { stdout: "ignore", stderr: "pipe" },
-  );
-  const devtools = await (async () => {
-    const decoder = new TextDecoder();
-    let log = "";
-    for await (const chunk of child.stderr) {
-      log += decoder.decode(chunk);
-      const port = /DevTools listening on ws:\/\/[^:]+:(\d+)\//.exec(log)?.[1];
-      if (port !== undefined) return `127.0.0.1:${port}`;
-    }
-    throw new Error(`Chrome exited before DevTools was ready:\n${log}`);
-  })();
+  let profile: string | undefined;
+  let child: Subprocess<"ignore", "ignore", "pipe"> | undefined;
+  const close = async () => {
+    child?.kill();
+    await child?.exited;
+    await server.stop(true);
+    if (profile !== undefined) await rm(profile, { recursive: true, force: true });
+  };
+  let devtools: string;
+  try {
+    profile = await mkdtemp(join(tmpdir(), "pagegraph-media-chrome-"));
+    child = Bun.spawn(
+      [
+        executable,
+        "--headless",
+        "--disable-gpu",
+        // Hosted Linux runners restrict the namespaces Chrome's sandbox needs; the page is our own.
+        ...(process.env.CI ? ["--no-sandbox"] : []),
+        "--no-first-run",
+        "--no-default-browser-check",
+        "--hide-scrollbars",
+        "--remote-debugging-port=0",
+        `--user-data-dir=${profile}`,
+        "about:blank",
+      ],
+      { stdin: "ignore", stdout: "ignore", stderr: "pipe" },
+    );
+    devtools = await within(
+      devtoolsAddress(child.stderr),
+      startupTimeout,
+      "Chrome's DevTools endpoint",
+    );
+  } catch (cause) {
+    await close();
+    throw cause;
+  }
 
   return {
     /** `scene` laid out at `size`. */
@@ -221,11 +257,6 @@ export async function openBrowser() {
         await fetch(`http://${devtools}/json/close/${target.id}`);
       }
     },
-    async close() {
-      child.kill();
-      await child.exited;
-      await server.stop(true);
-      await rm(profile, { recursive: true, force: true });
-    },
+    close,
   };
 }

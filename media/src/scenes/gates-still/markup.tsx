@@ -82,7 +82,7 @@ export const gatesStill: SceneMarkup = {
             >
               {index + 1}
             </span>
-            <h2 className="pg-h" style={{ marginTop: 28, fontSize: 44, fontWeight: 700 }}>
+            <h2 className="pg-h" style={{ marginTop: 28, fontSize: 48, fontWeight: 700 }}>
               {gate.stage}
             </h2>
             <div className="pg-meta" style={{ marginTop: 12 }}>
@@ -95,15 +95,15 @@ export const gatesStill: SceneMarkup = {
                 listStyle: "none",
                 display: "flex",
                 flexDirection: "column",
-                gap: 24,
+                gap: 30,
               }}
             >
               {gate.items.map((item) => (
                 <li
                   key={item}
                   style={{
-                    fontSize: 23,
-                    lineHeight: 1.38,
+                    fontSize: 25,
+                    lineHeight: 1.4,
                     paddingLeft: 18,
                     borderLeft: `3px solid ${item.startsWith("Opt in") ? "var(--pg-line-strong)" : "var(--pg-lime)"}`,
                   }}

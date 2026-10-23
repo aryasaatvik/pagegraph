@@ -220,7 +220,8 @@ body {
   position: absolute;
   left: 0;
   right: 0;
-  background: var(--pg-lime-wash);
+  /* The lime wash precomposited over the panel: opaque, so text never blends through a layer. */
+  background: #2a3321;
   border-left: 4px solid var(--pg-lime);
   transform-origin: left center;
 }

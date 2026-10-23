@@ -70,7 +70,7 @@ export const check: SceneMarkup = {
         <p
           data-a="verdict"
           className="pg-h"
-          style={{ marginTop: 26, fontSize: 40, fontWeight: 640, lineHeight: 1.12 }}
+          style={{ marginTop: 26, fontSize: 36, fontWeight: 640, lineHeight: 1.12 }}
         >
           Two blog posts still link to a page that no longer exists.
         </p>

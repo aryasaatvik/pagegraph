@@ -16,6 +16,8 @@ await run([
   "30",
   "--output",
   output,
+  // Software rendering (SwiftShader) keeps frames reproducible across runs and GPUs.
+  "--no-browser-gpu",
   "--quiet",
 ]);
 console.log(`rendered ${output}`);

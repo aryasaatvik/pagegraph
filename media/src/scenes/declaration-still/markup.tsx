@@ -7,19 +7,19 @@ export const fields = [
   {
     field: "link",
     line: pricingLines.link[0],
-    derives: "The card other pages render when they list this page in related.",
+    derives: "The card other pages render when they list it in related.",
     guard: "A related target with no link fails.",
   },
   {
     field: "crumb",
     line: pricingLines.crumb[0],
-    derives: "A crumb-parent edge to the nearest ancestor with a crumb.",
+    derives: "A crumb-parent edge to its nearest ancestor with a crumb.",
     guard: "seo.head builds its BreadcrumbList from the same crumbs.",
   },
   {
     field: "sitemap",
     line: pricingLines.sitemap[0],
-    derives: "This page's <loc>, <changefreq>, and <priority> in sitemap.xml.",
+    derives: "Its <loc>, <changefreq>, and <priority> in sitemap.xml.",
     guard: "A sitemap policy on a noindex page or a redirect fails.",
   },
   {
@@ -32,7 +32,7 @@ export const fields = [
   {
     field: "head.image",
     line: pricingLines.head[0] + 1,
-    derives: "og:image with its size and alt text, and a large Twitter card.",
+    derives: "og:image with size and alt text; a large Twitter card.",
     guard: "By default, a sitemap page without an image, or with one missing from public/, fails.",
   },
 ] as const;
@@ -62,9 +62,9 @@ export const declarationStill: SceneMarkup = {
       <Code
         code={pricingRoute.code}
         file="src/routes/(marketing)/pricing.tsx"
-        fontSize={18}
+        fontSize={17}
         lineHeight={LINE}
-        box={{ left: 120, top: CODE_TOP, width: 1060, height: 650 }}
+        box={{ left: 120, top: CODE_TOP, width: 1000, height: 650 }}
       />
       {fields.map((field, index) => (
         <span
@@ -86,15 +86,15 @@ export const declarationStill: SceneMarkup = {
       <ol
         className="pg-abs"
         style={{
-          left: 1220,
+          left: 1170,
           top: CODE_TOP,
-          width: 580,
+          width: 630,
           margin: 0,
           padding: 0,
           listStyle: "none",
           display: "flex",
           flexDirection: "column",
-          gap: 20,
+          gap: 24,
         }}
       >
         {fields.map((field, index) => (
@@ -112,11 +112,11 @@ export const declarationStill: SceneMarkup = {
               {index + 1}
             </span>
             <div>
-              <div className="pg-mono pg-lime" style={{ fontSize: 21, fontWeight: 600 }}>
+              <div className="pg-mono pg-lime" style={{ fontSize: 23, fontWeight: 600 }}>
                 {field.field}
               </div>
-              <div style={{ fontSize: 20, lineHeight: 1.3, marginTop: 2 }}>{field.derives}</div>
-              <div className="pg-soft" style={{ fontSize: 17, lineHeight: 1.3, marginTop: 4 }}>
+              <div style={{ fontSize: 22, lineHeight: 1.3, marginTop: 4 }}>{field.derives}</div>
+              <div className="pg-soft" style={{ fontSize: 18, lineHeight: 1.3, marginTop: 4 }}>
                 {field.guard}
               </div>
             </div>
@@ -124,7 +124,8 @@ export const declarationStill: SceneMarkup = {
         ))}
       </ol>
       <p className="pg-note pg-abs" style={{ left: 120, top: 984, margin: 0 }}>
-        From tests/fixtures/tanstack-start-app. The media tests re-derive each output.
+        From tests/fixtures/tanstack-start-app. The media tests re-derive its head and sitemap
+        output.
       </p>
     </Scene>
   ),

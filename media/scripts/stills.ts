@@ -22,6 +22,8 @@ for (const still of stills) {
     "1",
     "--output",
     frames,
+    // Software rendering (SwiftShader) keeps frames reproducible across runs and GPUs.
+    "--no-browser-gpu",
     "--quiet",
   ]);
   const settled = (await readdir(frames)).filter((name) => name.endsWith(".png")).sort()[1];

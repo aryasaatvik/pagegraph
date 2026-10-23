@@ -64,7 +64,7 @@ export const hook: SceneMarkup = {
             style={{ marginLeft: offsets[index], height: 58 }}
           >
             <i data-a="copy-dot" />
-            <span className="pg-kicker" style={{ width: 150, fontSize: 16 }}>
+            <span className="pg-meta" style={{ width: 150, fontSize: 17 }}>
               {copy.label}
             </span>
             <span data-a="copy-value">{copy.value}</span>

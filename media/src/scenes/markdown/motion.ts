@@ -1,5 +1,5 @@
 import type { SceneMotion } from "../../scene";
-import { all, draw, exit, lift, one, rise, show } from "../motion-kit";
+import { all, exit, lift, one, rise, show } from "../motion-kit";
 
 /**
  * 0.2 title. 0.5 sub. 0.8 the authored section. 1.7 arrow. 1.9 the twin, 2.2-3.2 its lines, 3.5
@@ -14,7 +14,7 @@ export const markdown: SceneMotion = (tl, root) => {
   rise(tl, all(root, "twin-line"), 2.2, { y: 8, duration: 0.3, stagger: 0.25 });
   rise(tl, one(root, "twin-human"), 3.5, { y: 8, duration: 0.3 });
   rise(tl, one(root, "llms"), 4.1, { y: 16, duration: 0.5 });
-  draw(tl, all(root, "hi-fact"), 4.7, { duration: 0.4 });
+  show(tl, all(root, "hi-fact"), 4.7, 0.4);
   rise(tl, one(root, "note"), 4.8, { y: 10, duration: 0.4 });
   exit(tl, root, 6.5);
 };

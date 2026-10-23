@@ -28,7 +28,7 @@ function curve(from: { x: number; y: number }, to: { x: number; y: number }): st
 export const outputs = [
   { label: "sitemap.xml", value: "6 <loc> entries" },
   { label: "robots.txt", value: fixtureRobots.join("\n") },
-  { label: "<head>", value: "seo.head on each route" },
+  { label: "<head>", value: "seo.head, from the same declarations" },
   { label: "llms.txt", value: "graph titles and descriptions" },
   { label: "pagegraph check", value: "the CI gate reads the same graph" },
 ] as const;

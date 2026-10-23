@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import ts from "typescript";
 import { checkGraph, type Violation } from "../../src/core/checks";
 import type { RouteSeo } from "../../src/core/declare";
 import {
@@ -41,25 +42,68 @@ const read = (file: string) => readFileSync(join(repository, file), "utf8");
 const fixture = (file: string) => join(repository, fixtureApp, file);
 
 /**
- * The `staticData` literal a fixture route file declares, evaluated. Route files cannot be
- * imported directly (they use the app's `@/` alias), so the literal is brace-matched from the text.
- * `VITE_BRAND` is the fixture's `define`.
+ * The `staticData` object a route file declares, evaluated. Route files cannot be imported directly
+ * (they use the app's `@/` alias), so the property is found in the parsed source and only its
+ * initializer runs, with each `define` key replaced by its string value as Vite would.
  */
-function staticDataOf(file: string): { seo: RouteSeo } {
-  const text = read(join(fixtureApp, "src/routes", file)).replace(
-    "import.meta.env.VITE_BRAND",
-    JSON.stringify("Example"),
+function staticDataIn(
+  file: string,
+  text: string,
+  define: Readonly<Record<string, string>> = {},
+): { seo: RouteSeo } {
+  const source = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const found: Array<ts.ObjectLiteralElementLike> = [];
+  const visit = (node: ts.Node): void => {
+    if (ts.isObjectLiteralExpression(node))
+      for (const property of node.properties)
+        if (property.name !== undefined && property.name.getText(source) === "staticData")
+          found.push(property);
+    ts.forEachChild(node, visit);
+  };
+  visit(source);
+  const [property, ...others] = found;
+  if (property === undefined || others.length > 0)
+    throw new Error(`${file}: expected one staticData property, found ${found.length}`);
+  if (!ts.isPropertyAssignment(property) || !ts.isObjectLiteralExpression(property.initializer))
+    throw new Error(`${file}: staticData must be an object literal`);
+
+  const substitute: ts.TransformerFactory<ts.SourceFile> = (context) => (root) => {
+    const replace = (node: ts.Node): ts.Node =>
+      ts.isPropertyAccessExpression(node) && Object.hasOwn(define, node.getText(root))
+        ? ts.factory.createStringLiteral(define[node.getText(root)] ?? "")
+        : ts.visitEachChild(node, replace, context);
+    return ts.visitEachChild(root, replace, context);
+  };
+  const { outputText, diagnostics = [] } = ts.transpileModule(
+    `export default ${property.initializer.getText(source)};`,
+    {
+      fileName: file,
+      reportDiagnostics: true,
+      compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+      transformers: { before: [substitute] },
+    },
   );
-  const start = text.indexOf("{", text.indexOf("staticData:"));
-  let depth = 0;
-  let end = start;
-  for (; end < text.length; end += 1) {
-    if (text[end] === "{") depth += 1;
-    if (text[end] === "}") depth -= 1;
-    if (depth === 0) break;
+  if (diagnostics.length > 0)
+    throw new Error(
+      `${file}: staticData does not parse: ${ts.flattenDiagnosticMessageText(diagnostics[0]?.messageText, "\n")}`,
+    );
+  const exports: { default?: { seo: RouteSeo } } = {};
+  try {
+    // oxlint-disable-next-line no-new-func -- evaluates a fixture's object literal, not input.
+    new Function("exports", outputText)(exports);
+  } catch (cause) {
+    throw new Error(`${file}: staticData does not evaluate on its own`, { cause });
   }
-  // oxlint-disable-next-line no-new-func -- evaluates a fixture's object literal, not input.
-  return new Function(`return (${text.slice(start, end + 1)});`)() as { seo: RouteSeo };
+  if (exports.default === undefined) throw new Error(`${file}: staticData evaluated to nothing`);
+  return exports.default;
+}
+
+/** A fixture route's `staticData`, with the fixture's `define` for `VITE_BRAND`. */
+function staticDataOf(file: string): { seo: RouteSeo } {
+  const path = join(fixtureApp, "src/routes", file);
+  return staticDataIn(path, read(path), {
+    "import.meta.env.VITE_BRAND": "Example",
+  });
 }
 
 interface RouteShape {
@@ -97,6 +141,39 @@ function fixtureGraph(pricingPath: string): Promise<SeoGraph> {
     }),
   );
 }
+
+describe("staticData extraction", () => {
+  const route = (staticData: string) => `import { createFileRoute } from "@tanstack/react-router";
+import { seo } from "@/seo";
+
+export const Route = createFileRoute("/x")({
+  ${staticData}
+  head: seo.head,
+});`;
+
+  test("delimits the object by syntax, not by brace characters", () => {
+    const text = route(`staticData: {
+    // A closing brace in a comment: }
+    seo: {
+      kind: "page",
+      crumb: "}",
+      head: { title: \`\${"}"} | \${import.meta.env.VITE_BRAND}\`, description: "/* { */" },
+    },
+  },`);
+    expect(staticDataIn("x.tsx", text, { "import.meta.env.VITE_BRAND": "Example" })).toEqual({
+      seo: { kind: "page", crumb: "}", head: { title: "} | Example", description: "/* { */" } },
+    });
+  });
+
+  test.each([
+    ["no", "", "expected one staticData property, found 0"],
+    ["two", 'staticData: { seo: { kind: "page" } }, other: { staticData: {} },', "found 2"],
+    ["a non-literal", "staticData: shared,", "staticData must be an object literal"],
+    ["an unevaluable", "staticData: { seo: shared },", "staticData does not evaluate on its own"],
+  ])("rejects %s staticData", (_, staticData, message) => {
+    expect(() => staticDataIn("x.tsx", route(staticData))).toThrow(message);
+  });
+});
 
 describe("on-screen code matches the repository", () => {
   test.each([pricingRoute, collectionEntry, authoredSection])(

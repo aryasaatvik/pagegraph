@@ -3,8 +3,9 @@
 Route-declared SEO for TanStack Start and TanStack Router. Each route declares its SEO
 policy and head once, in `staticData.seo` — the `<head>`, sitemap, `robots.txt`,
 breadcrumbs, JSON-LD, cross-links, and the CI check all derive from that one
-declaration. There is no second place to update, so nothing drifts. A public page that
-ships without a declaration **fails the build**.
+declaration instead of from files you keep in sync by hand. With the opt-in coverage gate
+(`routeConfig.enforceCoverageIn`), a page in those route groups that declares neither
+`staticData` nor `head` **fails the build**.
 
 [![pagegraph launch film poster: declare SEO on the route, derive the rest from one graph](media/exports/pagegraph-launch-poster.jpg)](media/exports/pagegraph-launch.mp4)
 
@@ -21,7 +22,7 @@ flowchart LR
   seograph --> robots["robots.txt"]
   seograph --> check["pagegraph check · CI gate"]
   route --> head["&lt;head&gt; meta · canonical<br/>Breadcrumbs · JSON-LD"]
-  gate["pagegraph() (vite)"] -. "fails undeclared pages" .-> route
+  gate["pagegraph() (vite)"] -. "enforceCoverageIn: fails pages with neither staticData nor head" .-> route
 ```
 
 ## Install
@@ -332,9 +333,9 @@ export const Route = createFileRoute("/pricing")({
 
 `seo.head` returns the `meta` + canonical `links` TanStack renders into `<head>` —
 title, description, og/twitter cards, robots, and the JSON-LD each page warrants
-(BreadcrumbList always; Article, FAQPage, Service, ItemList when the head declares
-them). A route that renders from `loaderData` calls `seoHead(ctx, instance)` in its
-own `head()` and declares a `titleTemplate` (`"%s | Example Blog"`): `seoHead` applies it,
+(BreadcrumbList on the matched leaf when its crumb trail has two or more entries; Article,
+FAQPage, Service, ItemList when the head declares them). A route that renders from
+`loaderData` calls `seoHead(ctx, instance)` in its own `head()` and declares a `titleTemplate` (`"%s | Example Blog"`): `seoHead` applies it,
 and the graph applies it to the route's collection pages.
 
 ![One declaration in staticData.seo: the fixture pricing route with its link, crumb, sitemap, head, and head.image fields, what each derives, and the check that guards it](media/exports/route-declaration.png)

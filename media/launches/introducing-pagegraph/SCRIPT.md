@@ -41,8 +41,8 @@ Every on-screen excerpt and derived value lives in `src/scenes/source.ts`, and
 - The coverage note quotes `coverageMessage` from `src/vite/route-config.ts` and says the gate is
   opt-in. The Markdown twin, the struck `ForHumans` line, and the llms.txt entry are the strings
   `tests/tanstack-start/build.test.ts` asserts.
-- The film does not repeat the README's broader lines ("nothing drifts"; an undeclared public page
-  always fails the build). It makes no ranking, traffic, speed, adoption, zero-config, or
+- The film does not claim that nothing drifts or that every undeclared page fails the build; the
+  coverage gate appears only as opt-in. It makes no ranking, traffic, speed, adoption, zero-config, or
   universal-framework claim; `tests/copy.test.ts` rejects those phrases and allows "rankings" only
   in the infographic's denial.
 

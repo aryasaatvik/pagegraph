@@ -1,5 +1,15 @@
 {
   "extends": "../tsconfig.json",
-  "compilerOptions": { "jsx": "react-jsx", "types": ["bun"] },
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "types": ["bun"],
+    // The program also reaches the root's sources and their dependencies, which resolve `react`
+    // from the root's node_modules. A hoisted install keeps that a second copy of @types/react,
+    // and two copies are two unrelated React types, so every `react` import resolves to media's.
+    "paths": {
+      "react": ["./node_modules/@types/react"],
+      "react/*": ["./node_modules/@types/react/*"]
+    }
+  },
   "include": ["src", "scripts", "tests"]
 }

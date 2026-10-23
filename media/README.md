@@ -51,6 +51,9 @@ clocks, and randomness are forbidden; the build and `tests/film.test.ts` reject 
   lack, and checks the runtime and build entries against `package.json` exports.
 - `tests/layout.test.ts` bounds every code and terminal panel by the mono advance at each render
   size and requires every name a motion animates to exist in its scene.
+- `tests/geometry.test.ts` lays each still out in headless Chrome with the bundled fonts and fails
+  when a text line leaves its block, passes the header's right edge, or an element clips its
+  content. It uses HyperFrames' managed Chrome, else a system Chrome; set `CHROME_PATH` to choose.
 - `tests/film.test.ts` pins the 60-second timeline, the poster frame, and card sizes.
 
 ## Commands

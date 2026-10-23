@@ -1,7 +1,8 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, mock, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import ts from "typescript";
+import type { AnyRoute } from "@tanstack/react-router";
 import { checkGraph, type Violation } from "../../src/core/checks";
 import type { RouteSeo } from "../../src/core/declare";
 import {
@@ -11,6 +12,9 @@ import {
   type SeoGraph,
 } from "../../src/core/graph";
 import { renderRobots, renderSitemap } from "../../src/core/projections";
+import type { Facts } from "../../src/markdown/facts";
+import { llmsMarkdown } from "../../src/markdown/llms";
+import { documentMarkdown } from "../../src/markdown/markdown";
 import { renderViolations } from "../../src/cli/render";
 import type { SeoHead } from "../../src/react/create-seo";
 import { coverageMessage } from "../../src/vite/route-config";
@@ -40,6 +44,14 @@ import {
 
 const read = (file: string) => readFileSync(join(repository, file), "utf8");
 const fixture = (file: string) => join(repository, fixtureApp, file);
+
+/** `pagegraph/...` resolved through this package's own exports, to its built entries. */
+const pagegraphEntry = (specifier: string) =>
+  Bun.resolveSync(specifier, join(repository, "package.json"));
+// The Markdown fixture imports `pagegraph` as an installed dependency (the build test links one
+// into a copy); here those imports load the same built entries in place.
+for (const specifier of ["pagegraph", "pagegraph/react", "pagegraph/tanstack-start/react"])
+  mock.module(specifier, () => import(pagegraphEntry(specifier)));
 
 /**
  * The `staticData` object a route file declares, evaluated. Route files cannot be imported directly
@@ -260,21 +272,11 @@ describe("derived output matches what pagegraph renders", () => {
     for (const line of fixtureRobots) expect(robots).toContain(line);
   });
 
-  test("graph pages and edges match the fixture graph and the plugin test", async () => {
+  test("graph pages and edges match the fixture graph", async () => {
     const graph = await fixtureGraph("/pricing");
     const pages = [...graph.nodes.keys()].filter((path) => !path.includes("$"));
     expect(pages.toSorted()).toEqual([...graphPages].toSorted());
     expect(graph.edges).toEqual(graphEdges.map((edge) => ({ ...edge })));
-
-    // The plugin test evaluates the real app through Vite and asserts the same graph.
-    const pluginTest = read("tests/tanstack-start/plugin.test.ts");
-    expect(pluginTest).toContain(
-      `expect(pageHeads(graph).map((head) => head.path)).toEqual([\n${graphPages.map((path) => `      "${path}",`).join("\n")}\n    ]);`,
-    );
-    for (const edge of [graphEdges[0], graphEdges[2]])
-      expect(pluginTest).toContain(
-        `expect(graph.edges).toContainEqual({ from: "${edge.from}", to: "${edge.to}", type: "${edge.type}" });`,
-      );
   });
 
   test("the check report is what checkGraph reports after the rename", async () => {
@@ -300,18 +302,88 @@ describe("derived output matches what pagegraph renders", () => {
     );
   });
 
-  test("the Markdown twin and llms.txt lines are the ones the build test asserts", () => {
-    const buildTest = read("tests/tanstack-start/build.test.ts");
-    for (const line of markdownTwin)
-      expect(buildTest).toContain(`expect(twin).toContain(${JSON.stringify(line)});`);
-    expect(buildTest).toContain(`expect(twin).not.toContain("${humansOnly.replace(/\.$/, "")}");`);
-    expect(buildTest).toContain(
-      `expect(llms).toContain(${JSON.stringify(llmsEntry.replace(/^- /, ""))});`,
+  test("the Markdown twin and llms.txt entry are what capturing the fixture page renders", async () => {
+    const app = join(repository, markdownApp);
+    // The fixture's own module instances: its components read the capture context of the
+    // pagegraph it resolves, so the capture must use that same module.
+    const resolved = (specifier: string) =>
+      import(Bun.resolveSync(specifier, join(app, "package.json")));
+    const document: typeof import("../../src/react/index") = await import(
+      pagegraphEntry("pagegraph/react")
     );
-    expect(read("src/markdown/llms.ts")).toContain("`- [${document.title");
-    // The facts the section resolves.
-    expect(read(`${markdownApp}/src/facts.ts`)).toContain(
-      'defineFacts({ emails: fact.number(3000), runtime: fact.text("workerd") })',
+    const tanstack: typeof import("@tanstack/react-router") =
+      await resolved("@tanstack/react-router");
+    const react: typeof import("react") = await resolved("react");
+    const server: typeof import("react-dom/server") = await resolved("react-dom/server");
+    const { Route: index }: { Route: AnyRoute } = await import(join(app, "src/routes/index.tsx"));
+    const { facts }: { facts: Facts } = await import(join(app, "src/facts.ts"));
+    expect(read(`${markdownApp}/vite.config.ts`)).toContain(
+      `markdown: { origin: "${fixtureOrigin}" },`,
     );
+
+    const root = tanstack.createRootRoute();
+    const router = tanstack.createRouter({
+      // The route generator mounts the file route at `/`; its options are the fixture's own.
+      routeTree: root.addChildren([
+        tanstack.createRoute({
+          getParentRoute: () => root,
+          path: "/",
+          staticData: index.options.staticData,
+          head: index.options.head,
+          component: index.options.component,
+        }),
+      ]),
+      history: tanstack.createMemoryHistory({ initialEntries: ["/"] }),
+      isServer: true,
+    });
+    await router.load();
+    // The title and description the route's head() renders, as the capture reads them.
+    const meta = router.stores.matches.get().at(-1)?.meta ?? [];
+    const title = meta.find((entry) => entry !== undefined && "title" in entry)?.title;
+    const description = meta.find(
+      (entry) => entry !== undefined && "name" in entry && entry.name === "description",
+    )?.content;
+    if (typeof title !== "string" || typeof description !== "string")
+      throw new Error("the fixture page's head() declares no title and description");
+
+    const collector = document.createCollector({ path: "/", site: fixtureOrigin, facts });
+    const html = server.renderToString(
+      react.createElement(
+        document.CaptureRequest.Provider,
+        { value: collector },
+        react.createElement(tanstack.RouterProvider, { router }),
+      ),
+    );
+    const twin = documentMarkdown(
+      document.finishDocument(collector, { title, description }, html),
+      fixtureOrigin,
+    );
+    const at = markdownTwin.map((line) => twin.indexOf(`${line}\n`));
+    expect(at.every((offset) => offset >= 0)).toBe(true);
+    expect(at).toEqual(at.toSorted((a, b) => a - b));
+    expect(twin).not.toContain(humansOnly);
+    // The ForHumans line is still on the page, just not in the twin.
+    expect(html).toContain(humansOnly);
+    expect(facts["emails"]?.value).toBe(3000);
+
+    // llms.txt is composed from graph metadata, not the rendered page.
+    const node = buildSeoGraph({ routeTree: router.routeTree }).nodes.get("/");
+    if (node?.head?.title === undefined || node.head.description === undefined)
+      throw new Error("the fixture graph has no head for /");
+    expect(
+      llmsMarkdown(
+        [
+          {
+            document: {
+              path: node.path,
+              title: node.head.title,
+              description: node.head.description,
+            },
+            ...(node.llms === undefined ? {} : { llms: node.llms }),
+          },
+        ],
+        fixtureOrigin,
+      ),
+    ).toBe(`## Pages\n\n${llmsEntry}\n`);
   });
 });

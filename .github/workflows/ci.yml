@@ -31,3 +31,15 @@ jobs:
 
       - name: Validate
         run: bun run release:check
+
+      - name: Install media dependencies
+        working-directory: media
+        run: bun install --frozen-lockfile
+
+      - name: Typecheck media
+        working-directory: media
+        run: bun run typecheck
+
+      - name: Test media
+        working-directory: media
+        run: bun run test

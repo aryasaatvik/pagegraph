@@ -1,0 +1,479 @@
+/*
+ * pagegraph launch identity: a dark dot-grid sheet, warm white ink, and one signal lime for what
+ * a route declares. Derived output is drawn in ink; coral marks only a failed check. Fonts are
+ * bundled from Fontsource at build time. Motion never lives here: the build rejects transitions
+ * and animations.
+ */
+
+@font-face {
+  font-family: "Bricolage Grotesque";
+  src: url(fonts/bricolage-grotesque.woff2) format("woff2-variations");
+  font-weight: 200 800;
+  font-stretch: 75% 100%;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: "Spline Sans Mono";
+  src: url(fonts/spline-sans-mono.woff2) format("woff2-variations");
+  font-weight: 300 700;
+  font-style: normal;
+  font-display: block;
+}
+
+:root {
+  --pg-night: #0b0f13;
+  --pg-panel: #11171d;
+  --pg-raised: #161e25;
+  --pg-line: #232c34;
+  --pg-line-strong: #34404a;
+  --pg-ink: #eef1ea;
+  --pg-soft: #a6b0a9;
+  --pg-faint: #87918b;
+  --pg-lime: #cff23d;
+  --pg-lime-deep: #a9cc1c;
+  --pg-lime-wash: rgba(207, 242, 61, 0.13);
+  --pg-coral: #ff6b4f;
+  --pg-coral-wash: rgba(255, 107, 79, 0.14);
+  --pg-code-str: #e8cf8f;
+  --pg-code-num: #f2a37a;
+  --pg-code-key: #9fd3c7;
+  --pg-code-kw: #c9b3ff;
+  --pg-code-tag: #8fc1ff;
+  --pg-sans: "Bricolage Grotesque", ui-sans-serif, system-ui, sans-serif;
+  --pg-mono: "Spline Sans Mono", ui-monospace, monospace;
+}
+
+html,
+body {
+  margin: 0;
+  background: var(--pg-night);
+  color: var(--pg-ink);
+  font-family: var(--pg-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Frame ------------------------------------------------------------------------------------ */
+
+.pg-scene {
+  position: relative;
+  overflow: hidden;
+  background: var(--pg-night);
+  color: var(--pg-ink);
+  font-family: var(--pg-sans);
+}
+
+.pg-scene * {
+  box-sizing: border-box;
+}
+
+/* The dot grid the whole identity is drawn on: graph paper for a graph. */
+.pg-grid {
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(circle, rgba(238, 241, 234, 0.085) 1.4px, transparent 1.6px);
+  background-size: 40px 40px;
+  background-position: 20px 20px;
+}
+
+.pg-abs {
+  position: absolute;
+}
+
+.pg-header {
+  position: absolute;
+  top: 48px;
+  left: 120px;
+  right: 120px;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1.5px solid var(--pg-line-strong);
+}
+
+.pg-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  font-size: 30px;
+  font-weight: 700;
+  font-stretch: 88%;
+  letter-spacing: -0.02em;
+}
+
+.pg-kicker {
+  font-family: var(--pg-mono);
+  font-size: 19px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--pg-soft);
+  white-space: nowrap;
+}
+
+.pg-kicker--lime {
+  color: var(--pg-lime);
+}
+
+/* Type ------------------------------------------------------------------------------------- */
+
+.pg-h {
+  margin: 0;
+  font-family: var(--pg-sans);
+  font-weight: 740;
+  font-stretch: 88%;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  color: var(--pg-ink);
+}
+
+.pg-sub {
+  margin: 0;
+  font-size: 30px;
+  font-weight: 420;
+  font-stretch: 96%;
+  line-height: 1.35;
+  color: var(--pg-soft);
+}
+
+.pg-mask {
+  display: block;
+  overflow: hidden;
+  padding-bottom: 0.16em;
+  margin-bottom: -0.16em;
+}
+
+.pg-mask > span {
+  display: block;
+}
+
+.pg-mono {
+  font-family: var(--pg-mono);
+}
+
+.pg-lime {
+  color: var(--pg-lime);
+}
+
+.pg-coral {
+  color: var(--pg-coral);
+}
+
+.pg-soft {
+  color: var(--pg-soft);
+}
+
+.pg-note {
+  font-family: var(--pg-mono);
+  font-size: 19px;
+  line-height: 1.55;
+  color: var(--pg-soft);
+}
+
+/* Code ------------------------------------------------------------------------------------- */
+
+.pg-code {
+  position: absolute;
+  background: var(--pg-panel);
+  border: 1.5px solid var(--pg-line);
+  border-radius: 16px;
+  color: var(--pg-ink);
+  font-family: var(--pg-mono);
+  font-weight: 420;
+  overflow: hidden;
+}
+
+.pg-code-file {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 54px;
+  padding: 0 28px;
+  border-bottom: 1.5px solid var(--pg-line);
+  font-size: 17px;
+  letter-spacing: 0.02em;
+  color: var(--pg-soft);
+  white-space: nowrap;
+}
+
+.pg-code-file i {
+  width: 10px;
+  height: 10px;
+  background: var(--pg-lime);
+  flex-shrink: 0;
+}
+
+.pg-code-body {
+  position: relative;
+  padding: 22px 0;
+}
+
+.pg-code-line {
+  position: relative;
+  padding: 0 28px;
+  white-space: pre;
+}
+
+.pg-code-hi {
+  position: absolute;
+  left: 0;
+  right: 0;
+  /* The lime wash precomposited over the panel: opaque, so text never blends through a layer. */
+  background: #2a3321;
+  border-left: 4px solid var(--pg-lime);
+  transform-origin: left center;
+}
+
+.pg-code-hi--coral {
+  background: var(--pg-coral-wash);
+  border-left-color: var(--pg-coral);
+}
+
+.tk-str {
+  color: var(--pg-code-str);
+}
+.tk-num {
+  color: var(--pg-code-num);
+}
+.tk-kw {
+  color: var(--pg-code-kw);
+}
+.tk-key {
+  color: var(--pg-code-key);
+}
+.tk-tag {
+  color: var(--pg-code-tag);
+}
+.tk-dim {
+  color: var(--pg-faint);
+}
+
+/* Terminal --------------------------------------------------------------------------------- */
+
+.pg-term {
+  position: absolute;
+  background: #070a0d;
+  border: 1.5px solid var(--pg-line);
+  border-radius: 16px;
+  font-family: var(--pg-mono);
+  color: var(--pg-ink);
+  overflow: hidden;
+}
+
+.pg-term-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 46px;
+  padding: 0 22px;
+  border-bottom: 1.5px solid var(--pg-line);
+}
+
+.pg-term-bar i {
+  width: 11px;
+  height: 11px;
+  border-radius: 6px;
+  background: var(--pg-line-strong);
+}
+
+.pg-term-line {
+  white-space: pre;
+}
+
+/* Cards, chips, and badges ----------------------------------------------------------------- */
+
+.pg-card {
+  position: absolute;
+  background: var(--pg-panel);
+  border: 1.5px solid var(--pg-line-strong);
+  border-radius: 14px;
+}
+
+.pg-card--lime {
+  border-color: var(--pg-lime);
+}
+
+.pg-card--coral {
+  border-color: var(--pg-coral);
+}
+
+.pg-card-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--pg-mono);
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--pg-soft);
+  white-space: nowrap;
+}
+
+.pg-rows {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  column-gap: 22px;
+  row-gap: 8px;
+  font-family: var(--pg-mono);
+  font-size: 18px;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.pg-rows dt {
+  color: var(--pg-faint);
+}
+
+.pg-rows dd {
+  margin: 0;
+  color: var(--pg-ink);
+}
+
+.pg-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  height: 52px;
+  padding: 0 22px 0 18px;
+  border-radius: 10px;
+  border: 1.5px solid var(--pg-line-strong);
+  background: var(--pg-panel);
+  font-family: var(--pg-mono);
+  font-size: 21px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.pg-chip i {
+  width: 10px;
+  height: 10px;
+  background: var(--pg-ink);
+  flex-shrink: 0;
+}
+
+.pg-chip--lime i {
+  background: var(--pg-lime);
+}
+
+.pg-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  height: 42px;
+  padding: 0 16px;
+  border-radius: 8px;
+  font-family: var(--pg-mono);
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.pg-badge--lime {
+  color: var(--pg-night);
+  background: var(--pg-lime);
+}
+
+.pg-badge--coral {
+  color: var(--pg-night);
+  background: var(--pg-coral);
+}
+
+.pg-badge--ink {
+  color: var(--pg-ink);
+  background: var(--pg-raised);
+  border: 1.5px solid var(--pg-line-strong);
+}
+
+.pg-rule {
+  display: block;
+  height: 1.5px;
+  background: var(--pg-line-strong);
+  transform-origin: left center;
+}
+
+.pg-bar {
+  display: block;
+  height: 6px;
+  background: var(--pg-lime);
+  transform-origin: left center;
+}
+
+/* Graph ------------------------------------------------------------------------------------ */
+
+.pg-node {
+  position: absolute;
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  height: 56px;
+  padding: 0 22px 0 18px;
+  border-radius: 10px;
+  border: 1.5px solid var(--pg-line-strong);
+  background: var(--pg-panel);
+  font-family: var(--pg-mono);
+  font-size: 21px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.pg-node i {
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--pg-ink);
+  flex-shrink: 0;
+}
+
+.pg-node--declared {
+  border-color: var(--pg-lime);
+}
+
+.pg-node--declared i {
+  border-color: var(--pg-lime);
+  background: var(--pg-lime);
+}
+
+.pg-node--missing {
+  border-style: dashed;
+  border-color: var(--pg-coral);
+  color: var(--pg-coral);
+  background: transparent;
+}
+
+.pg-node--missing i {
+  border-color: var(--pg-coral);
+}
+
+.pg-edges {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+}
+
+.pg-edge-label {
+  position: absolute;
+  font-family: var(--pg-mono);
+  font-size: 16px;
+  letter-spacing: 0.04em;
+  color: var(--pg-soft);
+  background: var(--pg-night);
+  padding: 2px 8px;
+  white-space: nowrap;
+}
+
+.pg-swatch {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+/* Mono metadata: file names, commands, and URLs keep their case. */
+.pg-meta {
+  font-family: var(--pg-mono);
+  font-size: 18px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: var(--pg-soft);
+}

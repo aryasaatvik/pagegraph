@@ -3,8 +3,14 @@
 Route-declared SEO for TanStack Start and TanStack Router. Each route declares its SEO
 policy and head once, in `staticData.seo` — the `<head>`, sitemap, `robots.txt`,
 breadcrumbs, JSON-LD, cross-links, and the CI check all derive from that one
-declaration. There is no second place to update, so nothing drifts. A public page that
-ships without a declaration **fails the build**.
+declaration instead of from files you keep in sync by hand. With the opt-in coverage gate
+(`routeConfig.enforceCoverageIn`), a page in those route groups that declares neither
+`staticData` nor `head` **fails the build**.
+
+[![pagegraph launch film poster: declare SEO on the route, derive the rest from one graph](media/exports/pagegraph-launch-poster.jpg)](media/exports/pagegraph-launch.mp4)
+
+Watch the [60-second film](media/exports/pagegraph-launch.mp4) (silent;
+[transcript](media/launches/introducing-pagegraph/TRANSCRIPT.md)).
 
 ```mermaid
 flowchart LR
@@ -16,7 +22,7 @@ flowchart LR
   seograph --> robots["robots.txt"]
   seograph --> check["pagegraph check · CI gate"]
   route --> head["&lt;head&gt; meta · canonical<br/>Breadcrumbs · JSON-LD"]
-  gate["pagegraph() (vite)"] -. "fails undeclared pages" .-> route
+  gate["pagegraph() (vite)"] -. "enforceCoverageIn: fails pages with neither staticData nor head" .-> route
 ```
 
 ## Install
@@ -247,6 +253,8 @@ instead of crashing on a native binding when a request first runs the code. The 
 have **zero runtime dependencies** beyond their listed peers; a test pins each entry's import
 graph.
 
+![What runs where: runtime entries such as pagegraph, pagegraph/react, and the TanStack Start server, Markdown, and React adapters beside build and CLI entries such as the Vite plugin, config, claims, audit, oxlint, and the Bun CLI](media/exports/what-runs-where.png)
+
 The CLI **bundles PageGraph's Effect, TypeSafe provider runtime, and Pi agent runtime**, so it does
 not depend on the app's Effect version; it runs on [Bun](https://bun.sh) (`bunx pagegraph`). Every
 workflow runs in-process on Pi 1.0.0. Improve workflows use guarded repository edit tools;
@@ -325,10 +333,12 @@ export const Route = createFileRoute("/pricing")({
 
 `seo.head` returns the `meta` + canonical `links` TanStack renders into `<head>` —
 title, description, og/twitter cards, robots, and the JSON-LD each page warrants
-(BreadcrumbList always; Article, FAQPage, Service, ItemList when the head declares
-them). A route that renders from `loaderData` calls `seoHead(ctx, instance)` in its
-own `head()` and declares a `titleTemplate` (`"%s | Example Blog"`): `seoHead` applies it,
+(BreadcrumbList on the matched leaf when its crumb trail has two or more entries; Article,
+FAQPage, Service, ItemList when the head declares them). A route that renders from
+`loaderData` calls `seoHead(ctx, instance)` in its own `head()` and declares a `titleTemplate` (`"%s | Example Blog"`): `seoHead` applies it,
 and the graph applies it to the route's collection pages.
+
+![One declaration in staticData.seo: the fixture pricing route with its link, crumb, sitemap, head, and head.image fields, what each derives, and the check that guards it](media/exports/route-declaration.png)
 
 **3. Register the plugin.** It builds the graph once per build (and on change in dev)
 inside your app's Vite pipeline — path aliases, `define`s, and content plugins such as
@@ -795,6 +805,8 @@ seoRouteConfig({
 It also derives a small config module from the route tree: `robotsExclusions`
 (the plugin adds them to robots.txt; a Router-only app feeds them to `renderRobots`) and
 `reservedSegments` (top-level segments an app must not hand out as tenant/org slugs).
+
+![Where a broken declaration surfaces: typed paths at type check, the Vite build's evaluation, coverage, and claims gates, pagegraph check's structural and editorial rules, and pagegraph links verify on the served site](media/exports/drift-gates.png)
 
 ## Claims gate
 

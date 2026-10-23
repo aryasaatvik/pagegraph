@@ -1,0 +1,8 @@
+node_modules/
+.build/
+launches/*/index.html
+launches/*/assets/
+launches/*/compositions/
+launches/*/snapshots/
+launches/*/renders/
+launches/*/.hyperframes/

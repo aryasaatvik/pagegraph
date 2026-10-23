@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
@@ -83,22 +84,38 @@ const MEASURE = `(async () => {
   return { lines, frame, clipped };
 })()`;
 
-/** The Chrome HyperFrames renders with, else a system Chrome; `CHROME_PATH` overrides both. */
-async function chrome(): Promise<string> {
-  if (process.env.CHROME_PATH) return process.env.CHROME_PATH;
-  const managed = new Bun.Glob("chrome-headless-shell/*/*/chrome-headless-shell");
-  for await (const path of managed.scan({
-    cwd: join(homedir(), ".cache/hyperframes/chrome"),
-    absolute: true,
-    onlyFiles: true,
-  }))
-    return path;
+/** A Chrome installed on the system, if any. */
+async function systemChrome(): Promise<string | undefined> {
   const mac = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
   if (await Bun.file(mac).exists()) return mac;
   for (const name of ["google-chrome", "google-chrome-stable", "chromium", "chromium-browser"]) {
     const path = Bun.which(name);
     if (path) return path;
   }
+  return undefined;
+}
+
+/**
+ * The Chrome HyperFrames renders with, else a system Chrome; `CHROME_PATH` overrides both. The
+ * HyperFrames cache is absent until `hyperframes browser ensure` or a render has run, as on a
+ * fresh CI runner.
+ */
+export async function findChrome({
+  env = process.env,
+  cache = join(homedir(), ".cache/hyperframes/chrome"),
+  system = systemChrome,
+}: {
+  env?: Readonly<Record<string, string | undefined>>;
+  cache?: string;
+  system?: () => Promise<string | undefined>;
+} = {}): Promise<string> {
+  if (env.CHROME_PATH) return env.CHROME_PATH;
+  const managed = new Bun.Glob("chrome-headless-shell/*/*/chrome-headless-shell");
+  if (existsSync(cache))
+    for await (const path of managed.scan({ cwd: cache, absolute: true, onlyFiles: true }))
+      return path;
+  const path = await system();
+  if (path !== undefined) return path;
   throw new Error(
     "no Chrome to measure layout with: run `bunx hyperframes browser ensure` or set CHROME_PATH",
   );
@@ -130,7 +147,7 @@ export async function openBrowser() {
   const profile = await mkdtemp(join(tmpdir(), "pagegraph-media-chrome-"));
   const child = Bun.spawn(
     [
-      await chrome(),
+      await findChrome(),
       "--headless",
       "--disable-gpu",
       // Hosted Linux runners restrict the namespaces Chrome's sandbox needs; the page is our own.

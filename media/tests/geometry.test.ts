@@ -7,12 +7,12 @@ import { stills } from "../src/cuts";
  * or a fallback font shows up as text past its column or the frame. Markup-level checks cannot see
  * it, and HyperFrames' layout check does not follow text inside a box that itself fits.
  */
-let browser: Awaited<ReturnType<typeof openBrowser>>;
+let browser: Awaited<ReturnType<typeof openBrowser>> | undefined;
 beforeAll(async () => {
   browser = await openBrowser();
 });
 afterAll(async () => {
-  await browser.close();
+  await browser?.close();
 });
 
 /** Subpixel slack: glyph boxes and layout boxes round differently. */
@@ -22,6 +22,7 @@ describe("still geometry in Chrome", () => {
   test.each(stills)(
     "$file keeps every text line inside its block and the frame",
     async (still) => {
+      if (browser === undefined) throw new Error("Chrome did not start");
       const layout = await browser.layout(still.scene, still);
       expect(layout.lines.length).toBeGreaterThan(0);
       const outside = layout.lines.filter(

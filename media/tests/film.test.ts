@@ -3,6 +3,8 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { app } from "../scripts/projects";
 import { beats, film, poster, stills } from "../src/cuts";
+import { markups } from "../src/scenes/markup";
+import { motions } from "../src/scenes/motion";
 
 describe("film and stills", () => {
   test("the film is exactly 60 seconds of contiguous shots", () => {
@@ -12,6 +14,18 @@ describe("film and stills", () => {
       expect(shot.start).toBe(previous === undefined ? 0 : previous.start + previous.duration);
     });
     expect({ width: film.width, height: film.height }).toEqual({ width: 1920, height: 1080 });
+  });
+
+  test("every scene has markup and motion", () => {
+    const scenes = new Set([
+      ...beats.map((beat) => beat.scene),
+      ...stills.map((still) => still.scene),
+    ]);
+    for (const scene of scenes) {
+      expect(markups[scene]).toBeDefined();
+      expect(motions[scene]).toBeDefined();
+    }
+    expect(Object.keys(markups).toSorted()).toEqual(Object.keys(motions).toSorted());
   });
 
   test("the poster frame falls inside the settled reveal", () => {

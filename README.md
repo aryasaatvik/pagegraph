@@ -6,6 +6,11 @@ breadcrumbs, JSON-LD, cross-links, and the CI check all derive from that one
 declaration. There is no second place to update, so nothing drifts. A public page that
 ships without a declaration **fails the build**.
 
+[![pagegraph launch film poster: declare SEO on the route, derive the rest from one graph](media/exports/pagegraph-launch-poster.jpg)](media/exports/pagegraph-launch.mp4)
+
+Watch the [60-second film](media/exports/pagegraph-launch.mp4) (silent;
+[transcript](media/launches/introducing-pagegraph/TRANSCRIPT.md)).
+
 ```mermaid
 flowchart LR
   subgraph declare["declare once"]
@@ -247,6 +252,8 @@ instead of crashing on a native binding when a request first runs the code. The 
 have **zero runtime dependencies** beyond their listed peers; a test pins each entry's import
 graph.
 
+![What runs where: runtime entries such as pagegraph, pagegraph/react, and the TanStack Start server, Markdown, and React adapters beside build and CLI entries such as the Vite plugin, config, claims, audit, oxlint, and the Bun CLI](media/exports/what-runs-where.png)
+
 The CLI **bundles PageGraph's Effect, TypeSafe provider runtime, and Pi agent runtime**, so it does
 not depend on the app's Effect version; it runs on [Bun](https://bun.sh) (`bunx pagegraph`). Every
 workflow runs in-process on Pi 1.0.0. Improve workflows use guarded repository edit tools;
@@ -329,6 +336,8 @@ title, description, og/twitter cards, robots, and the JSON-LD each page warrants
 them). A route that renders from `loaderData` calls `seoHead(ctx, instance)` in its
 own `head()` and declares a `titleTemplate` (`"%s | Example Blog"`): `seoHead` applies it,
 and the graph applies it to the route's collection pages.
+
+![One declaration in staticData.seo: the fixture pricing route with its link, crumb, sitemap, head, and head.image fields, what each derives, and the check that guards it](media/exports/route-declaration.png)
 
 **3. Register the plugin.** It builds the graph once per build (and on change in dev)
 inside your app's Vite pipeline — path aliases, `define`s, and content plugins such as
@@ -795,6 +804,8 @@ seoRouteConfig({
 It also derives a small config module from the route tree: `robotsExclusions`
 (the plugin adds them to robots.txt; a Router-only app feeds them to `renderRobots`) and
 `reservedSegments` (top-level segments an app must not hand out as tenant/org slugs).
+
+![Where a broken declaration surfaces: typed paths at type check, the Vite build's evaluation, coverage, and claims gates, pagegraph check's structural and editorial rules, and pagegraph links verify on the served site](media/exports/drift-gates.png)
 
 ## Claims gate
 

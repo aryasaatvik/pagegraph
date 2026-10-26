@@ -69,7 +69,7 @@ const deferred = Schema.Struct({
   pollAfterMs: Schema.optional(Schema.Number),
   data: Schema.optional(Schema.Json),
 });
-// These codecs follow the pinned Pi 1.0.0 session contracts; custom message roles require a future decoder.
+// These codecs follow the pinned Pi 1.0.4 session contracts; custom message roles require a future decoder.
 const tool = Schema.Struct({
   name: Schema.String,
   description: Schema.String,

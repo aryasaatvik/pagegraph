@@ -1,5 +1,5 @@
 {
-  "lockfileVersion": 3,
+  "lockfileVersion": 2,
   "configVersion": 1,
   "workspaces": {
     "": {
@@ -8,12 +8,13 @@
         "@cloudflare/vite-plugin": "^1.62.5",
         "@earendil-works/pi-agent-core": "1.0.4",
         "@earendil-works/pi-ai": "1.0.4",
+        "@earendil-works/pi-telemetry": "1.0.4",
         "@effect/ai-typesafe": "4.0.6",
         "@effect/platform-bun": "4.0.6",
         "@effect/platform-node-shared": "4.0.6",
         "@effect/vitest": "4.0.6",
         "@noble/hashes": "^2.4.0",
-        "@pi-ext/executor": "1.0.3",
+        "@pi-ext/executor": "1.0.4",
         "@tanstack/react-router": "^1.170.26",
         "@tanstack/react-start": "^1.168.56",
         "@tanstack/router-generator": "^1.167.21",
@@ -58,12 +59,6 @@
         "react-dom",
         "vite",
       ],
-    },
-  },
-  "overrides": {
-    "@earendil-works/pi-telemetry": "1.0.4",
-    "@pi-ext/executor": {
-      "effect": "4.0.6",
     },
   },
   "packages": {
@@ -421,7 +416,7 @@
 
     "@paulirish/trace_engine": ["@paulirish/trace_engine@0.0.65", "", { "dependencies": { "legacy-javascript": "latest", "third-party-web": "latest" } }, "sha512-Qsm6F5C8xf6ZzQXbQc2+wcpe6sggfs/gvc/ytqSurdvYg3kyW0ECHCqE0CWBKZpqgjVfPNX9c7SCS3r2nEIRGg=="],
 
-    "@pi-ext/executor": ["@pi-ext/executor@1.0.3", "", { "dependencies": { "effect": "4.0.0" }, "peerDependencies": { "@earendil-works/pi-agent-core": "^1.2.0", "@earendil-works/pi-coding-agent": "^1.2.0", "@earendil-works/pi-tui": "^1.2.0", "typebox": "^1.3.0" }, "optionalPeers": ["@earendil-works/pi-coding-agent", "@earendil-works/pi-tui"] }, "sha512-x3cXdiaFyKzAFu/hOMbLU/Gfhdy0l/7A9aiZcKQVNwLefmK7UZjq1MLY5/YIbOBTQ4/83Pi7gntkh4JfqUYXkg=="],
+    "@pi-ext/executor": ["@pi-ext/executor@1.0.4", "", { "dependencies": { "effect": "4.0.6" }, "peerDependencies": { "@earendil-works/pi-agent-core": "^1.2.0", "@earendil-works/pi-coding-agent": "^1.2.0", "@earendil-works/pi-tui": "^1.2.0", "typebox": "^1.3.0" }, "optionalPeers": ["@earendil-works/pi-coding-agent", "@earendil-works/pi-tui"] }, "sha512-KzSxqbCFXFHc8FGMSAU1H43Z+zM3FGRgXhFS8GZx6WKxHFZ9IH/X0j6F8hTH7Mh1g5Qi+EmV4sFjVbTvoT6E0g=="],
 
     "@pkgjs/parseargs": ["@pkgjs/parseargs@0.11.0", "", {}, "sha512-+1VkjdD0QBLPodGrJUeqarH8VAIvQODIbwh9XpP5Syisf7YoQgsJKPNFoqqLQlu+VQ/tVSshMR6loPMn8U+dPg=="],
 

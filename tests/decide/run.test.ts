@@ -15,6 +15,7 @@ import {
   runDecisions,
   type DecisionFamily,
 } from "../../src/decide/run";
+import { probability } from "./helpers";
 
 interface FakeInput {
   readonly id: string;
@@ -45,8 +46,6 @@ const fakeFamily: DecisionFamily<FakeInput> = {
     return "review";
   },
 };
-
-const probability = (value: number) => ({ _tag: "Probability" as const, probability: value });
 
 /** Deterministic `DecisionModel` backed by a lookup; never the network. */
 const mockModel = (answers: (state: FakeInput) => number, onDecide?: (state: FakeInput) => void) =>

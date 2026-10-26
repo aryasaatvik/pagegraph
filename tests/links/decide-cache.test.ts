@@ -15,26 +15,7 @@ import {
   LINK_RELEVANCE,
   type LinkCandidate,
 } from "../../src/links/decide";
-
-const probability = (value: number) => ({ _tag: "Probability" as const, probability: value });
-
-const classify = (label: string, labels: ReadonlyArray<string>) => {
-  const rest = 0.1 / (labels.length - 1);
-  return {
-    _tag: "Classify" as const,
-    label,
-    probabilities: Object.fromEntries(labels.map((each) => [each, each === label ? 0.9 : rest])),
-  };
-};
-
-const rate = (label: string, levels: ReadonlyArray<string>) => {
-  const rest = 0.1 / (levels.length - 1);
-  return {
-    _tag: "Rate" as const,
-    rating: levels.indexOf(label),
-    probabilities: Object.fromEntries(levels.map((each) => [each, each === label ? 0.9 : rest])),
-  };
-};
+import { classify, probability, rate } from "../decide/helpers";
 
 const candidates: ReadonlyArray<LinkCandidate> = [
   { sourceUrl: "/a", destinationUrl: "/b", sourceText: "copy" },

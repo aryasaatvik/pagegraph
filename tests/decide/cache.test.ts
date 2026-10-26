@@ -13,6 +13,7 @@ import { afterAll, describe, expect, it } from "vitest";
 import { cacheKey, definitionFingerprint, inputHash } from "../../src/decide/answers";
 import type { DecisionCache } from "../../src/decide/cache";
 import { replayDecisions, runDecisions, type DecisionFamily } from "../../src/decide/run";
+import { probability } from "./helpers";
 
 interface Claim {
   readonly id: string;
@@ -46,10 +47,7 @@ const model = (value: number, calls: { count: number }) =>
           calls.count += 1;
           return {
             answers: Object.fromEntries(
-              Object.keys(decisions).map((key) => [
-                key,
-                { _tag: "Probability" as const, probability: value },
-              ]),
+              Object.keys(decisions).map((key) => [key, probability(value)]),
             ),
             usage: { inputTokens: 1, outputTokens: 1 },
           };

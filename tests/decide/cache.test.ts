@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -193,5 +194,43 @@ describe("definition fingerprint", () => {
       a: Decision.probability({ instructions: "A", criteria: { false: "no", true: "yes" } }),
     };
     expect(definitionFingerprint(plain)).not.toBe(definitionFingerprint(withCriteria));
+  });
+
+  it("hashes string rate levels the way Effect 4.0.0 did", () => {
+    const instructions = "Tone";
+    const levels = ["calm", "angry"] as const;
+    const rated = { tone: Decision.rate({ instructions, criteria: [...levels] }) };
+    // Effect 4.0.0 stored the string array. Keys stay sorted, matching canonicalJson.
+    const legacy = createHash("sha256")
+      .update(
+        JSON.stringify({
+          tone: { criteria: [...levels], instructions, kind: "Rate" },
+        }),
+      )
+      .digest("hex");
+    expect(definitionFingerprint(rated)).toBe(legacy);
+    expect(definitionFingerprint(rated)).toBe(
+      definitionFingerprint({
+        tone: Decision.rate({
+          instructions,
+          criteria: levels.map((label) => ({ label, description: label })),
+        }),
+      }),
+    );
+  });
+
+  it("changes the rate hash when a level description is not its label", () => {
+    const instructions = "Tone";
+    const labeled = { tone: Decision.rate({ instructions, criteria: ["calm", "angry"] }) };
+    const described = {
+      tone: Decision.rate({
+        instructions,
+        criteria: [
+          { label: "calm", description: "calm" },
+          { label: "angry", description: "raised voice" },
+        ],
+      }),
+    };
+    expect(definitionFingerprint(labeled)).not.toBe(definitionFingerprint(described));
   });
 });

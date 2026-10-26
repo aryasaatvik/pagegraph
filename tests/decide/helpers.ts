@@ -19,7 +19,9 @@ export const classify = (
   label: string,
   labels: ReadonlyArray<string>,
   confidence = 0.9,
-): DecisionModel.ProviderClassifyAnswer => {
+): DecisionModel.ProviderClassifyAnswer & {
+  readonly probabilities: Readonly<Record<string, number>>;
+} => {
   const rest = (1 - confidence) / (labels.length - 1);
   return {
     _tag: "Classify",
@@ -35,7 +37,9 @@ export const rate = (
   level: string,
   levels: ReadonlyArray<string>,
   confidence = 0.9,
-): DecisionModel.ProviderRateAnswer => {
+): DecisionModel.ProviderRateAnswer & {
+  readonly probabilities: Readonly<Record<string, number>>;
+} => {
   const rest = (1 - confidence) / (levels.length - 1);
   return {
     _tag: "Rate",

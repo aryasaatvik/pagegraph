@@ -56,19 +56,23 @@ export const validCachedAnswers = (
           return false;
         }
         break;
-      case "Rate":
+      case "Rate": {
+        // Effect 4.0.6 stores each level as `{ label, description }`. String
+        // criteria still describe themselves, so validation stays label-based.
+        const levels = decision.criteria.map((level) => level.label);
         if (
           typeof answer.rating !== "number" ||
           !Number.isFinite(answer.rating) ||
           answer.rating < 0 ||
-          answer.rating > decision.criteria.length - 1 ||
+          answer.rating > levels.length - 1 ||
           typeof answer.label !== "string" ||
-          !decision.criteria.includes(answer.label) ||
-          !isDistribution(decision.criteria, answer.probabilities)
+          !levels.includes(answer.label) ||
+          !isDistribution(levels, answer.probabilities)
         ) {
           return false;
         }
         break;
+      }
     }
   }
   return true;
@@ -94,6 +98,19 @@ const canonicalJson = (value: unknown): string =>
   );
 
 /**
+ * Rate criteria are `{ label, description }` since Effect 4.0.6. A string level
+ * is stored with `description === label`, which is the same question Effect
+ * 4.0.0 hashed as that string. Keep that encoding so committed cache keys
+ * survive the patch; a distinct description is part of the question.
+ */
+const criteriaFingerprint = (decision: Decision.Any): unknown => {
+  if (decision._tag !== "Rate") return decision.criteria ?? null;
+  return decision.criteria.map((level) =>
+    level.description === level.label ? level.label : level,
+  );
+};
+
+/**
  * sha256 of what the model is asked: each decision's kind, instructions, and
  * criteria. Editing a prompt or a label therefore invalidates its answers.
  */
@@ -107,7 +124,7 @@ export const definitionFingerprint = (decisions: Readonly<Record<string, Decisio
             {
               kind: decision._tag,
               instructions: decision.instructions,
-              criteria: decision.criteria ?? null,
+              criteria: criteriaFingerprint(decision),
             },
           ]),
         ),

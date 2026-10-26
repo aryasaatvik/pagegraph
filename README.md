@@ -257,7 +257,7 @@ graph.
 
 The CLI **bundles PageGraph's Effect, TypeSafe provider runtime, and Pi agent runtime**, so it does
 not depend on the app's Effect version; it runs on [Bun](https://bun.sh) (`bunx pagegraph`). Every
-workflow runs in-process on Pi 1.0.0. Improve workflows use guarded repository edit tools;
+workflow runs in-process on Pi 1.0.4. Improve workflows use guarded repository edit tools;
 research and dry-run actions expose only read tools. Every workflow failure after run creation
 writes `failure.json` with its stage, agent messages, and cause chain. `vite` stays a peer — graph commands load your app through Vite at
 runtime — and `lighthouse` is only needed by `pagegraph audit`. Importing `pagegraph/audit`

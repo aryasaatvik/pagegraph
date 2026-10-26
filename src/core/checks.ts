@@ -22,6 +22,7 @@ import { freshnessReport, type FreshnessPolicy } from "./freshness";
 import type { SeoGraph, SeoNode } from "./graph";
 import type { LinkEdge } from "./links";
 import { isSitemapEligible, parseDeclaredDate } from "./projections";
+import { decidingRule, parseWildcardRules } from "./robots-rules";
 
 export type Severity = "structural" | "editorial";
 
@@ -550,6 +551,43 @@ export function checkRenderedCoverage(
     },
     rules,
   );
+}
+
+/**
+ * One structural `robots-blocks-sitemap-url` violation per URL the rendered
+ * robots.txt disallows for `User-agent: *` although the site publishes it: every
+ * sitemap-eligible page, `/sitemap.xml` itself, and `/llms.txt` when the graph
+ * declares markdown or llms pages. robots.txt rules are prefix matches, so a
+ * `Disallow: /s` meant for one route also blocks `/solutions`.
+ *
+ * `robotsTxt` is the file the site serves; a disallow-all preview host is
+ * deliberately closed, so callers run this only for an indexable host.
+ */
+export function checkRobotsAccess(graph: SeoGraph, robotsTxt: string): Array<Violation> {
+  const rules = parseWildcardRules(robotsTxt);
+  const urls = [
+    ...[...graph.nodes.values()].filter(isSitemapEligible).map((node) => node.path),
+    "/sitemap.xml",
+    ...([...graph.nodes.values()].some(
+      (node) =>
+        !node.path.includes("$") && (node.markdown === "rendered" || node.llms !== undefined),
+    )
+      ? ["/llms.txt"]
+      : []),
+  ];
+  const violations: Array<Violation> = [];
+  for (const path of new Set(urls)) {
+    const rule = decidingRule(rules, path);
+    if (rule?.type !== "disallow") continue;
+    violations.push({
+      severity: "structural",
+      rule: "robots-blocks-sitemap-url",
+      path,
+      message: `robots.txt "Disallow: ${rule.pattern}" blocks "${path}", which the site publishes.`,
+      fix: `Narrow the Disallow rule so it stops short of "${path}" (a prefix such as "${rule.pattern}" matches every path that starts with it; end it with "/" to cover only a directory), or add a longer Allow rule.`,
+    });
+  }
+  return violations;
 }
 
 /** Structural violations fail `pagegraph check`; editorial-only stays green. */

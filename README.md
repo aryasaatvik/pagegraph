@@ -774,7 +774,9 @@ severities:
   dead or duplicate edges, path collisions, a redirect in the sitemap, a
   sitemap/noindex contradiction, a `related` target with no `link` card, an
   instance without a title, a date that is not ISO 8601, or an unmet
-  contextual-link coverage rule.
+  contextual-link coverage rule, or a published URL the rendered `robots.txt`
+  disallows for `User-agent: *` (`robots-blocks-sitemap-url`: every sitemap page,
+  `/sitemap.xml`, and `/llms.txt` when the graph declares it).
 - **editorial** — quality smells, reported but non-failing: duplicate or mis-sized
   titles and descriptions, and pages older than the freshness policy.
 
@@ -805,6 +807,14 @@ seoRouteConfig({
 It also derives a small config module from the route tree: `robotsExclusions`
 (the plugin adds them to robots.txt; a Router-only app feeds them to `renderRobots`) and
 `reservedSegments` (top-level segments an app must not hand out as tenant/org slugs).
+
+A page in a `disallowGroups` group contributes its exact path (`/signup`). A dynamic, optional, or
+splat segment contributes the directory before it, with the trailing slash: `/s/$formKey`
+becomes `Disallow: /s/`. robots.txt rules are prefix matches, so `Disallow: /s` would also block
+`/solutions` and `/sitemap.xml`. A dynamic route at the site root (`/$slug`) in a disallowed
+group fails the build, since its prefix would be `/`. `pagegraph check` runs the rendered
+robots.txt through RFC 9309 matching (longest match, Allow wins ties, `*` and `$`) and reports
+any published URL a `Disallow` blocks.
 
 ![Where a broken declaration surfaces: typed paths at type check, the Vite build's evaluation, coverage, and claims gates, pagegraph check's structural and editorial rules, and pagegraph links verify on the served site](media/exports/drift-gates.png)
 

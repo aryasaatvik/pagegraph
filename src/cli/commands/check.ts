@@ -5,7 +5,12 @@ import * as Flag from "effect/cli/Flag";
 
 import { mapLimit } from "../../audit/crawl";
 import { probeHttp } from "../../audit/scanners/http";
-import { checkGraph, hasStructuralViolations, type CoverageRule } from "../../core/checks";
+import {
+  checkGraph,
+  checkRobotsAccess,
+  hasStructuralViolations,
+  type CoverageRule,
+} from "../../core/checks";
 import {
   checkRenderedContent,
   renderedCheckTargets,
@@ -13,6 +18,7 @@ import {
 } from "../../core/content";
 import type { SeoGraph } from "../../core/graph";
 import { normalizePath } from "../../core/links";
+import { renderRobots } from "../../core/projections";
 import { acquireLoadedGraph, loadSeoProjectConfig } from "../load-config";
 import { jsonFlag, printJson, printText, SeoCliError } from "../output";
 import { replayConfiguredClaims, renderClaimsReport } from "./claims";
@@ -206,6 +212,19 @@ export const checkCommand = Command.make("check", {
           ? { coverage, ogImage: config.ogImage }
           : { coverage, ogImage: config.ogImage, freshness: config.freshness, now: new Date() },
       );
+      if (loaded.site.indexable) {
+        violations.push(
+          ...checkRobotsAccess(
+            graph,
+            renderRobots(graph, {
+              origin: loaded.site.origin,
+              indexable: true,
+              ...loaded.site.robots,
+              transform: config.transform,
+            }),
+          ),
+        );
+      }
       violations.push(
         ...(yield* Effect.promise(() =>
           checkLocalOgImages(graph, loaded.site.origin, project.root, config.ogImage),

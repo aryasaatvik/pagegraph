@@ -57,6 +57,7 @@ export {
   checkFreshness,
   checkGraph,
   checkRenderedCoverage,
+  checkRobotsAccess,
   hasStructuralViolations,
 } from "./checks";
 export type { CheckGraphOptions, CoverageRule, OgImagePolicy, Severity, Violation } from "./checks";

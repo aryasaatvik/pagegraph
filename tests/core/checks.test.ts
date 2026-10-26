@@ -1,6 +1,11 @@
 import { describe, expect, it } from "@effect/vitest";
 
-import { checkGraph, hasStructuralViolations, type Violation } from "../../src/core/checks";
+import {
+  checkGraph,
+  checkRobotsAccess,
+  hasStructuralViolations,
+  type Violation,
+} from "../../src/core/checks";
 import type { RouteSeo, SeoKind } from "../../src/core/declare";
 import type { SeoEdge, SeoGraph, SeoNode } from "../../src/core/graph";
 
@@ -243,5 +248,44 @@ describe("checkGraph — OG image requirements", () => {
       expect.objectContaining({ rule: "missing-og-image", severity: "editorial" }),
     ]);
     expect(checkGraph(graph, { ogImage: { severity: "off" } })).toEqual([]);
+  });
+});
+
+describe("checkRobotsAccess", () => {
+  const sitemapped = (path: string) =>
+    routeNode(path, { kind: "page", sitemap: { priority: 0.5, changeFrequency: "monthly" } });
+  const graph = graphOf([sitemapped("/solutions"), sitemapped("/pricing"), sitemapped("/sales")]);
+
+  it("reports each published URL a Disallow prefix blocks, with the matching rule", () => {
+    const violations = checkRobotsAccess(graph, "User-agent: *\nAllow: /\nDisallow: /s\n");
+    expect(violations.map((violation) => violation.path)).toEqual([
+      "/solutions",
+      "/sales",
+      "/sitemap.xml",
+    ]);
+    expect(violations[0]).toMatchObject({
+      rule: "robots-blocks-sitemap-url",
+      severity: "structural",
+      message: expect.stringContaining('"Disallow: /s" blocks "/solutions"'),
+    });
+  });
+
+  it("passes when the prefix stops at the segment boundary or an Allow is longer", () => {
+    expect(checkRobotsAccess(graph, "User-agent: *\nAllow: /\nDisallow: /s/\n")).toEqual([]);
+    expect(
+      checkRobotsAccess(
+        graph,
+        "User-agent: *\nDisallow: /s\nAllow: /solutions\nAllow: /sitemap.xml\nAllow: /sales\n",
+      ),
+    ).toEqual([]);
+  });
+
+  it("checks llms.txt only when the graph declares llms pages", () => {
+    const withLlms = graphOf([{ ...sitemapped("/docs"), llms: "Docs" }]);
+    const robots = "User-agent: *\nDisallow: /llms\n";
+    expect(checkRobotsAccess(withLlms, robots).map((violation) => violation.path)).toEqual([
+      "/llms.txt",
+    ]);
+    expect(checkRobotsAccess(graph, robots)).toEqual([]);
   });
 });

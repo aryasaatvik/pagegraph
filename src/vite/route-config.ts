@@ -17,7 +17,8 @@ import type { Plugin } from "vite";
  * The route tree is the single source of truth for which paths exist; this
  * plugin projects it into the small config the host consumes at runtime:
  * - `robotsExclusions` — path prefixes disallowed in robots.txt (feed them to
- *   `renderRobots`).
+ *   `renderRobots`). A dynamic route contributes the prefix up to its dynamic
+ *   segment with a trailing slash (`/s/$formKey` → `/s/`).
  * - `reservedSegments` — top-level path segments the app must not hand out (an
  *   org slug, a tenant name). Derived from the full public route surface — the
  *   `publicGroups` route groups plus the group-less `extraPublicRoutes` — which
@@ -76,7 +77,7 @@ function routePathToPublicUrl(routePath: string): string {
   if (stripped === "" || stripped === "/") return "/";
 
   const segments = stripped.split("/");
-  const dynamicIndex = segments.findIndex((segment) => segment.startsWith("$"));
+  const dynamicIndex = segments.findIndex((segment) => segment.includes("$"));
   if (dynamicIndex !== -1) {
     return `${segments.slice(0, dynamicIndex).join("/")}/*`;
   }
@@ -99,12 +100,22 @@ function extractReservedSegments(routes: ReadonlyArray<string>): Array<string> {
 }
 
 /**
- * robots.txt disallow prefixes are directory prefixes, so a splat route
- * ("/reset-password/*") disallows the whole subtree ("/reset-password").
+ * robots.txt rules are plain prefix matches (RFC 9309), so the prefix must stop at
+ * the segment boundary. A page leaf keeps its exact path ("/signup"). A dynamic,
+ * optional, or splat segment ("/s/*") keeps the slash that precedes it ("/s/"):
+ * "/s" alone would also block "/solutions" and "/sitemap.xml". A dynamic segment
+ * at the root ("/*") has no prefix to keep — it would disallow the whole site — so
+ * it fails loudly.
  */
-function normalizeRoutePrefix(route: string): string {
-  const cleaned = route.replace(/\/\*$/, "");
-  return cleaned === "" ? "/" : cleaned;
+export function normalizeRoutePrefix(route: string): string {
+  if (route === "/*") {
+    throw new Error(
+      `[${PLUGIN_NAME}] a dynamic route at the site root ("/$param") cannot be disallowed in ` +
+        "robots.txt: its prefix would block every path. Move it under a static segment, or " +
+        "keep it out of the disallowed route groups.",
+    );
+  }
+  return route.endsWith("/*") ? route.slice(0, -1) : route;
 }
 
 export interface RouteConfigShape {

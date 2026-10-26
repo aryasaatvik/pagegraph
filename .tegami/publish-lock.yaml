@@ -1,10 +1,10 @@
 core:changelogs:
-  - content: "---\npackages:\n  npm:pagegraph:\n    type: minor\n---\n\n### Use OpenRouter for Jev decisions with Pagegraph attribution\n\nJev now prefers OPENROUTER_API_KEY and falls back to TYPESAFE_API_KEY when no OpenRouter key is set.\nOpenRouter decisions and workflow agent calls identify the Pagegraph app for rankings and analytics.\nSet openrouter.referer and openrouter.title in pagegraph.config.ts to override the identity.\nExisting committed claims answers remain valid when switching providers.\n"
-    filename: 2026-10-17-openrouter-attribution.md
+  - content: "---\npackages:\n  pagegraph:\n    type: minor\n---\n\n### Run the CLI on Effect 4.0.6 and Pi 1.0.4\n\nBreaking: Pi renamed its Azure OpenAI provider from `azure-openai-responses` to `azure`. A workflow\nmodel such as `azure-openai-responses/gpt-4.1` in `workflows.agent.defaultModel`,\n`workflows.agent.models`, or `--model` now fails with `Unknown Pi model`; write `azure/gpt-4.1`\ninstead. `AZURE_OPENAI_API_KEY` is unchanged.\n\nThe CLI now bundles Effect 4.0.6 and Pi 1.0.4. Committed claims answers stay valid, so\n`pagegraph claims check` keeps replaying them without `--refresh`.\n"
+    filename: 2026-10-27-effect-4-0-6-pi-1-0-4.md
     v: 0.0.0
 core:packages:
   - changelogIds:
-      - 2026-10-17-openrouter-attribution.md
+      - 2026-10-27-effect-4-0-6-pi-1-0-4.md
     id: npm:pagegraph
     updated: true
 npm:packages:

@@ -87,14 +87,38 @@ it.each([true, false])(
   },
 );
 
+it("treats a blank OpenRouter key as unset", async () => {
+  vi.stubEnv("OPENROUTER_API_KEY", "   ");
+  vi.stubEnv("TYPESAFE_API_KEY", "typesafe-key");
+  vi.stubGlobal("fetch", async (input: string | URL | Request, init?: RequestInit) => {
+    const request = new Request(input, init);
+    expect(request.url).toBe("https://api.typesafe.ai/v1/systemone");
+    expect(request.headers.get("authorization")).toBe("Bearer typesafe-key");
+    return Response.json({
+      model: "jev-latest",
+      answers: { supported: { type: "noul", noul: 0.9 } },
+      usage: { input_tokens: 1, output_tokens: 1 },
+    });
+  });
+  await Effect.runPromise(
+    DecisionModel.decide(definition, { input: "Evidence" }).pipe(
+      Effect.provide(decisionModelLayer("jev")),
+      Effect.provideService(FetchHttpClient.Fetch, globalThis.fetch),
+      Effect.provideService(ConfigProvider.ConfigProvider, ConfigProvider.fromEnv()),
+    ),
+  );
+});
+
 it("names both keys when neither is configured", async () => {
   vi.stubEnv("OPENROUTER_API_KEY", "");
-  vi.stubEnv("TYPESAFE_API_KEY", "");
-  await expect(
-    Effect.runPromise(
-      DecisionModel.decide(definition, { input: "Evidence" }).pipe(
-        Effect.provide(decisionModelLayer("jev")),
-      ),
+  vi.stubEnv("TYPESAFE_API_KEY", " ");
+  const error = await Effect.runPromise(
+    DecisionModel.decide(definition, { input: "Evidence" }).pipe(
+      Effect.provide(decisionModelLayer("jev")),
+      Effect.provideService(ConfigProvider.ConfigProvider, ConfigProvider.fromEnv()),
+      Effect.flip,
     ),
-  ).rejects.toThrow("OPENROUTER_API_KEY or TYPESAFE_API_KEY");
+  );
+  expect(error).toMatchObject({ _tag: "DecisionCredentialsMissing" });
+  expect(error.message).toContain("OPENROUTER_API_KEY or TYPESAFE_API_KEY");
 });

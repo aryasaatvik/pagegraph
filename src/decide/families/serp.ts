@@ -10,7 +10,7 @@
 import * as Schema from "effect/Schema";
 import { Decision } from "effect/ai";
 
-import { anyInReviewBand, type DecisionFamily } from "../run";
+import { anyInReviewBand, defineDecisionFamily } from "../run";
 
 /** The dominant result format — one label per recognizable SERP pattern. */
 export const SERP_FORMATS = [
@@ -121,11 +121,11 @@ export const classifySerpVerdict = (
     : "mismatch";
 };
 
-export const serpFamily: DecisionFamily<SerpInput> = {
+export const serpFamily = defineDecisionFamily({
   name: "serp",
   input: SerpInput,
   definitionFor: () => SerpDecision,
   // The page URL disambiguates two snapshots of the same query.
   inputRef: (input) => `${input.ourPage.url} · query:${input.query}`,
   evaluate: (_input, answers, threshold) => classifySerpVerdict(answers, threshold),
-};
+});

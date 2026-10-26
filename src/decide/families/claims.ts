@@ -54,10 +54,11 @@ export interface ClaimsOptions {
   readonly excludeHeads?: ReadonlyArray<string>;
 }
 export type ClaimsVerdict = "pass" | "violation";
-const ClaimsAnswers = Schema.Record(Schema.String, Schema.Struct({ probability: Schema.Finite }));
 
 /** Claims use a single upper cutoff; probabilities below it pass without a review band. */
-export function claimsFamily(rules: ClaimsRules): DecisionFamily<ClaimsInput> {
+export function claimsFamily(
+  rules: ClaimsRules,
+): DecisionFamily<ClaimsInput, ClaimsRules["decisions"]> {
   if (Object.keys(rules.decisions).length === 0)
     throw new Error("Claims need at least one decision rule");
   if (Object.values(rules.decisions).some((rule) => rule._tag !== "Probability"))
@@ -68,11 +69,7 @@ export function claimsFamily(rules: ClaimsRules): DecisionFamily<ClaimsInput> {
     definitionFor: () => rules,
     inputRef: (input) => `${input.path} › ${input.section.id}`,
     evaluate: (_input, answers, cutoff): ClaimsVerdict =>
-      Object.values(Schema.decodeUnknownSync(ClaimsAnswers)(answers)).some(
-        (answer) => answer.probability >= cutoff,
-      )
-        ? "violation"
-        : "pass",
+      Object.values(answers).some((answer) => answer.probability >= cutoff) ? "violation" : "pass",
   };
 }
 

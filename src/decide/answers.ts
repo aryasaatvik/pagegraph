@@ -55,12 +55,16 @@ const Answer = (decision: Decision.Any) => {
  * it decodes through this schema, so a partially malformed entry cannot produce
  * a confident verdict.
  */
-export const CachedAnswers = (decisions: Readonly<Record<string, Decision.Any>>) =>
+export const CachedAnswers = <D extends Record<string, Decision.Any>>(
+  decisions: D,
+): Schema.Decoder<Decision.Answers<D>> =>
+  // The struct is assembled per decision at runtime, so TypeScript cannot see
+  // that `Answer` yields `Decision.Answer` for each entry; it does field by field.
   Schema.Struct(
     Object.fromEntries(
       Object.entries(decisions).map(([name, decision]) => [name, Answer(decision)]),
     ),
-  );
+  ) as unknown as Schema.Decoder<Decision.Answers<D>>;
 
 /** sha256 of the canonical input JSON — deterministic for a schema-decoded input. */
 export const inputHash = (input: unknown): string =>

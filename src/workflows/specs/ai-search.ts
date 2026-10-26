@@ -1,7 +1,7 @@
 import * as Schema from "effect/Schema";
 import { Decision } from "effect/ai";
 
-import { anyInReviewBand, type DecisionFamily } from "../../decide/run";
+import { anyInReviewBand, defineDecisionFamily } from "../../decide/run";
 import { defineWorkflow, stateWith } from "./types";
 
 const AiSearchInput = Schema.Struct({
@@ -61,13 +61,13 @@ const classify = (
   return values.every((value) => value >= threshold) ? "ready" : "improve";
 };
 
-const aiSearchFamily: DecisionFamily<Schema.Schema.Type<typeof AiSearchInput>> = {
+const aiSearchFamily = defineDecisionFamily({
   name: "workflow-ai-search",
   input: AiSearchInput,
   definitionFor: () => AiSearchDecision,
   inputRef: (input) => `${input.url} · query:${input.query}`,
   evaluate: (_input, answers, threshold) => classify(answers, threshold),
-};
+});
 
 export const aiSearchWorkflow = defineWorkflow({
   id: "analyze.ai-search",

@@ -1,7 +1,7 @@
 import * as Schema from "effect/Schema";
 import { Decision } from "effect/ai";
 
-import { anyInReviewBand, type DecisionFamily } from "../../decide/run";
+import { anyInReviewBand, defineDecisionFamily } from "../../decide/run";
 
 export const KeywordCandidateSchema = Schema.Struct({
   path: Schema.String,
@@ -78,10 +78,10 @@ const classify = (
   return confidence >= threshold ? answers.ownership.label : "review";
 };
 
-export const keywordFamily: DecisionFamily<KeywordOpportunityInput> = {
+export const keywordFamily = defineDecisionFamily({
   name: "workflow-keywords",
   input: KeywordOpportunitySchema,
   definitionFor: () => KeywordDecision,
   inputRef: (input) => `query:${input.query}`,
   evaluate: (_input, answers, threshold) => classify(answers, threshold),
-};
+});

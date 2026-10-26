@@ -22,20 +22,23 @@ import { cacheKey, inputHash } from "./answers";
 import { readAnswers, writeAnswers, type DecisionCache, type DecisionCacheInvalid } from "./cache";
 import { DecisionRecord, type DecisionBatchReport } from "./record";
 
+/** Named decisions asked together in one provider call. */
+export type Decisions = Record<string, Decision.Any>;
+
 /**
- * One decision family. `answers` in `evaluate` is erased because each family
- * reads its own `Decision.Answers` shape; the family is the only place that
- * shape is known, and a `DecisionModel` validates it before it arrives.
+ * One decision family. `D` names the decisions every definition asks, so
+ * `evaluate` reads the `Decision.Answers` a `DecisionModel` or the answer cache
+ * validated for exactly those decisions.
  */
-export interface DecisionFamily<Input> {
+export interface DecisionFamily<Input, D extends Decisions> {
   readonly name: string;
   readonly input: Schema.ConstraintDecoder<Input>;
   /** Build the definition for one input; dynamic-label families build per input. */
-  readonly definitionFor: (input: Input) => Decision.Definition<any, any>;
+  readonly definitionFor: (input: Input) => Decision.Definition<Schema.Codec<Input, unknown>, D>;
   /** Stable human reference for the input in a report. */
   readonly inputRef: (input: Input) => string;
   /** Map validated answers to a verdict; `"review"` means a human decides. */
-  readonly evaluate: (input: Input, answers: any, threshold: number) => string;
+  readonly evaluate: (input: Input, answers: Decision.Answers<D>, threshold: number) => string;
   /**
    * Optional input-level guard for constraints a schema cannot express, such as
    * "dynamic-label families need at least two candidates". Returns a message to
@@ -43,6 +46,11 @@ export interface DecisionFamily<Input> {
    */
   readonly validate?: (input: Input) => string | undefined;
 }
+
+/** Build a family, inferring its input and decisions from `input` and `definitionFor`. */
+export const defineDecisionFamily = <Input, D extends Decisions>(
+  family: DecisionFamily<Input, D>,
+): DecisionFamily<Input, D> => family;
 
 /** A probability is confident when it is at or beyond `threshold` on either side. */
 export const isConfident = (probability: number, threshold: number): boolean =>
@@ -56,8 +64,8 @@ export const inReviewBand = (probability: number, threshold: number): boolean =>
 export const anyInReviewBand = (probabilities: ReadonlyArray<number>, threshold: number): boolean =>
   probabilities.some((probability) => inReviewBand(probability, threshold));
 
-export interface RunOptions<Input> {
-  readonly family: DecisionFamily<Input>;
+export interface RunOptions<Input, D extends Decisions> {
+  readonly family: DecisionFamily<Input, D>;
   readonly inputs: ReadonlyArray<Input>;
   readonly model: string;
   readonly threshold: number;
@@ -106,8 +114,8 @@ export const buildDecisionReport = (options: {
   };
 };
 
-interface Answered {
-  readonly answers: unknown;
+interface Answered<D extends Decisions> {
+  readonly answers: Decision.Answers<D>;
   readonly usage?: DecisionRecord["usage"];
 }
 
@@ -115,9 +123,9 @@ interface Answered {
  * Answer each input from the cache, or through `ask` on a miss, and bucket the
  * results. Inputs run with bounded concurrency.
  */
-const decideAll = <Input, E, R>(
-  options: RunOptions<Input>,
-  ask: (input: Input, key: string) => Effect.Effect<Answered, E, R>,
+const decideAll = <Input, D extends Decisions, E, R>(
+  options: RunOptions<Input, D>,
+  ask: (input: Input, key: string) => Effect.Effect<Answered<D>, E, R>,
   reuseCache: boolean,
 ): Effect.Effect<DecisionBatchReport, E | DecisionCacheInvalid, R> =>
   Effect.gen(function* () {
@@ -137,7 +145,7 @@ const decideAll = <Input, E, R>(
             options.cache === undefined || !reuseCache
               ? undefined
               : yield* readAnswers(options.cache, key, definition.decisions);
-          const answered: Answered =
+          const answered: Answered<D> =
             cached === undefined ? yield* ask(input, key) : { answers: cached };
           const verdict = options.family.evaluate(input, answered.answers, options.threshold);
           return {
@@ -169,8 +177,8 @@ const decideAll = <Input, E, R>(
  * answers every decision for an input; a cached answer skips the provider unless
  * `refresh` asks again. New answers are written to the cache.
  */
-export const runDecisions = <Input>(
-  options: RunOptions<Input> & { readonly refresh?: boolean },
+export const runDecisions = <Input, D extends Decisions>(
+  options: RunOptions<Input, D> & { readonly refresh?: boolean },
 ): Effect.Effect<
   DecisionBatchReport,
   AiError.AiError | DecisionCacheInvalid,
@@ -199,8 +207,8 @@ export const runDecisions = <Input>(
  * Answer every input from the cache alone. Needs no model or credentials, so a
  * gate can run it offline; an input without an answer fails the replay.
  */
-export const replayDecisions = <Input>(
-  options: RunOptions<Input> & { readonly cache: DecisionCache },
+export const replayDecisions = <Input, D extends Decisions>(
+  options: RunOptions<Input, D> & { readonly cache: DecisionCache },
 ): Effect.Effect<DecisionBatchReport, DecisionCacheMiss | DecisionCacheInvalid> =>
   decideAll(
     options,
@@ -216,8 +224,8 @@ export const replayDecisions = <Input>(
     true,
   );
 
-export const decodeFamilyInputs = <Input>(
-  family: DecisionFamily<Input>,
+export const decodeFamilyInputs = <Input, D extends Decisions>(
+  family: DecisionFamily<Input, D>,
   raw: ReadonlyArray<unknown>,
 ): ReadonlyArray<Input> => {
   const decode = Schema.decodeUnknownSync(family.input);

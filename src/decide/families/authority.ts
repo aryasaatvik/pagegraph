@@ -11,7 +11,7 @@
 import * as Schema from "effect/Schema";
 import { Decision } from "effect/ai";
 
-import { anyInReviewBand, type DecisionFamily } from "../run";
+import { anyInReviewBand, defineDecisionFamily } from "../run";
 
 /** The relationship a target could support. */
 export const AUTHORITY_FITS = ["directory", "partner", "editorial", "community", "none"] as const;
@@ -114,10 +114,10 @@ export const classifyAuthorityVerdict = (
   return "accept";
 };
 
-export const authorityFamily: DecisionFamily<AuthorityInput> = {
+export const authorityFamily = defineDecisionFamily({
   name: "authority",
   input: AuthorityInput,
   definitionFor: () => AuthorityDecision,
   inputRef: (input) => input.domain,
   evaluate: (_input, answers, threshold) => classifyAuthorityVerdict(answers, threshold),
-};
+});

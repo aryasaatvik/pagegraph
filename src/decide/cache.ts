@@ -26,9 +26,11 @@ import { join } from "node:path";
 
 import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
+import * as Option from "effect/Option";
+import * as Schema from "effect/Schema";
 import type * as Decision from "effect/ai/Decision";
 
-import { validCachedAnswers } from "./answers";
+import { CachedAnswers } from "./answers";
 
 export type DecisionCachePolicy = "scratch" | "committed";
 
@@ -47,8 +49,10 @@ const answerFile = (cache: DecisionCache, key: string): string =>
   join(cache.directory, `${key}.json`);
 
 /**
- * Cached answers for `key` when they match `decisions`, `undefined` on a miss.
- * Under `committed`, an unreadable or mismatched file fails instead of missing.
+ * Cached answers for `key`, decoded through {@link CachedAnswers}, or
+ * `undefined` on a miss. Decoding drops answers and fields the definition does
+ * not ask for. Under `committed`, an unreadable or mismatched file fails
+ * instead of missing.
  */
 export const readAnswers = (
   cache: DecisionCache,
@@ -68,13 +72,16 @@ export const readAnswers = (
             }),
           );
     const parsed = yield* Effect.try({
-      try: (): unknown => JSON.parse(readFileSync(file, "utf8")),
+      try: () => readFileSync(file, "utf8"),
       catch: () => file,
-    }).pipe(Effect.option);
-    if (parsed._tag === "None") return yield* invalid("are not readable JSON");
-    if (!validCachedAnswers(decisions, parsed.value))
-      return yield* invalid("do not match the decision definition");
-    return parsed.value;
+    }).pipe(
+      Effect.flatMap(Schema.decodeUnknownEffect(Schema.fromJsonString(Schema.Unknown))),
+      Effect.option,
+    );
+    if (Option.isNone(parsed)) return yield* invalid("are not readable JSON");
+    return yield* Schema.decodeUnknownEffect(CachedAnswers(decisions))(parsed.value).pipe(
+      Effect.catchTag("SchemaError", () => invalid("do not match the decision definition")),
+    );
   });
 
 /** Persist answers for `key`, creating the directory on first write. */

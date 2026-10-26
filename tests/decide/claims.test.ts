@@ -20,6 +20,7 @@ import {
 } from "../../src/claims";
 import { decisionModelLayer } from "../../src/decide/provider";
 import { HEAD_SECTION_ID, hashDocument, type PageDocument } from "../../src/markdown/document";
+import { probability as probabilityAnswer } from "./helpers";
 
 const directories: Array<string> = [];
 const directory = () => {
@@ -62,10 +63,7 @@ const model = (probability: number, called = () => {}) =>
           called();
           return {
             answers: Object.fromEntries(
-              Object.keys(decisions).map((name) => [
-                name,
-                { _tag: "Probability" as const, probability },
-              ]),
+              Object.keys(decisions).map((name) => [name, probabilityAnswer(probability)]),
             ),
             usage: { inputTokens: 1, outputTokens: 1 },
           };

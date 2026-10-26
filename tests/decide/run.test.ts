@@ -3,18 +3,20 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import * as Effect from "effect/Effect";
+import * as Exit from "effect/Exit";
 import * as Layer from "effect/Layer";
 import * as Schema from "effect/Schema";
 import { Decision, DecisionModel } from "effect/ai";
 import { afterAll, describe, expect, it } from "vitest";
 
-import { cacheKey, inputHash, validCachedAnswers } from "../../src/decide/answers";
+import { CachedAnswers, cacheKey, inputHash } from "../../src/decide/answers";
 import {
   buildDecisionReport,
   decodeFamilyInputs,
   runDecisions,
   type DecisionFamily,
 } from "../../src/decide/run";
+import { probability } from "./helpers";
 
 interface FakeInput {
   readonly id: string;
@@ -45,8 +47,6 @@ const fakeFamily: DecisionFamily<FakeInput> = {
     return "review";
   },
 };
-
-const probability = (value: number) => ({ _tag: "Probability" as const, probability: value });
 
 /** Deterministic `DecisionModel` backed by a lookup; never the network. */
 const mockModel = (answers: (state: FakeInput) => number, onDecide?: (state: FakeInput) => void) =>
@@ -147,7 +147,7 @@ describe("buildDecisionReport", () => {
   });
 });
 
-describe("validCachedAnswers", () => {
+describe("CachedAnswers", () => {
   const decisions = {
     p: Decision.probability({
       instructions: "p",
@@ -162,41 +162,53 @@ describe("validCachedAnswers", () => {
     r: { rating: 1, label: "high", probabilities: { low: 0.1, high: 0.9 } },
   };
 
+  const accepts = (answers: unknown) =>
+    Exit.isSuccess(Schema.decodeUnknownExit(CachedAnswers(decisions))(answers));
+
   it("accepts a valid answer set", () => {
-    expect(validCachedAnswers(decisions, valid)).toBe(true);
+    expect(accepts(valid)).toBe(true);
+  });
+
+  it("keeps provider confidence and drops answers the definition does not ask", () => {
+    const decoded = Schema.decodeUnknownSync(CachedAnswers(decisions))({
+      ...valid,
+      c: { ...valid.c, confidence: 0.8 },
+      stale: { probability: 0.5 },
+    });
+    expect(decoded).toEqual({ ...valid, c: { ...valid.c, confidence: 0.8 } });
   });
 
   it("rejects malformed answers, labels, ranges, and distributions", () => {
-    expect(validCachedAnswers(decisions, {})).toBe(false);
-    expect(validCachedAnswers(decisions, { ...valid, p: { probability: -1 } })).toBe(false);
-    expect(validCachedAnswers(decisions, { ...valid, p: { probability: null } })).toBe(false);
+    expect(accepts({})).toBe(false);
+    expect(accepts({ ...valid, p: { probability: -1 } })).toBe(false);
+    expect(accepts({ ...valid, p: { probability: null } })).toBe(false);
     expect(
-      validCachedAnswers(decisions, {
+      accepts({
         ...valid,
         c: { label: "z", probabilities: { a: 0.9, b: 0.1 } },
       }),
     ).toBe(false);
     expect(
-      validCachedAnswers(decisions, {
+      accepts({
         ...valid,
         c: { label: "a", probabilities: { a: 0.9, b: 0.9 } },
       }),
     ).toBe(false);
     expect(
-      validCachedAnswers(decisions, {
+      accepts({
         ...valid,
         r: { rating: 5, label: "high", probabilities: { low: 0.1, high: 0.9 } },
       }),
     ).toBe(false);
     // Extra labels would leak into evaluators that scan the distribution.
     expect(
-      validCachedAnswers(decisions, {
+      accepts({
         ...valid,
         c: { label: "a", probabilities: { a: 0.9, b: 0.1, extra: 0 } },
       }),
     ).toBe(false);
     expect(
-      validCachedAnswers(decisions, {
+      accepts({
         ...valid,
         r: { rating: 1, label: "high", probabilities: { low: 0.1, high: 0.9, extra: 0 } },
       }),

@@ -26,10 +26,24 @@ provider accounts. Keep generated fixture output out of commits.
 
 ## Releases
 
-Add release notes with `bun run tegami add`. Every push to `main` runs the serialized Publish
-workflow. Pending notes produce a version PR; ordinary code PRs and version PRs run the same full
-CI. When version metadata lands, Tegami preflights pending packages and its `afterPreflight` hook
-runs `release:check` at that checkout before publication. A failed gate aborts publication.
+Add a release note with `bun run tegami`, which opens Tegami's changelog editor, or write a Markdown
+file under `.tegami/` by hand:
+
+```md
+---
+packages:
+  pagegraph:
+    type: patch
+---
+
+### What changed for users
+```
+
+Every push to `main` runs the serialized Publish workflow. Pending notes produce a version PR;
+ordinary code PRs and version PRs run the same full CI. The Actions bot opens the version PR, so
+GitHub holds its CI run until a maintainer approves it. When version metadata lands, Tegami
+preflights pending packages and its `afterPreflight` hook runs `release:check` at that checkout
+before publication. A failed gate aborts publication.
 The existing npm trusted-publishing route then publishes, pushes tags, and creates GitHub releases.
 
 Use `release:check` for validation. Do not run `release:publish`, `tegami publish`, status, or dry-run

@@ -36,9 +36,19 @@ export function parseWildcardRules(robotsTxt: string): Array<RobotsRule> {
   return rules;
 }
 
+/**
+ * One spelling per path: non-ASCII characters become UTF-8 percent escapes and
+ * escape hex digits are uppercase, so "/guides/café" and "/guides/caf%c3%a9" compare
+ * equal, as RFC 9309 requires.
+ */
+const canonicalize = (value: string): string =>
+  value
+    .replace(/\P{ASCII}/gu, (character) => encodeURIComponent(character))
+    .replace(/%[0-9a-f]{2}/gi, (escape) => escape.toUpperCase());
+
 const patternToRegExp = (pattern: string): RegExp => {
   const anchored = pattern.endsWith("$");
-  const body = (anchored ? pattern.slice(0, -1) : pattern)
+  const body = canonicalize(anchored ? pattern.slice(0, -1) : pattern)
     .split("*")
     .map((part) => part.replace(/[.+?^${}()|[\]\\]/g, "\\$&"))
     .join(".*");
@@ -54,13 +64,15 @@ export function decidingRule(
   rules: ReadonlyArray<RobotsRule>,
   path: string,
 ): RobotsRule | undefined {
+  const target = canonicalize(path);
   let best: RobotsRule | undefined;
   for (const rule of rules) {
-    if (!patternToRegExp(rule.pattern).test(path)) continue;
+    if (!patternToRegExp(rule.pattern).test(target)) continue;
     if (
       best === undefined ||
-      rule.pattern.length > best.pattern.length ||
-      (rule.pattern.length === best.pattern.length && rule.type === "allow")
+      canonicalize(rule.pattern).length > canonicalize(best.pattern).length ||
+      (canonicalize(rule.pattern).length === canonicalize(best.pattern).length &&
+        rule.type === "allow")
     ) {
       best = rule;
     }

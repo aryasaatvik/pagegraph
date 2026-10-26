@@ -45,4 +45,14 @@ describe("robots matcher", () => {
     expect(verdict(robots, "/w/x")).toBe("disallow");
     expect(verdict(robots, "/")).toBe("none");
   });
+
+  it("treats raw Unicode and percent-encoded spellings as the same path", () => {
+    expect(verdict("User-agent: *\nDisallow: /guides/caf%C3%A9\n", "/guides/café")).toBe(
+      "disallow",
+    );
+    expect(verdict("User-agent: *\nDisallow: /guides/café\n", "/guides/caf%c3%a9")).toBe(
+      "disallow",
+    );
+    expect(verdict("User-agent: *\nDisallow: /guides/caf%C3%A9/\n", "/guides/cafe")).toBe("none");
+  });
 });

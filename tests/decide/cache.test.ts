@@ -12,7 +12,7 @@ import { afterAll, describe, expect, it } from "vitest";
 
 import { cacheKey, definitionFingerprint, inputHash } from "../../src/decide/answers";
 import type { DecisionCache } from "../../src/decide/cache";
-import { replayDecisions, runDecisions, type DecisionFamily } from "../../src/decide/run";
+import { defineDecisionFamily, replayDecisions, runDecisions } from "../../src/decide/run";
 import { probability } from "./helpers";
 
 interface Claim {
@@ -27,16 +27,15 @@ const definition = (instructions: string) =>
   });
 
 /** One-sided like a gate: any probability at or above the cutoff is a violation. */
-const gateFamily = (instructions = "The claim is false"): DecisionFamily<Claim> => ({
-  name: "gate",
-  input: Claim,
-  definitionFor: () => definition(instructions),
-  inputRef: (input) => input.id,
-  evaluate: (_input, answers, cutoff) =>
-    (answers as { falseClaim: { probability: number } }).falseClaim.probability >= cutoff
-      ? "violation"
-      : "pass",
-});
+const gateFamily = (instructions = "The claim is false") =>
+  defineDecisionFamily({
+    name: "gate",
+    input: Claim,
+    definitionFor: () => definition(instructions),
+    inputRef: (input) => input.id,
+    evaluate: (_input, answers, cutoff) =>
+      answers.falseClaim.probability >= cutoff ? "violation" : "pass",
+  });
 
 const model = (value: number, calls: { count: number }) =>
   Layer.effect(

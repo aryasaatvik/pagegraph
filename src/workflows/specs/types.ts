@@ -5,7 +5,7 @@ import * as Schema from "effect/Schema";
 
 import type { DecisionBatchReport } from "../../decide/record";
 import type { DecisionCacheInvalid } from "../../decide/cache";
-import { runDecisions, type DecisionFamily } from "../../decide/run";
+import { runDecisions, type DecisionFamily, type Decisions } from "../../decide/run";
 import type { WorkflowId } from "../model";
 
 export const WORKFLOW_SKILLS = [
@@ -23,13 +23,13 @@ export const WORKFLOW_SKILLS = [
 ] as const;
 export type WorkflowSkill = (typeof WORKFLOW_SKILLS)[number];
 
-export interface WorkflowSpecDefinition<State, Input> {
+export interface WorkflowSpecDefinition<State, Input, D extends Decisions> {
   readonly id: WorkflowId;
   readonly skills: ReadonlyArray<WorkflowSkill>;
   readonly mutatesFiles: boolean;
   readonly stateSchema: Schema.ConstraintDecoder<State>;
   readonly decisionInputs: (state: State) => ReadonlyArray<Input>;
-  readonly family: DecisionFamily<Input>;
+  readonly family: DecisionFamily<Input, D>;
   readonly researchInstructions: string;
   readonly actionInstructions?: string | undefined;
 }
@@ -69,8 +69,8 @@ export interface AnyWorkflowSpec {
   >;
 }
 
-export const defineWorkflow = <State, Input>(
-  definition: WorkflowSpecDefinition<State, Input>,
+export const defineWorkflow = <State, Input, D extends Decisions>(
+  definition: WorkflowSpecDefinition<State, Input, D>,
 ): AnyWorkflowSpec => {
   const decodeState = Schema.decodeUnknownSync(definition.stateSchema, { errors: "all" });
   const decodeInput = Schema.decodeUnknownSync(definition.family.input, { errors: "all" });

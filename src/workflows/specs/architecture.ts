@@ -1,7 +1,7 @@
 import * as Schema from "effect/Schema";
 import { Decision } from "effect/ai";
 
-import { anyInReviewBand, type DecisionFamily } from "../../decide/run";
+import { anyInReviewBand, defineDecisionFamily } from "../../decide/run";
 import { defineWorkflow, stateWith } from "./types";
 
 const ArchitectureInput = Schema.Struct({
@@ -63,13 +63,13 @@ export const classify = (
   return actionProbability >= threshold ? answers.action.label : "review";
 };
 
-const architectureFamily: DecisionFamily<Schema.Schema.Type<typeof ArchitectureInput>> = {
+const architectureFamily = defineDecisionFamily({
   name: "workflow-architecture",
   input: ArchitectureInput,
   definitionFor: () => ArchitectureDecision,
   inputRef: (input) => input.path,
   evaluate: (_input, answers, threshold) => classify(answers, threshold),
-};
+});
 
 export const architectureWorkflow = defineWorkflow({
   id: "plan.architecture",

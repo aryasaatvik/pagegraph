@@ -13,8 +13,8 @@ import { CachedAnswers, cacheKey, inputHash } from "../../src/decide/answers";
 import {
   buildDecisionReport,
   decodeFamilyInputs,
+  defineDecisionFamily,
   runDecisions,
-  type DecisionFamily,
 } from "../../src/decide/run";
 import { probability } from "./helpers";
 
@@ -26,7 +26,7 @@ interface FakeInput {
 const FakeInput = Schema.Struct({ id: Schema.String, okay: Schema.Boolean });
 
 /** A minimal family: one probability mapped to accept/reject/review. */
-const fakeFamily: DecisionFamily<FakeInput> = {
+const fakeFamily = defineDecisionFamily({
   name: "fake",
   input: FakeInput,
   definitionFor: () =>
@@ -41,12 +41,12 @@ const fakeFamily: DecisionFamily<FakeInput> = {
     }),
   inputRef: (input) => input.id,
   evaluate: (_input, answers, threshold) => {
-    const probability = (answers as { okay: { probability: number } }).okay.probability;
+    const probability = answers.okay.probability;
     if (probability >= threshold) return "accept";
     if (probability <= 1 - threshold) return "reject";
     return "review";
   },
-};
+});
 
 /** Deterministic `DecisionModel` backed by a lookup; never the network. */
 const mockModel = (answers: (state: FakeInput) => number, onDecide?: (state: FakeInput) => void) =>

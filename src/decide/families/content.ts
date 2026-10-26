@@ -10,7 +10,7 @@
 import * as Schema from "effect/Schema";
 import { Decision } from "effect/ai";
 
-import { anyInReviewBand, type DecisionFamily } from "../run";
+import { anyInReviewBand, defineDecisionFamily } from "../run";
 
 /** Ordered value scale from least to most substance. */
 export const CONTENT_VALUES = ["thin", "adequate", "strong"] as const;
@@ -116,14 +116,7 @@ const ALL_EVIDENCE: ContentEvidence = { distinctIntent: true, competitiveSubstan
  * negative on an unevidenced rubric stays `flag` — it is the conservative side.
  */
 export const classifyContentVerdict = (
-  answers: {
-    readonly value: {
-      readonly label: string;
-      readonly probabilities: Readonly<Record<string, number>>;
-    };
-    readonly distinctIntent: { readonly probability: number };
-    readonly competitiveSubstance: { readonly probability: number };
-  } & Record<string, { readonly probability: number }>,
+  answers: Decision.Answers<typeof ContentDecision.decisions>,
   threshold: number,
   evidence: ContentEvidence = ALL_EVIDENCE,
 ): ContentVerdict => {
@@ -139,7 +132,7 @@ export const classifyContentVerdict = (
   return "pass";
 };
 
-export const contentFamily: DecisionFamily<ContentInput> = {
+export const contentFamily = defineDecisionFamily({
   name: "content",
   input: ContentInput,
   definitionFor: () => ContentDecision,
@@ -150,4 +143,4 @@ export const contentFamily: DecisionFamily<ContentInput> = {
       competitiveSubstance:
         input.competitorExcerpts !== undefined && input.competitorExcerpts.length > 0,
     }),
-};
+});

@@ -10,7 +10,7 @@
 import * as Schema from "effect/Schema";
 import { Decision } from "effect/ai";
 
-import { anyInReviewBand, type DecisionFamily } from "../run";
+import { anyInReviewBand, defineDecisionFamily } from "../run";
 
 /** A candidate title/description pair the model may choose. */
 export const MetaCandidate = Schema.Struct({
@@ -143,11 +143,11 @@ export const classifyMetaVerdict = (
   return `choose:${answers.best.label}`;
 };
 
-export const metaFamily: DecisionFamily<MetaInput> = {
+export const metaFamily = defineDecisionFamily({
   name: "meta",
   input: MetaInput,
   definitionFor: makeMetaDecision,
   inputRef: (input) => input.url,
   evaluate: (_input, answers, threshold) => classifyMetaVerdict(answers, threshold),
   validate: validateMetaInput,
-};
+});

@@ -54,11 +54,11 @@ const answerFile = (cache: DecisionCache, key: string): string =>
  * not ask for. Under `committed`, an unreadable or mismatched file fails
  * instead of missing.
  */
-export const readAnswers = (
+export const readAnswers = <D extends Record<string, Decision.Any>>(
   cache: DecisionCache,
   key: string,
-  decisions: Readonly<Record<string, Decision.Any>>,
-): Effect.Effect<unknown | undefined, DecisionCacheInvalid> =>
+  decisions: D,
+): Effect.Effect<Decision.Answers<D> | undefined, DecisionCacheInvalid> =>
   Effect.gen(function* () {
     const file = answerFile(cache, key);
     if (!existsSync(file)) return undefined;

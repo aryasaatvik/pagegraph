@@ -1,7 +1,7 @@
 import * as Schema from "effect/Schema";
 import { Decision } from "effect/ai";
 
-import { anyInReviewBand, type DecisionFamily } from "../../decide/run";
+import { anyInReviewBand, defineDecisionFamily } from "../../decide/run";
 import { defineWorkflow, stateWith } from "./types";
 
 const SchemaInput = Schema.Struct({
@@ -68,13 +68,13 @@ export const classify = (
     : "review";
 };
 
-const schemaFamily: DecisionFamily<Schema.Schema.Type<typeof SchemaInput>> = {
+const schemaFamily = defineDecisionFamily({
   name: "workflow-schema",
   input: SchemaInput,
   definitionFor: () => SchemaDecision,
   inputRef: (input) => input.url,
   evaluate: (_input, answers, threshold) => classify(answers, threshold),
-};
+});
 
 export const schemaWorkflow = defineWorkflow({
   id: "improve.schema",

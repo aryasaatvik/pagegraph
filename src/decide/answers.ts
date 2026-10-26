@@ -6,77 +6,61 @@
 
 import { createHash } from "node:crypto";
 
+import * as Schema from "effect/Schema";
 import type * as Decision from "effect/ai/Decision";
 
-const isUnitInterval = (value: unknown): value is number =>
-  typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= 1;
-
-const isPlainObject = (value: unknown): value is Record<string, unknown> =>
-  value !== null && typeof value === "object" && !Array.isArray(value);
+const UnitInterval = Schema.Finite.check(Schema.isBetween({ minimum: 0, maximum: 1 }));
 
 /** A probability distribution over exactly `labels`: unit-range, summing to 1. */
-const isDistribution = (labels: ReadonlyArray<string>, value: unknown): boolean => {
-  // Extra labels would be read by evaluators that scan the distribution, so
-  // require the cached keys to match the declared labels exactly.
-  if (!isPlainObject(value) || Object.keys(value).length !== labels.length) return false;
-  let total = 0;
-  for (const label of labels) {
-    const probability = value[label];
-    if (!isUnitInterval(probability)) return false;
-    total += probability;
+const Distribution = (labels: ReadonlyArray<string>) =>
+  Schema.Record(Schema.String, UnitInterval).check(
+    Schema.makeFilter((probabilities) => {
+      // Extra labels would be read by evaluators that scan the distribution, so
+      // require the cached keys to match the declared labels exactly.
+      const keys = Object.keys(probabilities);
+      if (keys.length !== labels.length || !labels.every((label) => keys.includes(label)))
+        return `expected exactly the labels ${labels.join(", ")}`;
+      const total = labels.reduce((sum, label) => sum + probabilities[label]!, 0);
+      return Math.abs(total - 1) <= 1e-6 || "expected probabilities that sum to 1";
+    }),
+  );
+
+const Labeled = (labels: ReadonlyArray<string>) => ({
+  label: Schema.Literals(labels),
+  probabilities: Distribution(labels),
+  confidence: Schema.optionalKey(Schema.Number),
+});
+
+const Answer = (decision: Decision.Any) => {
+  switch (decision._tag) {
+    case "Probability":
+      return Schema.Struct({ probability: UnitInterval });
+    case "Classify":
+      return Schema.Struct(Labeled(Object.keys(decision.criteria)));
+    case "Rate": {
+      // Effect 4.0.6 stores each level as `{ label, description }`. String
+      // criteria still describe themselves, so answers stay label-based.
+      const levels = decision.criteria.map((level) => level.label);
+      return Schema.Struct({
+        rating: Schema.Finite.check(Schema.isBetween({ minimum: 0, maximum: levels.length - 1 })),
+        ...Labeled(levels),
+      });
+    }
   }
-  return Math.abs(total - 1) <= 1e-6;
 };
 
 /**
- * Whether cached answers have the shape `DecisionModel` would have validated —
+ * Answers in the shape `DecisionModel` would have validated for `decisions` —
  * the same labels, ranges, and distributions. A cache file is only trusted when
- * it round-trips through this check, so a partially malformed entry cannot
- * produce a confident verdict.
+ * it decodes through this schema, so a partially malformed entry cannot produce
+ * a confident verdict.
  */
-export const validCachedAnswers = (
-  decisions: Readonly<Record<string, Decision.Any>>,
-  answers: unknown,
-): boolean => {
-  if (!isPlainObject(answers)) return false;
-  for (const key of Object.keys(decisions)) {
-    const answer = answers[key];
-    if (!isPlainObject(answer)) return false;
-    const decision = decisions[key]!;
-    switch (decision._tag) {
-      case "Probability":
-        if (!isUnitInterval(answer.probability)) return false;
-        break;
-      case "Classify":
-        if (
-          typeof answer.label !== "string" ||
-          !Object.hasOwn(decision.criteria, answer.label) ||
-          !isDistribution(Object.keys(decision.criteria), answer.probabilities)
-        ) {
-          return false;
-        }
-        break;
-      case "Rate": {
-        // Effect 4.0.6 stores each level as `{ label, description }`. String
-        // criteria still describe themselves, so validation stays label-based.
-        const levels = decision.criteria.map((level) => level.label);
-        if (
-          typeof answer.rating !== "number" ||
-          !Number.isFinite(answer.rating) ||
-          answer.rating < 0 ||
-          answer.rating > levels.length - 1 ||
-          typeof answer.label !== "string" ||
-          !levels.includes(answer.label) ||
-          !isDistribution(levels, answer.probabilities)
-        ) {
-          return false;
-        }
-        break;
-      }
-    }
-  }
-  return true;
-};
+export const CachedAnswers = (decisions: Readonly<Record<string, Decision.Any>>) =>
+  Schema.Struct(
+    Object.fromEntries(
+      Object.entries(decisions).map(([name, decision]) => [name, Answer(decision)]),
+    ),
+  );
 
 /** sha256 of the canonical input JSON — deterministic for a schema-decoded input. */
 export const inputHash = (input: unknown): string =>

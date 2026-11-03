@@ -10,7 +10,12 @@ import * as Schema from "effect/Schema";
 import { Decision, DecisionModel } from "effect/ai";
 import { afterAll, describe, expect, it } from "vitest";
 
-import { cacheKey, definitionFingerprint, inputHash } from "../../src/decide/answers";
+import {
+  CachedAnswers,
+  cacheKey,
+  definitionFingerprint,
+  inputHash,
+} from "../../src/decide/answers";
 import type { DecisionCache } from "../../src/decide/cache";
 import { defineDecisionFamily, replayDecisions, runDecisions } from "../../src/decide/run";
 import { probability } from "./helpers";
@@ -229,5 +234,36 @@ describe("definition fingerprint", () => {
       }),
     };
     expect(definitionFingerprint(labeled)).not.toBe(definitionFingerprint(described));
+  });
+});
+
+describe("locate answer cache", () => {
+  const decisions = { target: Decision.locate({ image: "photo", instructions: "The logo" }) };
+  const decode = Schema.decodeUnknownSync(CachedAnswers(decisions));
+
+  it("accepts normalized bounds and rejects malformed provider answers", () => {
+    const box = { left: 0.1, top: 0.2, right: 0.8, bottom: 0.9 };
+    expect(decode({ target: { box, confidence: 0.9 } })).toEqual({
+      target: { box, confidence: 0.9 },
+    });
+    for (const invalid of [
+      { ...box, left: -0.1 },
+      { ...box, right: 1.1 },
+      { ...box, top: Number.NaN },
+      { ...box, left: 0.9 },
+      { ...box, bottom: 0.1 },
+      { left: 0, top: 0, right: 1 },
+    ]) {
+      expect(() => decode({ target: { box: invalid } })).toThrow();
+    }
+    expect(() => decode({ target: { box, confidence: 1.1 } })).toThrow();
+  });
+
+  it("invalidates answers when the selected image field changes", () => {
+    expect(definitionFingerprint(decisions)).not.toBe(
+      definitionFingerprint({
+        target: Decision.locate({ image: "other", instructions: "The logo" }),
+      }),
+    );
   });
 });

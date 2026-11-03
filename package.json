@@ -130,10 +130,10 @@
     "@earendil-works/pi-agent-core": "1.0.4",
     "@earendil-works/pi-ai": "1.0.4",
     "@earendil-works/pi-telemetry": "1.0.4",
-    "@effect/ai-typesafe": "4.0.6",
-    "@effect/platform-bun": "4.0.6",
-    "@effect/platform-node-shared": "4.0.6",
-    "@effect/vitest": "4.0.6",
+    "@effect/ai-typesafe": "4.1.2",
+    "@effect/platform-bun": "4.1.2",
+    "@effect/platform-node-shared": "4.1.2",
+    "@effect/vitest": "4.1.2",
     "@noble/hashes": "^2.4.0",
     "@pi-ext/executor": "1.0.4",
     "@tanstack/react-router": "^1.170.26",
@@ -144,7 +144,7 @@
     "@types/react": "19.2.18",
     "@types/react-dom": "19.2.7",
     "@vitejs/plugin-react": "^6.0.6",
-    "effect": "4.0.6",
+    "effect": "4.1.2",
     "lighthouse": "13.4.1",
     "oxfmt": "0.72.0",
     "oxlint": "^1.83.0",
@@ -158,12 +158,12 @@
     "vitest": "^5.0.0"
   },
   "peerDependencies": {
-    "@effect/ai-typesafe": "^4.0.0",
-    "@effect/platform-bun": "^4.0.0",
+    "@effect/ai-typesafe": "^4.1.2",
+    "@effect/platform-bun": "^4.1.2",
     "@tanstack/react-router": "^1.170.0",
     "@tanstack/react-start": "^1.168.56",
     "@tanstack/router-generator": "^1.167.21",
-    "effect": "^4.0.0",
+    "effect": "^4.1.2",
     "lighthouse": ">=13.0.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
@@ -197,6 +197,9 @@
     "react-dom": {
       "optional": true
     }
+  },
+  "overrides": {
+    "effect": "4.1.2"
   },
   "packageManager": "bun@1.4.4"
 }

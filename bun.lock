@@ -9,10 +9,10 @@
         "@earendil-works/pi-agent-core": "1.0.4",
         "@earendil-works/pi-ai": "1.0.4",
         "@earendil-works/pi-telemetry": "1.0.4",
-        "@effect/ai-typesafe": "4.0.6",
-        "@effect/platform-bun": "4.0.6",
-        "@effect/platform-node-shared": "4.0.6",
-        "@effect/vitest": "4.0.6",
+        "@effect/ai-typesafe": "4.1.2",
+        "@effect/platform-bun": "4.1.2",
+        "@effect/platform-node-shared": "4.1.2",
+        "@effect/vitest": "4.1.2",
         "@noble/hashes": "^2.4.0",
         "@pi-ext/executor": "1.0.4",
         "@tanstack/react-router": "^1.170.26",
@@ -23,7 +23,7 @@
         "@types/react": "19.2.18",
         "@types/react-dom": "19.2.7",
         "@vitejs/plugin-react": "^6.0.6",
-        "effect": "4.0.6",
+        "effect": "4.1.2",
         "lighthouse": "13.4.1",
         "oxfmt": "0.72.0",
         "oxlint": "^1.83.0",
@@ -37,12 +37,12 @@
         "vitest": "^5.0.0",
       },
       "peerDependencies": {
-        "@effect/ai-typesafe": "^4.0.0",
-        "@effect/platform-bun": "^4.0.0",
+        "@effect/ai-typesafe": "^4.1.2",
+        "@effect/platform-bun": "^4.1.2",
         "@tanstack/react-router": "^1.170.0",
         "@tanstack/react-start": "^1.168.56",
         "@tanstack/router-generator": "^1.167.21",
-        "effect": "^4.0.0",
+        "effect": "^4.1.2",
         "lighthouse": ">=13.0.0",
         "react": "^19.0.0",
         "react-dom": "^19.0.0",
@@ -60,6 +60,9 @@
         "vite",
       ],
     },
+  },
+  "overrides": {
+    "effect": "4.1.2",
   },
   "packages": {
     "@anthropic-ai/sdk": ["@anthropic-ai/sdk@0.129.0", "", { "dependencies": { "json-schema-to-ts": "^3.1.1", "standardwebhooks": "^1.0.0" }, "peerDependencies": { "zod": "^3.25.0 || ^4.0.0" }, "optionalPeers": ["zod"], "bin": { "anthropic-ai-sdk": "bin/cli" } }, "sha512-MH7LB20kNpGLUpPTe2OG5XvL/KhX8HUO9XyBaFjgFk6TLS4Xjt0VPIuMKywe7POKKPslX+QxSlVok9e+8kG5Nw=="],
@@ -164,13 +167,13 @@
 
     "@earendil-works/pi-telemetry": ["@earendil-works/pi-telemetry@1.0.4", "", {}, "sha512-DL2eXXtnL5/VQkuQd97fL57GXTG1/zKHtMmDsrv8tGeJ5EgYYTWvzy44dqbYL0lD0Z22v/NOwqU3PHO75HVrqA=="],
 
-    "@effect/ai-typesafe": ["@effect/ai-typesafe@4.0.6", "", { "peerDependencies": { "effect": "^4.0.6" } }, "sha512-u6i35E3BDX9F5yb1pxrt2RihNhXtUqHdo8xsVSuqh30Ye7umE4v09PqAjKDuvo17y/DRWzonWU1Gkm65y1rmFA=="],
+    "@effect/ai-typesafe": ["@effect/ai-typesafe@4.1.2", "", { "peerDependencies": { "effect": "^4.1.2" } }, "sha512-k4DC2CD8nvf0bioe2/VxA4KKyUNVgv9CFcejhl9Hrnci3cpTdVnrYgdVPL/VxnxfYCVGlCQO/xTzO1g+nT7Yqg=="],
 
-    "@effect/platform-bun": ["@effect/platform-bun@4.0.6", "", { "dependencies": { "@effect/platform-node-shared": "^4.0.6" }, "peerDependencies": { "effect": "^4.0.6" } }, "sha512-RAsGcIVcqhV4aBiM07VnMeNWDyewp8WDwTdIUtiklUDBRtddDllYzPsTlsn+0gLdpdz2lGnMEOFzoNaNrcMfSA=="],
+    "@effect/platform-bun": ["@effect/platform-bun@4.1.2", "", { "dependencies": { "@effect/platform-node-shared": "4.1.2" }, "peerDependencies": { "effect": "^4.1.2" } }, "sha512-waEAa84CITqjctgw9VdhlL9PyXRHICG3KAWTFRDPUE2XL/pfMPhO7V9oFdfx22dbAhhUzV+MHs0d9hnmy/DQ7w=="],
 
-    "@effect/platform-node-shared": ["@effect/platform-node-shared@4.0.6", "", { "dependencies": { "@types/ws": "^8.18.2", "ws": "^8.22.0" }, "peerDependencies": { "effect": "^4.0.6" } }, "sha512-0PhyC4uG30xGtsajnxjkcBWfTjNRzUh4ZKl1Kvo/MNyCTb+W2O+fBzf7wCRCoqt+nLudiq4V7vX40Q8XIBuMaQ=="],
+    "@effect/platform-node-shared": ["@effect/platform-node-shared@4.1.2", "", { "dependencies": { "@types/ws": "^8.18.2", "ws": "^8.22.1" }, "peerDependencies": { "effect": "^4.1.2" } }, "sha512-wSwl9A/G1hcVvF8nLI+YfB3EyOIDvWS6+lsTZBkmgDnPBL7m8YWZF+1HD+mdEsb52SUGfukip46Q3gRwSdk3QA=="],
 
-    "@effect/vitest": ["@effect/vitest@4.0.6", "", { "peerDependencies": { "effect": "^4.0.6", "vitest": ">=5.0.0 <6.0.0" } }, "sha512-oKNbtyUHK5+0o730CXwojULEu7f3+c235pYFD4U5T//o+hHrJbYbZU4bRkcv936tPr5IOnmujeyQiC/LuJJjHw=="],
+    "@effect/vitest": ["@effect/vitest@4.1.2", "", { "peerDependencies": { "effect": "^4.1.2", "vitest": ">=5.0.0 <6.0.0" } }, "sha512-JJPwAHkJHxvM/woW9mMW/khjasAHcmwWdOMAgMy16rfqsxcVhFDnrRsvN9VI2+kMv8zDCCyBE2q1n5hzZlfE0w=="],
 
     "@emnapi/core": ["@emnapi/core@2.0.0-alpha.3", "", { "dependencies": { "@emnapi/wasi-threads": "2.0.1", "tslib": "^2.4.0" } }, "sha512-AZypUeJ/yByuxyS7BlSNRDOMLMlROYtjYdIAuBmJssVz1UJDSeYxLrdizhXCFYhedC5bqd/ASy8EuNXbVVXp9g=="],
 
@@ -724,7 +727,7 @@
 
     "ecdsa-sig-formatter": ["ecdsa-sig-formatter@1.0.11", "", { "dependencies": { "safe-buffer": "^5.0.1" } }, "sha512-nagl3RYrbNv6kQkeJIpt6NJZy8twLB/2vtz6yN9Z4vRKHN4/QZJIEbqohALSgwKdnksuY3k5Addp5lg8sVoVcQ=="],
 
-    "effect": ["effect@4.0.6", "", {}, "sha512-Tc3mkzuLR6t6P9dhLt0D2GrxYtmU5td4XEJEiXCmILz53IRIfJyHsKZWjTA3xEjiwpNTtXBgI4iqYPxMztBDrw=="],
+    "effect": ["effect@4.1.2", "", {}, "sha512-d3Oah1WyKxFLFh19yWheS5IXIVaITzxZ71JkE1rkUozq/6EcJSU5nPk5bF2QrSygZ3SQoiNQB8TsxFriyMeMaQ=="],
 
     "electron-to-chromium": ["electron-to-chromium@1.5.399", "", {}, "sha512-lEcqhErbHjXRvd41rnWLpzbyU/IXfIYo7QwaFWmxGeLiLyY2TBCdHnWY88vB+p3ubnihRypDm66panXl7TylLA=="],
 
@@ -1162,7 +1165,7 @@
 
     "@cspotcode/source-map-support/@jridgewell/trace-mapping": ["@jridgewell/trace-mapping@0.3.9", "", { "dependencies": { "@jridgewell/resolve-uri": "^3.0.3", "@jridgewell/sourcemap-codec": "^1.4.10" } }, "sha512-3Belt6tdc8bPgAtbcmdtNJlirVoTmEb5e2gC94PnkwEW9jI6CAHUeoG85tjWP5WquqfavoMtMwiG4P926ZKKuQ=="],
 
-    "@effect/platform-node-shared/ws": ["ws@8.22.0", "", { "peerDependencies": { "bufferutil": "^4.0.1", "utf-8-validate": ">=5.0.2" }, "optionalPeers": ["bufferutil", "utf-8-validate"] }, "sha512-Ydggc987+RO0AnWtZ/7Wq9FtNvcrL1b/RO0ud9mWjUPgDrsAAwQSF51sm2hm1XofbU/4jkpGEsLFsZZxU+1DOg=="],
+    "@effect/platform-node-shared/ws": ["ws@8.22.1", "", { "peerDependencies": { "bufferutil": "^4.0.1", "utf-8-validate": ">=5.0.2" }, "optionalPeers": ["bufferutil", "utf-8-validate"] }, "sha512-oyL6OPYme/CmiFvNuGzeoxCJ4nOrZE2O1FwM9MWM1AsGri6nLXB2pg+lNA8aLeXMSav0J6eIVS1j6vUPzUtK9g=="],
 
     "@google/genai/ws": ["ws@8.22.0", "", { "peerDependencies": { "bufferutil": "^4.0.1", "utf-8-validate": ">=5.0.2" }, "optionalPeers": ["bufferutil", "utf-8-validate"] }, "sha512-Ydggc987+RO0AnWtZ/7Wq9FtNvcrL1b/RO0ud9mWjUPgDrsAAwQSF51sm2hm1XofbU/4jkpGEsLFsZZxU+1DOg=="],
 

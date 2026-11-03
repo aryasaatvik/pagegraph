@@ -37,8 +37,24 @@ const Answer = (decision: Decision.Any) => {
       return Schema.Struct({ probability: UnitInterval });
     case "Classify":
       return Schema.Struct(Labeled(Object.keys(decision.criteria)));
+    case "Locate":
+      return Schema.Struct({
+        box: Schema.Struct({
+          left: UnitInterval,
+          top: UnitInterval,
+          right: UnitInterval,
+          bottom: UnitInterval,
+        }).check(
+          Schema.makeFilter(
+            (box) =>
+              (box.left <= box.right && box.top <= box.bottom) ||
+              "expected ordered bounding box edges",
+          ),
+        ),
+        confidence: Schema.optionalKey(UnitInterval),
+      });
     case "Rate": {
-      // Effect 4.0.6 stores each level as `{ label, description }`. String
+      // Effect stores each level as `{ label, description }`. String
       // criteria still describe themselves, so answers stay label-based.
       const levels = decision.criteria.map((level) => level.label);
       return Schema.Struct({
@@ -92,6 +108,7 @@ const canonicalJson = (value: unknown): string =>
  * survive the patch; a distinct description is part of the question.
  */
 const criteriaFingerprint = (decision: Decision.Any): unknown => {
+  if (decision._tag === "Locate") return { image: decision.image };
   if (decision._tag !== "Rate") return decision.criteria ?? null;
   return decision.criteria.map((level) =>
     level.description === level.label ? level.label : level,

@@ -261,7 +261,7 @@ workflow runs in-process on Pi 1.0.4. Improve workflows use guarded repository e
 research and dry-run actions expose only read tools. Every workflow failure after run creation
 writes `failure.json` with its stage, agent messages, and cause chain. `vite` stays a peer — graph commands load your app through Vite at
 runtime — and `lighthouse` is only needed by `pagegraph audit`. Importing `pagegraph/audit`
-programmatically needs `effect@^4.0.0`. The Effect and TypeSafe peers remain optional for other
+programmatically needs `effect@^4.1.2`. The Effect and TypeSafe peers remain optional for other
 library entry points and the bundled CLI.
 
 ### Agent skill

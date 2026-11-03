@@ -1,3 +1,5 @@
+import { createServer } from "node:http";
+
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createExecutorToolset, executorEvidence } from "../../src/workflows/executor";
@@ -126,5 +128,42 @@ describe("Executor toolset", () => {
 
     expect(toolset.tools.map((tool) => tool.name)).toEqual(["executor_search", "executor_execute"]);
     expect(toolset.trace).toEqual([]);
+  });
+
+  it("runs the installed Executor search tool over local HTTP with the shared Effect runtime", async () => {
+    const requests: string[] = [];
+    const server = createServer((request, response) => {
+      requests.push(request.url ?? "");
+      response.writeHead(200, { "content-type": "application/json" });
+      response.end(JSON.stringify({ items: [] }));
+    });
+    await new Promise<void>((resolve, reject) => {
+      server.once("error", reject);
+      server.listen(0, "127.0.0.1", resolve);
+    });
+    try {
+      const address = server.address();
+      if (address === null || typeof address === "string") throw new Error("Fixture did not bind");
+      vi.stubEnv("EXECUTOR_BASE_URL", `http://127.0.0.1:${address.port}`);
+      for (const key of [
+        "EXECUTOR_CLIENT_ID",
+        "EXECUTOR_CLIENT_ID_FILE",
+        "EXECUTOR_CLIENT_SECRET",
+        "EXECUTOR_CLIENT_SECRET_FILE",
+      ]) {
+        vi.stubEnv(key, undefined);
+      }
+      const toolset = await createExecutorToolset({ policy: "decline" });
+      const search = toolset.tools.find((tool) => tool.name === "executor_search")!;
+      await search.execute("local-search", { query: "fixture", limit: 2 }, undefined);
+      expect(requests).toEqual(["/semantic-search/search?q=fixture&limit=2"]);
+      expect(toolset.trace).toEqual([
+        expect.objectContaining({ kind: "search", query: "fixture", result: [], isError: false }),
+      ]);
+    } finally {
+      await new Promise<void>((resolve, reject) =>
+        server.close((error) => (error ? reject(error) : resolve())),
+      );
+    }
   });
 });

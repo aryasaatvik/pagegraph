@@ -156,7 +156,7 @@ describe("Executor toolset", () => {
       const toolset = await createExecutorToolset({ policy: "decline" });
       const search = toolset.tools.find((tool) => tool.name === "executor_search")!;
       await search.execute("local-search", { query: "fixture", limit: 2 }, undefined);
-      expect(requests).toEqual(["/semantic-search/search?q=fixture&limit=2"]);
+      expect(requests).toEqual(["/api/semantic-search/search?q=fixture&limit=2"]);
       expect(toolset.trace).toEqual([
         expect.objectContaining({ kind: "search", query: "fixture", result: [], isError: false }),
       ]);

@@ -1,3 +1,12 @@
+## pagegraph@0.18.1
+
+### Fix consumer build diagnostics
+
+Generate sourcemaps for authored document source locations so Vite and Rolldown can trace edited
+modules back to their original source. Preserve the resolved environment in the build-only
+Cloudflare Markdown prerender Worker so production prerender preview loads its configuration
+without a missing-environment warning. Consumer configuration stays the same.
+
 ## pagegraph@0.18.0
 
 ### Effect 4.1.2 runtime compatibility

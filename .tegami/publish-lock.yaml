@@ -1,10 +1,10 @@
 core:changelogs:
-  - content: "---\npackages:\n  pagegraph:\n    type: minor\n---\n\n## Effect 4.1.2 runtime compatibility\n\nUpgrade the bundled CLI's Effect, TypeSafe AI, and platform runtime to 4.1.2. Programmatic build and audit consumers now require Effect peers compatible with 4.1.2; other library entries and the bundled CLI keep these peers optional. Preserve existing decision-cache keys and validate Effect's image-location answers, including the selected image in their cache identity.\n"
-    filename: effect-4-1.md
+  - content: "---\npackages:\n  pagegraph:\n    type: patch\n---\n\n### Fix consumer build diagnostics\n\nGenerate sourcemaps for authored document source locations so Vite and Rolldown can trace edited\nmodules back to their original source. Preserve the resolved environment in the build-only\nCloudflare Markdown prerender Worker so production prerender preview loads its configuration\nwithout a missing-environment warning. Consumer configuration stays the same.\n"
+    filename: fix-deploy-warnings.md
     v: 0.0.0
 core:packages:
   - changelogIds:
-      - effect-4-1.md
+      - fix-deploy-warnings.md
     id: npm:pagegraph
     updated: true
 npm:packages:

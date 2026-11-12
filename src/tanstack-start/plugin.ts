@@ -23,6 +23,7 @@
 
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import * as Schema from "effect/Schema";
 
 import {
   createRunnableDevEnvironment,
@@ -308,6 +309,54 @@ export function pagegraph(options: PagegraphOptions): PagegraphPlugins {
         )
           return;
         return transformDocumentSource(code, file, root);
+      },
+    },
+    generateBundle: {
+      order: "post",
+      handler(_options, bundle) {
+        // Only this build-only Worker imports our compiled-server virtual module.
+        const isCaptureWorker = Object.values(bundle).some(
+          (output) =>
+            output.type === "chunk" && "\0virtual:pagegraph/prerender-server" in output.modules,
+        );
+        const environment = process.env.CLOUDFLARE_ENV;
+        const asset = bundle["wrangler.json"];
+        if (!isCaptureWorker || !environment || asset?.type !== "asset") return;
+        const source =
+          typeof asset.source === "string" ? asset.source : new TextDecoder().decode(asset.source);
+        const config = Schema.decodeUnknownSync(
+          Schema.fromJsonString(Schema.Record(Schema.String, Schema.Unknown)),
+        )(source);
+        // Cloudflare writes a flattened config, but preview reads its explicit path
+        // (not Wrangler's deploy redirect), so Wrangler selects CLOUDFLARE_ENV again.
+        // Mirror the resolved environment, including non-inherited bindings and name.
+        // Top-level options and normalized metadata are not valid inside an env block.
+        const topLevel = new Set([
+          "$schema",
+          "env",
+          "pages_build_output_dir",
+          "send_metrics",
+          "dependencies_instrumentation",
+          "dev",
+          "site",
+          "wasm_modules",
+          "text_blobs",
+          "data_blobs",
+          "alias",
+          "keep_vars",
+          "addresses",
+          "configPath",
+          "userConfigPath",
+          "topLevelName",
+          "definedEnvironments",
+          "targetEnvironment",
+        ]);
+        const env = {
+          [environment]: Object.fromEntries(
+            Object.entries(config).filter(([key]) => !topLevel.has(key)),
+          ),
+        };
+        asset.source = JSON.stringify({ ...config, env });
       },
     },
     configurePreviewServer(previewServer) {

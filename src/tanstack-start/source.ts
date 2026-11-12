@@ -4,6 +4,7 @@ import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 
 import { parseAst } from "vite";
+import MagicString from "magic-string";
 
 type Program = ReturnType<typeof parseAst>;
 type Expression = Extract<Program["body"][number], { type: "ExpressionStatement" }>["expression"];
@@ -109,11 +110,11 @@ export function transformDocumentSource(
   code: string,
   id: string,
   root: string,
-): { code: string } | undefined {
+): { code: string; map: ReturnType<MagicString["generateMap"]> } | undefined {
   // oxlint-disable-next-line eslint/no-restricted-properties -- Vite's document transform exposes a synchronous source API.
   const program = Effect.runSync(parse(code, id));
   const names = componentNames(program);
-  const edits: Array<{ start: number; end: number; value: string }> = [];
+  const transformed = new MagicString(code);
   const file = relative(resolve(root), resolve(id)).split(sep).join("/");
 
   walk(program, (node) => {
@@ -129,17 +130,12 @@ export function transformDocumentSource(
       return;
     const line = code.slice(0, node.start).split("\n").length;
     // Generated defaults precede attributes so authored and spread props retain precedence.
-    edits.push({
-      start: node.name.end,
-      end: node.name.end,
-      value: ` source=${JSON.stringify(`${file}:${line}`)}`,
-    });
+    transformed.appendLeft(node.name.end, ` source=${JSON.stringify(`${file}:${line}`)}`);
   });
 
-  if (edits.length === 0) return undefined;
-  edits.sort((a, b) => b.start - a.start);
-  let transformed = code;
-  for (const edit of edits)
-    transformed = transformed.slice(0, edit.start) + edit.value + transformed.slice(edit.end);
-  return { code: transformed };
+  if (!transformed.hasChanged()) return undefined;
+  return {
+    code: transformed.toString(),
+    map: transformed.generateMap({ hires: "boundary", source: id, includeContent: true }),
+  };
 }

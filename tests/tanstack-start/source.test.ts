@@ -1,4 +1,5 @@
 import { describe, expect, it } from "@effect/vitest";
+import { TraceMap, originalPositionFor } from "@jridgewell/trace-mapping";
 import * as React from "react";
 import { transformWithOxc } from "vite";
 
@@ -9,6 +10,28 @@ import { transformDocumentSource } from "../../src/tanstack-start/source";
 const root = "/repo";
 
 describe("document source transform", () => {
+  it("maps edited JSX and following code to their original lines and columns", () => {
+    const code = `import { T } from "pagegraph/react";
+const page = <T>Hello</T>;
+const next = <T>World</T>;
+export { page, next };`;
+    const id = "/repo/src/page.tsx";
+    const result = transformDocumentSource(code, id, root);
+    if (result === undefined) throw new Error("Expected source injection");
+    const map = new TraceMap(result.map.toString());
+    expect(map.sourcesContent).toEqual([code]);
+    for (const [index, line] of result.code.split("\n").entries()) {
+      const token = ["import", "Hello", "World", "export"][index]!;
+      expect(
+        originalPositionFor(map, { line: index + 1, column: line.indexOf(token) }),
+      ).toMatchObject({
+        source: id,
+        line: index + 1,
+        column: code.split("\n")[index]!.indexOf(token),
+      });
+    }
+  });
+
   it("adds source locations to in-place titles including aliases and namespaces", () => {
     const code =
       'import { Title as Heading } from "pagegraph/react";\nimport * as Copy from "pagegraph/react";\nconst page = <><Heading>Heading</Heading><Copy.Title>Item</Copy.Title></>;';

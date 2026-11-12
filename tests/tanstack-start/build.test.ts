@@ -62,12 +62,13 @@ async function checkFixtureClaims(directory: string, probability?: number) {
 }
 
 async function buildFixture(directory: string, claimsEnabled = false): Promise<void> {
-  await exec(node, [join(packageRoot, "node_modules/vite/bin/vite.js"), "build"], {
+  const result = await exec(node, [join(packageRoot, "node_modules/vite/bin/vite.js"), "build"], {
     cwd: directory,
     env: {
       ...process.env,
       NODE_ENV: "production",
       CI: "1",
+      CLOUDFLARE_ENV: "production",
       PAGEGRAPH_FIXTURE_CLAIMS: claimsEnabled ? "1" : undefined,
     },
     maxBuffer: 5_000_000,
@@ -79,6 +80,8 @@ async function buildFixture(directory: string, claimsEnabled = false): Promise<v
       });
     throw cause;
   });
+  expect(result.stderr).not.toContain("No environment found in configuration");
+  expect(result.stderr + result.stdout).not.toContain("SOURCEMAP_BROKEN");
 }
 
 async function nodeExecutable(): Promise<string> {
@@ -190,6 +193,19 @@ afterAll(async () => {
 });
 
 describe("rendered markdown in a real Start Worker build", () => {
+  it("preserves the capture Worker's resolved name and vars when preview selects production", async () => {
+    const config = JSON.parse(
+      await readFile(join(root, "dist/pagegraph_markdown_fixture_prerender/wrangler.json"), "utf8"),
+    );
+    expect(config.env.production.name).toBe(config.name);
+    expect(config.env.production.vars).toEqual({ TSS_PRERENDERING: "true" });
+    expect(config.env.production.main).toBe(config.main);
+    expect(config.env.production.assets).toEqual(config.assets);
+    expect(config.env.production).not.toHaveProperty("targetEnvironment");
+    const server = JSON.parse(await readFile(join(root, "dist/server/wrangler.json"), "utf8"));
+    expect(server.env).toBeUndefined();
+  });
+
   it("requires committed passing claims answers during prerender without asking a model", async () => {
     const claimsRoot = await mkdtemp(join(packageRoot, "tests/.claims-start-"));
     try {

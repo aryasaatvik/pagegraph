@@ -74,6 +74,41 @@ describe("Organization JSON-LD", () => {
     expect(organization).not.toHaveProperty("legalName");
     expect(organization).not.toHaveProperty("address");
   });
+
+  it("renders contactPoint when given and omits it when absent", () => {
+    const config = {
+      origin: "https://example.com",
+      site: {
+        name: "Example",
+        logo: "/logo.png",
+        publisherLogo: "/publisher.png",
+        defaultImage: "/og.png",
+        defaultAuthor: { name: "Example Team" },
+      },
+      website: { searchPath: "/search?q={search_term_string}" },
+    };
+    const withContact = createSeo({
+      ...config,
+      organization: {
+        description: "Example description.",
+        sameAs: [],
+        contactPoint: { contactType: "Customer Support", email: "support@example.com" },
+      },
+    });
+    const withoutContact = createSeo({
+      ...config,
+      organization: { description: "Example description.", sameAs: [] },
+    });
+
+    expect(withContact.generateOrganizationSchema()).toMatchObject({
+      contactPoint: {
+        "@type": "ContactPoint",
+        contactType: "Customer Support",
+        email: "support@example.com",
+      },
+    });
+    expect(withoutContact.generateOrganizationSchema()).not.toHaveProperty("contactPoint");
+  });
 });
 
 describe("JSON-LD composition", () => {

@@ -107,11 +107,15 @@ export function createJsonLd(config: SeoConfig): JsonLd {
     logo: absoluteUrl(origin, site.logo),
     description: organization.description,
     sameAs: [...organization.sameAs],
-    contactPoint: {
-      "@type": "ContactPoint",
-      contactType: organization.contactPoint.contactType,
-      email: organization.contactPoint.email,
-    },
+    ...(organization.contactPoint === undefined
+      ? {}
+      : {
+          contactPoint: {
+            "@type": "ContactPoint" as const,
+            contactType: organization.contactPoint.contactType,
+            email: organization.contactPoint.email,
+          },
+        }),
     ...(organization.address === undefined
       ? {}
       : {

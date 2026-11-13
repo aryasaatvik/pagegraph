@@ -43,7 +43,8 @@ export interface SeoOrganization {
   legalName?: string | undefined;
   description: string;
   sameAs: ReadonlyArray<string>;
-  contactPoint: { contactType: string; email: string };
+  /** Omitted from the Organization JSON-LD when absent; schema.org does not require it. */
+  contactPoint?: { contactType: string; email: string } | undefined;
   address?: SeoPostalAddress | undefined;
 }
 

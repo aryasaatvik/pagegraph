@@ -296,8 +296,8 @@ function Home() {
                     </b>
                     <span>
                       <T>
-                        Duplicate or mis-sized titles and descriptions, and pages older than your
-                        freshness policy.
+                        Duplicate titles and descriptions, descriptions too long for results, and
+                        pages older than your freshness policy.
                       </T>
                     </span>
                   </li>

@@ -84,14 +84,14 @@ Stdout is data, stderr is status. `pagegraph check --json | jq` just works. Chec
 
 ## Common flags
 
-| Flag                             | Applies to                                    | Meaning                                                                |
-| -------------------------------- | --------------------------------------------- | ---------------------------------------------------------------------- |
-| `--json`                         | most commands                                 | Emit versioned structured output on stdout                             |
-| `--site <url>`                   | `check`, `links candidates`                   | Fetch rendered pages from a running server                             |
-| `--allow-private`                | `check --site`, `audit`, `links`              | Permit private and reserved destinations; for local development and CI |
-| `--require-inbound "<glob>=<n>"` | `check`                                       | Override the `coverage` policy for one run                             |
-| `--limit`                        | `links verify`, `links candidates`, workflows | Bound the crawl, plan or result count                                  |
-| `--rendered <path>`              | `links verify`, `links candidates`            | Replay a saved rendered edge set instead of crawling                   |
-| `--from <run-dir\|run-id>`       | workflow commands                             | Resume a prior run                                                     |
-| `--dev <origin>`                 | `markdown`, `claims check`                    | Use the development bundle instead of the build                        |
-| `--refresh`                      | `claims check`, workflows                     | Ask again and replace cached answers                                   |
+| Flag                             | Applies to                                        | Meaning                                                                |
+| -------------------------------- | ------------------------------------------------- | ---------------------------------------------------------------------- |
+| `--json`                         | most commands                                     | Emit versioned structured output on stdout                             |
+| `--site <url>`                   | `check`, `links candidates`                       | Fetch rendered pages from a running server                             |
+| `--allow-private`                | `check --site`, `audit`, `links`, `improve links` | Permit private and reserved destinations; for local development and CI |
+| `--require-inbound "<glob>=<n>"` | `check`                                           | Override the `coverage` policy for one run                             |
+| `--limit`                        | `links verify`, `links candidates`, workflows     | Bound the crawl, plan or result count                                  |
+| `--rendered <path>`              | `links verify`, `links candidates`                | Replay a saved rendered edge set instead of crawling                   |
+| `--from <run-dir\|run-id>`       | workflow commands                                 | Resume a prior run                                                     |
+| `--dev <origin>`                 | `markdown`, `claims check`                        | Use the development bundle instead of the build                        |
+| `--refresh`                      | `claims check`, workflows                         | Ask again and replace cached answers                                   |

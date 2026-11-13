@@ -890,6 +890,14 @@ footer a {
 footer a:hover {
   color: var(--ink);
 }
+footer .family {
+  flex-basis: 100%;
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 8px;
+  align-items: center;
+}
 
 @media (max-width: 960px) {
   .wbody {

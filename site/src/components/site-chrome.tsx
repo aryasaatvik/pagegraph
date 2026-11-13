@@ -58,6 +58,13 @@ export function SiteFooter() {
           <a href={NPM_URL}>npm</a>
           <a href="/sitemap.xml">Sitemap</a>
         </nav>
+        <p className="family">
+          More from Arya Labs: <a href="https://domain-kit.dev">DomainKit</a>
+          <span aria-hidden="true">·</span>
+          <a href="https://capsuledb.arya.sh">CapsuleDB</a>
+          <span aria-hidden="true">·</span>
+          <a href="https://aryalabs.ai">aryalabs.ai</a>
+        </p>
       </div>
     </footer>
   );

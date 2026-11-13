@@ -1,0 +1,198 @@
+---
+title: Publish Markdown twins and llms.txt
+description: Capture rendered TanStack Start pages as Markdown twins at prerender, wire the Cloudflare prerender Worker, and serve a graph-derived llms.txt.
+crumb: Markdown twins
+related: ["/docs/guides/claims-gate", "/docs/reference/entries", "/docs/reference/configuration"]
+---
+
+PageGraph can capture the text of rendered pages and write a Markdown twin next to each one, such as `dist/client/pricing.md`. This guide declares rendered pages, configures the plugin and the Cloudflare prerender Worker, and serves `llms.txt`.
+
+## Author the page content
+
+Keep authored text beside its React layout. `DocumentProvider` records only its page body when supplied a collector, and ordinary rendering preserves the layout. `Title` assigns a heading to the nearest section or item, `Fact` resolves shared values, and `Visual` describes content for the Markdown document without rendering its children during capture.
+
+```tsx
+import { renderToStaticMarkup } from "react-dom/server";
+import { defineFacts, fact, documentMarkdown } from "pagegraph";
+import {
+  DocumentProvider,
+  T,
+  Title,
+  Section,
+  Fact,
+  createCollector,
+  finishDocument,
+} from "pagegraph/react";
+
+const facts = defineFacts({ attempts: fact.number(8) });
+declare module "pagegraph" {
+  interface Register {
+    facts: typeof facts;
+  }
+}
+
+const collector = createCollector({ path: "/email", site: "https://example.com", facts });
+const page = (
+  <DocumentProvider collector={collector}>
+    <Section kind="prose" id="intro">
+      <h1>
+        <Title>Email delivery</Title>
+      </h1>
+      <p>
+        <T>
+          Retry up to <Fact id="attempts" /> times.
+        </T>
+      </p>
+    </Section>
+  </DocumentProvider>
+);
+// Your SSR renderer supplies completed HTML, whose markers determine document order.
+const html = renderToStaticMarkup(page);
+const document = finishDocument(
+  collector,
+  {
+    title: "Email delivery",
+    description: "Reliable delivery with retries.",
+  },
+  html,
+);
+const markdown = documentMarkdown(document, "https://example.com");
+```
+
+Use `defineSectionKind` for custom formatting. Its markdown writer provides `text`, `heading` and `table`:
+
+```ts
+import { defineSectionKind } from "pagegraph";
+const comparison = defineSectionKind({
+  kind: "comparison",
+  markdown: (section, md) =>
+    md.heading(2, section.title) + md.table(section.items.map((item) => item.cells)),
+}); // pass kind={comparison} to Section
+```
+
+`Section.Item.Link` records a card's destination, while `CaptureAnchor` is the public anchor boundary for router `createLink` integrations. `ForAgents` and `ForHumans` mark audience-specific text, and Markdown excludes human-only content. `messageText` extracts text or inline Markdown for head metadata. The root entry also provides `hashDocument`, `createMarkdownLock`, and the pure `llmsMarkdown` and `llmsSection` string builders.
+
+## Declare rendered pages on the route
+
+Declare rendered pages on the route that owns `DocumentProvider`. Collection instances inherit these fields from their parameter route. The parameter template itself is never captured.
+
+```tsx
+import { createFileRoute } from "@tanstack/react-router";
+import { DocumentProvider, Section, T, Title } from "pagegraph/react";
+import { Link } from "pagegraph/tanstack-start/react";
+
+export const Route = createFileRoute("/pricing")({
+  staticData: {
+    seo: { kind: "page", head: { title: "Pricing", description: "Plans for your team." } },
+    markdown: "rendered",
+    llms: "Product",
+  },
+  head: () => ({
+    meta: [{ title: "Pricing" }, { name: "description", content: "Plans for your team." }],
+  }),
+  component: () => (
+    <DocumentProvider>
+      <Section kind="prose" id="plans">
+        <h1>
+          <Title>Plans for your team</Title>
+        </h1>
+        <Link to="/">
+          <T>Back home</T>
+        </Link>
+      </Section>
+    </DocumentProvider>
+  ),
+});
+```
+
+`markdown: "source"` identifies pages whose Markdown is supplied by the application. PageGraph captures only `"rendered"` pages. `llms` sets an optional llms.txt group.
+
+Use the capture-aware `Link` for authored links. It uses TanStack's ordinary Link outside a capture and records resolved anchor destinations during capture. The plugin adds `source=` locations to authored JSX imported from `pagegraph/react`. In development, `DocumentProvider` rejects a current route lacking `staticData.markdown: "rendered"`.
+
+## Configure the plugin
+
+Configure the plugin and pass its fixed capture page to Start:
+
+```ts
+import { pagegraph } from "pagegraph/tanstack-start";
+
+const graph = pagegraph({
+  origin: "https://preview.example.com", // this deployment's SEO origin
+  collections: "src/collections.ts",
+  markdown: {
+    origin: "https://example.com", // canonical document and twin links
+    serverEntry: "dist/server/index.js", // default; relative to the Vite root
+  },
+  facts: "src/facts.ts", // exports `facts`; evaluated in the pagegraph environment
+});
+
+// In your Vite plugins:
+// tanstackStart({
+//   prerender: { enabled: true, autoStaticPathsDiscovery: false, crawlLinks: false, failOnError: true },
+//   pages: [...graph.prerenderPages],
+// }), graph
+```
+
+## Wire the Cloudflare prerender Worker
+
+For Cloudflare, wire the non-deployed prerender Worker to the compiled Start server. Add this to `cloudflare()` alongside the production Worker's configuration:
+
+```ts
+experimental: {
+  prerenderWorker: {
+    config: {
+      name: "app-markdown-prerender",
+      main: "pagegraph/tanstack-start/prerender-worker",
+      compatibility_date: "2026-09-20",
+      compatibility_flags: ["nodejs_compat"],
+      vars: { TSS_PRERENDERING: "true" },
+      assets: { binding: "ASSETS", run_worker_first: true },
+    },
+  },
+},
+```
+
+Call the capture adapter before your normal Start handler, forwarding the same request options:
+
+```ts
+import handler from "@tanstack/react-start/server-entry";
+import { markdownRequest } from "pagegraph/tanstack-start/markdown";
+
+export default {
+  async fetch(request: Request) {
+    return (await markdownRequest(request)) ?? handler.fetch(request);
+  },
+};
+```
+
+Only dev and the prerender Worker capture documents. `GET` and `HEAD` on `/__pagegraph/markdown.json` capture all rendered pages. `/pricing.md` and `/pricing.document.json` capture one page in dev. Ordinary requests return `null`. In production, private capture paths return 404 and Markdown twins fall through to your static asset server. `markdownPagePaths()` exposes the concrete rendered page paths.
+
+After prerender, the plugin writes `dist/client/pricing.md` (`/` becomes `index.md`), `.pagegraph/documents/pricing.json` and `.pagegraph/heads.json`, and removes the emitted private capture response. Stale valid documents at their derived paths are pruned, and unrelated files are preserved. Ignore the private generated documents and heads in Git.
+
+## Serve llms.txt
+
+Serve graph-derived llms.txt without rendering pages:
+
+```ts
+import { createFileRoute } from "@tanstack/react-router";
+import { llmsTxt } from "pagegraph/tanstack-start/server";
+
+export const Route = createFileRoute("/llms.txt")({
+  server: { handlers: { GET: llmsTxt({ sections: ["## Docs\n\nRead our documentation."] }) } },
+});
+```
+
+`llmsSection()` returns the generated section for custom composition. It includes rendered twins and explicitly grouped pages, using graph titles and descriptions and `markdown.origin`.
+
+## Inspect and lock the documents
+
+```sh
+pagegraph markdown show /pricing
+pagegraph markdown find email
+pagegraph markdown lock
+pagegraph markdown lock --check
+```
+
+`show` prints the page's Markdown twin. `find` reports matching pages and sections. `lock` writes `.pagegraph/markdown.lock.json` from document and message hashes, including head-only pages, and `--check` exits nonzero if the lock is missing or differs. These commands use `.pagegraph/documents/` and `.pagegraph/heads.json` from the build. Use `--dev <origin>` to inspect the development bundle instead. `--json` emits structured output using the CLI's usual conventions.
+
+Markdown and claims settings come from `pagegraph()` in Vite, including the canonical Markdown origin and facts module. Built-mode commands read Vite with `command: "build"` and `mode: "production"`. `--dev` reads `command: "serve"` and `mode: "development"`. Put CLI policies and the graph loader in `pagegraph.config.ts`.

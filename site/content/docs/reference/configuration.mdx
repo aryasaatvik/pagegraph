@@ -1,0 +1,96 @@
+---
+title: Configuration
+description: Options for the pagegraph() Vite plugin, createSeo, and the defineSeoConfig fields in pagegraph.config.ts, with defaults and what each controls.
+crumb: Configuration
+related: ["/docs/reference/check-rules", "/docs/reference/entries", "/docs/quick-start"]
+---
+
+PageGraph is configured in two places. `pagegraph()` in `vite.config.ts` holds site, robots, collections, Markdown and claims settings. `pagegraph.config.ts` holds CLI policies and the graph loader. Option names below come from the types in the package source.
+
+## pagegraph() plugin options
+
+Imported from `pagegraph/tanstack-start`.
+
+| Option            | Type                                              | What it does                                                                                                                                                                                       |
+| ----------------- | ------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `origin`          | `string`                                          | This build's canonical origin, no trailing slash, such as `https://example.com`. Required                                                                                                          |
+| `indexable`       | `boolean`                                         | Whether this host may be indexed. A non-indexable build serves a disallow-all `robots.txt` with no Sitemap line. Defaults to `true`                                                                |
+| `robots`          | `{ disallow, contentSignal, directives }`         | `disallow`: path prefixes disallowed on an indexable host, beyond the route-config exclusions. `contentSignal`: the `Content-Signal` value. `directives`: extra lines in the `User-agent: *` group |
+| `collections`     | `string`                                          | Root-relative module whose `collections` export is a `SeoCollection[]`, or a function returning one (sync or async)                                                                                |
+| `routeConfig`     | object                                            | Generates the route-config module and enforces per-group SEO coverage. Its robots exclusions join `robots.disallow`. See below                                                                     |
+| `markdown`        | `{ origin, serverEntry }`                         | `origin`: canonical origin for rendered documents and twin links. `serverEntry`: relative to the Vite root, default `dist/server/index.js`                                                         |
+| `facts`           | `string`                                          | Root-relative module exporting the code-owned document facts as `facts`                                                                                                                            |
+| `claims`          | `{ rules, model, cutoff, context, excludeHeads }` | Committed claims answers gate rendered documents and graph heads at build time. See [Gate claims in page copy](/docs/guides/claims-gate)                                                           |
+| `ogImage`         | `OgImageResolver`                                 | Fallback social image resolver. Use the same one in `createSeo`. See [Add per-page Open Graph images](/docs/guides/og-images)                                                                      |
+| `exclude`         | `string[]`                                        | Route-file globs, relative to the routes directory, that are never evaluated for the graph. Their paths stay out of the graph                                                                      |
+| `routesDirectory` | `string`                                          | Relative to the Vite root. Defaults to `src/routes`                                                                                                                                                |
+
+`pagegraph()` returns an object with `prerenderPages`, which you pass to TanStack Start's `pages` option when you capture rendered Markdown.
+
+### routeConfig
+
+The same options as `seoRouteConfig` from `pagegraph/vite`, without `routesDirectory`.
+
+| Option              | What it does                                                                    |
+| ------------------- | ------------------------------------------------------------------------------- |
+| `outputPath`        | Absolute path the generated route-config module is written to                   |
+| `publicGroups`      | Route groups whose page leaves form the public surface. Include the parens      |
+| `enforceCoverageIn` | Route groups where every page leaf must declare `staticData` or `head`          |
+| `disallowGroups`    | Route groups whose page paths are disallowed in `robots.txt`, such as auth      |
+| `extraPublicRoutes` | Public routes outside any group folder, so nothing discovers them               |
+| `reservedExtras`    | Reserved top-level segments that are not route-tree paths, such as an API mount |
+| `alwaysDisallow`    | Prefixes always disallowed in `robots.txt`, route tree or not                   |
+
+`routeConfig.outputPath` must be in an existing directory outside `src/routes`, so the route watcher does not loop. See [Enforce route coverage in Vite](/docs/guides/coverage-gate).
+
+## createSeo options
+
+Imported from `pagegraph/react`. `createSeo` binds site identity once so route files never repeat it.
+
+| Option          | What it does                                                                                              |
+| --------------- | --------------------------------------------------------------------------------------------------------- |
+| `origin`        | Canonical origin, no trailing slash                                                                       |
+| `site`          | Site identity: `name`, `logo`, `publisherLogo`, `defaultImage`, `defaultAuthor`                           |
+| `organization`  | Organization data for JSON-LD: `legalName`, `description`, `sameAs`, `contactPoint`                       |
+| `website`       | Website data for JSON-LD, such as `searchPath`                                                            |
+| `jsonLd`        | Optional JSON-LD configuration                                                                            |
+| `ogImage`       | Resolver shared with `pagegraph({ ogImage })` so rendered tags and graph heads agree                      |
+| `transformHead` | Last-mile override for every head `seoHead` renders. Runs after the canonical, title template and JSON-LD |
+
+## Route declaration
+
+The route's `staticData.seo` accepts these policy fields: `kind`, `crumb`, `sitemap` (or `false`), `robots`, `related`, `link`, `redirectTo`, `modifiedAt` and `titleTemplate`. `head` holds the full `title` and `description`, plus optional `faqs`, `article`, `service`, `itemList`, `jsonLd`, `ogTitle`, `canonicalPath`, `breadcrumbs` and `image`. `crumb` accepts `(match) => string` for dynamic segments. `staticData.markdown` is `"rendered"` or `"source"`, and `staticData.llms` sets the llms.txt group.
+
+Write `staticData` as an object literal and `head: seo.head`. The coverage gate reads both keys statically, and a helper call would make TanStack infer `any` search and loader types for the route tree.
+
+## defineSeoConfig fields
+
+Imported from `pagegraph/config`, in `pagegraph.config.ts`.
+
+| Field        | What it does                                                                                                                              |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `loadGraph`  | How the CLI gets the graph. Required. Use `tanstackStartGraph({ root })` in a Start app, or `viteGraphLoader` otherwise                   |
+| `coverage`   | `{ path, minInbound }[]`. Every sitemap-eligible page matching the glob needs `minInbound` incoming `related` edges                       |
+| `content`    | `{ minWords: { path, minWords }[] }`. Word-count floors per path glob for `check --site`; a page matching several rules meets the highest |
+| `freshness`  | `{ maxAgeDays }`. Turns older pages into `stale-page` findings                                                                            |
+| `ogImage`    | `{ severity, publicDirectory }`. `severity` is `"structural"` (default), `"editorial"` or `"off"`. `publicDirectory` defaults to `public` |
+| `transform`  | Last-mile `robots.txt` override, forwarded to `renderRobots`. Runs for indexable and preview hosts                                        |
+| `workflows`  | Agent workflow settings. See below                                                                                                        |
+| `openrouter` | `{ referer, title }`. App attribution for OpenRouter decision and agent requests                                                          |
+
+`tanstackStartGraph` returns the graph and site identity from the Vite plugin. It uses the built site by default. Pass `command: "serve", mode: "development"` to inspect a development configuration. Keep origin, indexability and robots settings in `pagegraph()`.
+
+### workflows
+
+| Field                   | What it does                                                                                                    |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `agent.presetDirectory` | Project-owned agent preset directory, relative to the project root                                              |
+| `agent.defaultModel`    | Default `provider/model` used by agentic workflows                                                              |
+| `agent.models`          | Per-workflow `provider/model` overrides, such as `"research.keywords"`                                          |
+| `agent.timeoutMs`       | Deadline in milliseconds for each Pi research or action turn. Default `180000`                                  |
+| `context.files`         | Durable project context included in every workflow prompt                                                       |
+| `context.byWorkflow`    | Additional context files keyed by workflow id                                                                   |
+| `repositoryRoot`        | Read root, relative to the config directory. Defaults to its Git top level, or the config directory outside Git |
+| `runsDirectory`         | Ignored run-artifact directory, relative to the project root                                                    |
+
+See [Run agent workflows](/docs/guides/agent-workflows) for how these are used.

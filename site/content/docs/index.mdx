@@ -1,0 +1,39 @@
+---
+title: Documentation
+description: PageGraph declares SEO on each TanStack route and derives the head, sitemap, robots.txt, JSON-LD and CI checks from that one declaration.
+crumb: Docs
+related: ["/docs/quick-start", "/docs/concepts/the-graph"]
+---
+
+PageGraph is an npm library for route-declared SEO in TanStack Start and TanStack Router. Each route declares its SEO policy and head once, in `staticData.seo`. The `<head>`, sitemap, `robots.txt`, breadcrumbs, JSON-LD, cross-links and the CI check all derive from that declaration, so there are no files to keep in sync by hand.
+
+The `pagegraph()` Vite plugin builds a graph from your routes inside your app's own Vite pipeline. The `pagegraph` CLI reads the same graph, so `pagegraph check` can fail a build when a declaration is broken. With the opt-in coverage gate, a page in an enforced route group that declares neither `staticData` nor `head` fails the build.
+
+## Where to go
+
+### Tutorial
+
+- [Quick start](/docs/quick-start): add PageGraph to an existing TanStack Start app and run `pagegraph check`.
+
+### How-to guides
+
+- [Gate CI with pagegraph check](/docs/guides/ci-check)
+- [Add per-page Open Graph images](/docs/guides/og-images)
+- [Publish Markdown twins and llms.txt](/docs/guides/markdown-twins)
+- [Enforce route coverage in Vite](/docs/guides/coverage-gate)
+- [Check contextual links](/docs/guides/contextual-links)
+- [Gate claims in page copy](/docs/guides/claims-gate)
+- [Run agent workflows](/docs/guides/agent-workflows)
+- [Audit any website](/docs/guides/audit)
+- [Use PageGraph without TanStack Start](/docs/guides/without-tanstack-start)
+
+### Reference
+
+- [CLI commands](/docs/reference/cli)
+- [Package entries](/docs/reference/entries)
+- [Check rules](/docs/reference/check-rules)
+- [Configuration](/docs/reference/configuration)
+
+### Explanation
+
+- [The graph](/docs/concepts/the-graph)

@@ -1,0 +1,160 @@
+---
+title: Quick start
+description: Add PageGraph to an existing TanStack Start app in five steps and finish by running pagegraph check against your own routes.
+crumb: Quick start
+related: ["/docs/guides/ci-check", "/docs/concepts/the-graph", "/docs/reference/configuration"]
+---
+
+This tutorial adds PageGraph to an existing TanStack Start app. You bind your site identity, declare one page, register the Vite plugin, serve `robots.txt` and `sitemap.xml`, and finish by running `pagegraph check`.
+
+## Install
+
+```bash
+bun add pagegraph
+bun add -D lighthouse   # only for `pagegraph audit` performance evidence
+```
+
+The `pagegraph` CLI runs on [Bun](https://bun.sh), for example `bunx pagegraph`.
+
+## 1. Bind your site identity once
+
+Route files never see an origin or a brand name.
+
+```ts
+// lib/seo.ts
+import { createSeo } from "pagegraph/react";
+
+const site = createSeo({
+  origin: "https://example.com",
+  site: {
+    name: "Example",
+    logo: "/logo.png",
+    publisherLogo: "/publisher.png",
+    defaultImage: "/og.png",
+    defaultAuthor: { name: "Example Team" },
+  },
+  organization: {
+    legalName: "Example, Inc.",
+    description: "What the company does.",
+    sameAs: ["https://github.com/example"],
+    contactPoint: { contactType: "support", email: "hi@example.com" },
+  },
+  website: { searchPath: "/docs?q={search_term_string}" },
+});
+
+export const seo = site; // seo.head for static routes
+export const { seoHead } = site;
+```
+
+## 2. Declare each page once
+
+`staticData.seo` holds the crawl policy and the head together, and `seo.head` renders it. The graph and the checks read the same `staticData.seo.head`, so the page and the graph cannot disagree.
+
+```tsx
+export const Route = createFileRoute("/pricing")({
+  staticData: {
+    seo: {
+      kind: "page",
+      crumb: "Pricing",
+      sitemap: { priority: 0.9, changeFrequency: "weekly" },
+      related: ["/features", "/docs"],
+      link: { title: "Pricing", description: "Simple volume pricing." },
+      modifiedAt: "2026-09-29", // sitemap <lastmod> and the freshness report
+      head: {
+        title: "Pricing — Example",
+        description: "Simple volume pricing.",
+        faqs: pricingFaqs,
+      },
+    },
+  },
+  head: seo.head,
+  component: PricingPage,
+});
+```
+
+`seo.head` returns the `meta` and canonical `links` that TanStack renders into `<head>`: title, description, Open Graph and Twitter cards, robots, and the JSON-LD each page warrants. A BreadcrumbList is added on the matched leaf when its crumb trail has two or more entries. Article, FAQPage, Service and ItemList are added when the head declares them.
+
+A route that renders from `loaderData` calls `seoHead(ctx, instance)` in its own `head()` and declares a `titleTemplate` such as `"%s | Example Blog"`. `seoHead` applies it, and the graph applies it to the route's collection pages.
+
+## 3. Register the plugin
+
+The plugin builds the graph once per build, and on change in dev, inside your app's Vite pipeline. Path aliases, `define`s and content plugins such as Fumadocs apply, with no stubs. It ships the graph to the server runtime as data.
+
+```ts
+// vite.config.ts
+import { pagegraph } from "pagegraph/tanstack-start";
+
+pagegraph({
+  origin: "https://example.com",
+  indexable: process.env.DEPLOY_ENV === "production", // previews disallow everything
+  robots: { contentSignal: "search=yes, ai-input=yes, ai-train=yes" },
+  collections: "src/lib/seo/collections.ts",
+  routeConfig: {
+    outputPath: fileURLToPath(new URL("./src/lib/route-config.ts", import.meta.url)),
+    publicGroups: ["(marketing)", "(docs)"],
+    enforceCoverageIn: ["(marketing)", "(docs)"],
+    alwaysDisallow: ["/dashboard", "/api"],
+  },
+});
+```
+
+Pages that render from a content source, such as blog posts under `/blog/$slug`, enter the graph through a collections module:
+
+```ts
+// src/lib/seo/collections.ts — evaluated in the app's Vite pipeline
+import { contentCollection } from "pagegraph";
+import { blogSource } from "../blog-source"; // e.g. a Fumadocs loader()
+
+export const collections = () => [
+  contentCollection({
+    route: "/blog/$slug",
+    source: "blog",
+    pages: blogSource.getPages(),
+    entry: (page) => ({
+      title: page.data.title,
+      description: page.data.description,
+      publishedAt: page.data.date,
+      related: page.data.related,
+    }),
+  }),
+];
+```
+
+The plugin evaluates every route file that declares `staticData`, never the generated route tree, in a Node environment named `pagegraph`. A route that imports a module only the server runtime provides, such as `cloudflare:workers`, fails with its file name. Add an app-only route to `exclude` (route-file globs).
+
+## 4. Serve robots.txt and sitemap.xml
+
+One line each. The output depends on the deployment's origin and indexability, so they stay routes.
+
+```ts
+// src/routes/robots[.]txt.ts — sitemap[.]xml.ts is symmetric with sitemapXml
+import { robotsTxt } from "pagegraph/tanstack-start/server";
+
+export const Route = createFileRoute("/robots.txt")({ server: { handlers: { GET: robotsTxt } } });
+```
+
+## 5. Gate CI
+
+The CLI reads the same graph through `pagegraph.config.ts`:
+
+```ts
+// pagegraph.config.ts
+import { defineSeoConfig } from "pagegraph/config";
+import { tanstackStartGraph } from "pagegraph/tanstack-start";
+
+export default defineSeoConfig({
+  loadGraph: tanstackStartGraph({ root: import.meta.dirname }),
+});
+```
+
+Run the check from the app root:
+
+```bash
+pagegraph check
+```
+
+It exits 1 on structural violations and reports editorial findings without failing. Stdout is data and stderr is status, so `pagegraph check --json | jq` works.
+
+## Next steps
+
+Run `pagegraph check` in CI, and add `--site` to check the rendered HTML as well. See [Gate CI with pagegraph check](/docs/guides/ci-check). To see why one declaration can drive all of these outputs, read [The graph](/docs/concepts/the-graph).

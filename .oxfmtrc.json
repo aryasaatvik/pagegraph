@@ -6,6 +6,11 @@
     "CHANGELOG.md",
     "tests/fixtures/**/.pagegraph/**",
     "tests/fixtures/**/.wrangler/**",
-    "tests/fixtures/**/routeTree.gen.ts"
+    "tests/fixtures/**/routeTree.gen.ts",
+    "site/.cloudflare/**",
+    "site/.source/**",
+    "site/.pagegraph/**",
+    "site/.tanstack/**",
+    "site/src/routeTree.gen.ts"
   ]
 }

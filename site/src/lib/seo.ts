@@ -18,8 +18,6 @@ export const seo = createSeo({
     legalName: "PageGraph",
     description: "Route-declared SEO for TanStack Start and TanStack Router.",
     sameAs: ["https://github.com/aryasaatvik/pagegraph", "https://www.npmjs.com/package/pagegraph"],
-    // TODO(site): the public contact address is pending the maintainer's choice; deploy waits on it.
-    contactPoint: { contactType: "support", email: "TODO@pagegraph.arya.sh" },
   },
   // /docs filters its page list by ?q=, so the sitelinks search target is real.
   website: { searchPath: "/docs?q={search_term_string}" },

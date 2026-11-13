@@ -9,7 +9,7 @@
     "dev": "node scripts/sync-media.ts && cf dev",
     "build": "node scripts/sync-media.ts && cf build",
     "check": "node scripts/sync-media.ts && pagegraph check",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "fumadocs-mdx && tsc --noEmit",
     "deploy": "node scripts/sync-media.ts && cf deploy",
     "deploy:dry-run": "node scripts/sync-media.ts && cf deploy --dry-run"
   },

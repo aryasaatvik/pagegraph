@@ -15,20 +15,20 @@ accent, red only where a check fails. Tokens live in `src/styles.css` (site) and
 
 ## Colour
 
-| Token               | Light                   | Dark                     | Use                                                |
-| ------------------- | ----------------------- | ------------------------ | -------------------------------------------------- |
-| `--canvas`          | `#fafafa`               | `#111111`                | Page ground                                        |
-| `--card`            | `#ffffff`               | `#171717`                | Windows, code panels, tables, cards                |
-| `--inset`           | `#f4f4f4`               | `#1f1f1f`                | Inline code, hover fills                           |
-| `--hairline`        | `#ebebeb`               | `#262626`                | Dividers                                           |
-| `--hairline-strong` | `#d4d4d4`               | `#3a3a3a`                | Crumb edges, stronger dividers                     |
-| `--ink`             | `#171717`               | `#ededed`                | Text, primary button                               |
-| `--body`            | `#4d4d4d`               | `#a1a1a1`                | Secondary text                                     |
-| `--mute`            | `#6b6b6b`               | `#8f8f8f`                | Labels, captions (4.5:1 on canvas)                 |
-| `--link`            | `#1a3fd1`               | `#8fb0ff`                | Related edges, selected page, mark root, links     |
-| `--fail`            | `#d32020`               | `#ff6166`                | Failing check output only                          |
-| `--band`            | `#0a0a0a`               | `#000000`                | The CI-gate band (always dark)                     |
-| Code                | str `#0b6e4f`, num `#a3500b`, key `#1a3fd1`, kw ink 600 | str `#6fd3a8`, num `#f0b072`, key `#8fb0ff` | Hand-set code on the landing page |
+| Token               | Light                                                   | Dark                                        | Use                                            |
+| ------------------- | ------------------------------------------------------- | ------------------------------------------- | ---------------------------------------------- |
+| `--canvas`          | `#fafafa`                                               | `#111111`                                   | Page ground                                    |
+| `--card`            | `#ffffff`                                               | `#171717`                                   | Windows, code panels, tables, cards            |
+| `--inset`           | `#f4f4f4`                                               | `#1f1f1f`                                   | Inline code, hover fills                       |
+| `--hairline`        | `#ebebeb`                                               | `#262626`                                   | Dividers                                       |
+| `--hairline-strong` | `#d4d4d4`                                               | `#3a3a3a`                                   | Crumb edges, stronger dividers                 |
+| `--ink`             | `#171717`                                               | `#ededed`                                   | Text, primary button                           |
+| `--body`            | `#4d4d4d`                                               | `#a1a1a1`                                   | Secondary text                                 |
+| `--mute`            | `#6b6b6b`                                               | `#8f8f8f`                                   | Labels, captions (4.5:1 on canvas)             |
+| `--link`            | `#1a3fd1`                                               | `#8fb0ff`                                   | Related edges, selected page, mark root, links |
+| `--fail`            | `#d32020`                                               | `#ff6166`                                   | Failing check output only                      |
+| `--band`            | `#0a0a0a`                                               | `#000000`                                   | The CI-gate band (always dark)                 |
+| Code                | str `#0b6e4f`, num `#a3500b`, key `#1a3fd1`, kw ink 600 | str `#6fd3a8`, num `#f0b072`, key `#8fb0ff` | Hand-set code on the landing page              |
 
 Docs code uses Shiki's `github-light` / `github-dark` through `--shiki-light` / `--shiki-dark`.
 Blue means "a link": never use it for emphasis or decoration. Red never appears outside failure

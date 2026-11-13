@@ -781,8 +781,9 @@ severities:
   contextual-link coverage rule, or a published URL the rendered `robots.txt`
   disallows for `User-agent: *` (`robots-blocks-sitemap-url`: every sitemap page,
   `/sitemap.xml`, and `/llms.txt` when the graph declares it).
-- **editorial** — quality smells, reported but non-failing: duplicate or mis-sized
-  titles and descriptions, and pages older than the freshness policy.
+- **editorial** — quality smells, reported but non-failing: duplicate titles and
+  descriptions, descriptions longer than search results show, and pages older than the
+  freshness policy.
 
 Each sitemap entry's `<lastmod>` is the page's last declared change: an
 instance's `modifiedAt`, else its `publishedAt`; a route's `modifiedAt`. A param

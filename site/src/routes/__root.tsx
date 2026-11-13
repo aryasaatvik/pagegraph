@@ -2,6 +2,7 @@ import { createRootRoute, HeadContent, Link, Outlet, Scripts } from "@tanstack/r
 
 import { SiteFooter, SiteHeader } from "../components/site-chrome";
 import { themeScript } from "../components/theme";
+import { seo } from "../lib/seo";
 import styles from "../styles.css?url";
 
 export const Route = createRootRoute({
@@ -11,6 +12,8 @@ export const Route = createRootRoute({
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { name: "theme-color", content: "#fafafa", media: "(prefers-color-scheme: light)" },
       { name: "theme-color", content: "#111111", media: "(prefers-color-scheme: dark)" },
+      // seo.head emits per-page JSON-LD; the site's Organization and WebSite graph is emitted once here.
+      { "script:ld+json": seo.generateSiteGraphSchema() },
     ],
     links: [
       { rel: "stylesheet", href: styles },

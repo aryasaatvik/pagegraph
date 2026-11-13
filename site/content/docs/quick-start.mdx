@@ -63,6 +63,7 @@ export const Route = createFileRoute("/pricing")({
       head: {
         title: "Pricing — Example",
         description: "Simple volume pricing.",
+        image: { url: "/og/pricing.png", width: 1200, height: 630, alt: "Example pricing" },
         faqs: pricingFaqs,
       },
     },
@@ -73,6 +74,8 @@ export const Route = createFileRoute("/pricing")({
 ```
 
 `seo.head` returns the `meta` and canonical `links` that TanStack renders into `<head>`: title, description, Open Graph and Twitter cards, robots, and the JSON-LD each page warrants. A BreadcrumbList is added on the matched leaf when its crumb trail has two or more entries. Article, FAQPage, Service and ItemList are added when the head declares them.
+
+Every sitemap page needs a social image: `pagegraph check` fails a page without one, and a same-origin image must exist under `public/`. Declare `image` per page as above, or resolve every page's image from one function with [Add per-page Open Graph images](/docs/guides/og-images).
 
 A route that renders from `loaderData` calls `seoHead(ctx, instance)` in its own `head()` and declares a `titleTemplate` such as `"%s | Example Blog"`. `seoHead` applies it, and the graph applies it to the route's collection pages.
 

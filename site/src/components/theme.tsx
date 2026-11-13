@@ -13,7 +13,14 @@ function currentTheme(): Theme {
 
 export function ThemeToggle() {
   const [theme, setTheme] = useState<Theme | undefined>(undefined);
-  useEffect(() => setTheme(currentTheme()), []);
+  useEffect(() => {
+    setTheme(currentTheme());
+    // With no stored choice the page follows the OS, so the button has to follow it too.
+    const query = matchMedia("(prefers-color-scheme: dark)");
+    const sync = () => setTheme(currentTheme());
+    query.addEventListener("change", sync);
+    return () => query.removeEventListener("change", sync);
+  }, []);
   const next: Theme = theme === "dark" ? "light" : "dark";
   return (
     <button
@@ -21,6 +28,7 @@ export function ThemeToggle() {
       type="button"
       aria-label={`Switch to ${next} theme`}
       onClick={() => {
+        const next: Theme = currentTheme() === "dark" ? "light" : "dark";
         document.documentElement.dataset.theme = next;
         try {
           localStorage.setItem("pg-theme", next);

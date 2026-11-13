@@ -27,6 +27,8 @@ These rules run on the declared graph with `pagegraph check`.
 | `inbound-link-coverage`         | structural | A page below its `minInbound` count of incoming `related` edges                            |
 | `coverage-rule-unmatched`       | structural | A coverage rule that matches no sitemap-eligible page                                      |
 | `missing-og-image`              | structural | A sitemap-eligible page without a resolved image; severity follows the `ogImage` policy    |
+| `invalid-og-image`              | structural | An image URL that is not HTTP(S) or a local path; severity follows the `ogImage` policy    |
+| `missing-og-image-file`         | structural | A same-origin image with no file under `public/`; severity follows the `ogImage` policy    |
 | `robots-blocks-sitemap-url`     | structural | A published URL the rendered `robots.txt` disallows for `User-agent: *`                    |
 | `duplicate-title`               | editorial  | A title shared by several pages                                                            |
 | `duplicate-description`         | editorial  | A description shared by several pages                                                      |
@@ -37,7 +39,7 @@ Dates (`publishedAt`, `modifiedAt`, a route's `modifiedAt`) become the sitemap's
 
 ### missing-og-image
 
-Fails sitemap-eligible pages without a resolved image. Same-origin images must name files under the app's `public/` directory, including absolute URLs resolved from local paths. External URLs are not fetched. Set `ogImage.severity` to `"editorial"` to warn, or `"off"` to skip both image checks. See [Add per-page Open Graph images](/docs/guides/og-images).
+Fails sitemap-eligible pages without a resolved image. Same-origin images must name files under the app's `public/` directory, including absolute URLs resolved from local paths. External URLs are not fetched. Set `ogImage.severity` to `"editorial"` to warn, or `"off"` to skip all three image checks. See [Add per-page Open Graph images](/docs/guides/og-images).
 
 ### robots-blocks-sitemap-url
 

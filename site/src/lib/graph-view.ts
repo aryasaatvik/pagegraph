@@ -14,6 +14,8 @@ export interface GraphViewNode {
   parent: string | undefined;
   priority: number | undefined;
   lastmod: string | undefined;
+  /** The Markdown twin the build serves for this page, when it declares one. */
+  markdown: string | undefined;
 }
 
 export interface GraphView {
@@ -32,6 +34,9 @@ export const getGraphView = createServerFn({ method: "GET" }).handler(
   async (): Promise<GraphView> => {
     // Imported here: route files are also evaluated by the graph build, where the runtime has no graph.
     const { seoGraph, seoSite } = await import("pagegraph/tanstack-start/server");
+    const { docsEntries } = await import("./docs-source");
+    // Collection policies carry no crumb; the docs page reads it from frontmatter, and so does this view.
+    const docsCrumbs = new Map(docsEntries().map((entry) => [entry.url, entry.crumb]));
     const graph = seoGraph();
     const pages = [...graph.nodes.values()].filter(
       (node) => !node.path.includes("$") && node.policy.sitemap !== false && node.head?.title,
@@ -59,7 +64,8 @@ export const getGraphView = createServerFn({ method: "GET" }).handler(
       const node = graph.nodes.get(path)!;
       const sitemap = node.policy.sitemap === false ? undefined : node.policy.sitemap;
       const title = node.head?.title ?? path;
-      const crumb = typeof node.policy.crumb === "string" ? node.policy.crumb : undefined;
+      const crumb =
+        typeof node.policy.crumb === "string" ? node.policy.crumb : docsCrumbs.get(node.path);
       return {
         path,
         title,
@@ -70,6 +76,8 @@ export const getGraphView = createServerFn({ method: "GET" }).handler(
         parent: parentOf.get(path),
         priority: sitemap?.priority,
         lastmod: node.instance?.modifiedAt ?? node.policy.modifiedAt,
+        markdown:
+          node.markdown === undefined ? undefined : path === "/" ? "/index.md" : `${path}.md`,
       };
     });
     const related = graph.edges

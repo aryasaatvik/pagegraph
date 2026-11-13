@@ -257,8 +257,12 @@ export function GraphWindow({ view }: { view: GraphView }) {
               )}
               <dt>{crumbs.length > 1 ? "Breadcrumb" : "JSON-LD"}</dt>
               <dd>{crumbs.length > 1 ? crumbs.join(" › ") : "WebSite, Organization"}</dd>
-              <dt>Markdown</dt>
-              <dd>{node.path === "/" ? "/index.md" : `${node.path}.md`}</dd>
+              {node.markdown !== undefined && (
+                <>
+                  <dt>Markdown</dt>
+                  <dd>{node.markdown}</dd>
+                </>
+              )}
             </dl>
           </section>
         </div>

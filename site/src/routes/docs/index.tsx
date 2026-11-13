@@ -8,10 +8,12 @@ import { seo } from "../../lib/seo";
 
 const clientLoader = browserCollections.docs.createClientLoader({
   component({ default: MDX }, props: { data: DocsPageData; query: string }) {
+    // While results show, the article and its contents links are hidden together.
+    const searching = props.query.trim() !== "";
     return (
-      <DocsLayout data={props.data}>
+      <DocsLayout data={searching ? { ...props.data, toc: [] } : props.data}>
         <DocsSearch data={props.data} query={props.query} />
-        {props.query === "" && <MDX />}
+        {!searching && <MDX />}
       </DocsLayout>
     );
   },

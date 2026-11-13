@@ -20,8 +20,8 @@ export const declare: SceneMarkup = {
         <Line a="title">Declare it once, on the route.</Line>
       </h1>
       <p data-a="sub" className="pg-sub pg-abs" style={{ left: 120, top: 250 }}>
-        <span className="pg-mono pg-lime">staticData.seo</span> holds the crawl policy and the head
-        together. <span className="pg-mono">seo.head</span> renders it.
+        <span className="pg-mono pg-accent">staticData.seo</span> holds the crawl policy and the
+        head together. <span className="pg-mono">seo.head</span> renders it.
       </p>
       <Code
         code={pricingRoute.code}
@@ -39,7 +39,7 @@ export const declare: SceneMarkup = {
       />
       <Card
         a="out-head"
-        tone="lime"
+        tone="accent"
         label="<head> from seo.head"
         style={{ left: 1220, top: 330, width: 580, height: 270 }}
       >

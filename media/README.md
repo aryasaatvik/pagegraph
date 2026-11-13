@@ -85,3 +85,12 @@ regenerate `exports/` locally when the film or stills change.
 
 After changing media, run the root `bun run format:check` (it covers this directory) and
 `git diff --check`.
+
+## Palette
+
+The launch media matches the site's light identity: flat `#fafafa` canvas, white panels with
+`#ebebeb` hairlines, `#171717` ink, and `#1a3fd1` link-blue declarations and edges. Numbered
+markers use ink with near-white text. Red (`#d32020`) is reserved for failures and broken copies.
+Code highlights use opaque washes precomposited over white (`#e8edfb` blue, `#fdecec` red), so
+text never blends through a highlight layer. The fonts, layouts, timings, and export sizes are
+unchanged; every export is regenerated from these sources using software rendering.

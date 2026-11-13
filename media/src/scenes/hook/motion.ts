@@ -14,10 +14,10 @@ export const hook: SceneMotion = (tl, root) => {
   rise(tl, one(root, "renamed"), 3.3, { x: -20, y: 0, duration: 0.5 });
   tl.to(
     all(root, "copy-dot"),
-    { backgroundColor: "var(--pg-coral)", duration: 0.2, stagger: 0.14 },
+    { backgroundColor: "var(--pg-fail)", duration: 0.2, stagger: 0.14 },
     3.7,
   );
-  tl.to(all(root, "copy"), { borderColor: "var(--pg-coral)", duration: 0.2, stagger: 0.14 }, 3.7);
+  tl.to(all(root, "copy"), { borderColor: "var(--pg-fail)", duration: 0.2, stagger: 0.14 }, 3.7);
   tl.to(all(root, "copy-value"), { color: "var(--pg-soft)", duration: 0.2, stagger: 0.14 }, 3.7);
   lift(tl, all(root, "headline"), 4.6, { duration: 0.8, stagger: 0.7 });
   exit(tl, root, 6.5);

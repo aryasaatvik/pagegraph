@@ -52,7 +52,7 @@ export const declarationStill: SceneMarkup = {
         style={{ left: 120, top: 150, fontSize: 64, whiteSpace: "nowrap" }}
       >
         Declare once in{" "}
-        <span className="pg-mono pg-lime" style={{ fontSize: 58 }}>
+        <span className="pg-mono pg-accent" style={{ fontSize: 58 }}>
           staticData.seo
         </span>
       </h1>
@@ -69,7 +69,7 @@ export const declarationStill: SceneMarkup = {
       {fields.map((field, index) => (
         <span
           key={field.field}
-          className="pg-badge pg-badge--lime pg-abs"
+          className="pg-badge pg-badge--solid pg-abs"
           style={{
             left: 103,
             top: BODY + field.line * LINE + LINE / 2 - 17,
@@ -100,7 +100,7 @@ export const declarationStill: SceneMarkup = {
         {fields.map((field, index) => (
           <li key={field.field} style={{ display: "flex", gap: 18 }}>
             <span
-              className="pg-badge pg-badge--lime"
+              className="pg-badge pg-badge--solid"
               style={{
                 height: 34,
                 minWidth: 34,
@@ -112,7 +112,7 @@ export const declarationStill: SceneMarkup = {
               {index + 1}
             </span>
             <div>
-              <div className="pg-mono pg-lime" style={{ fontSize: 23, fontWeight: 600 }}>
+              <div className="pg-mono pg-accent" style={{ fontSize: 23, fontWeight: 600 }}>
                 {field.field}
               </div>
               <div style={{ fontSize: 22, lineHeight: 1.3, marginTop: 4 }}>{field.derives}</div>

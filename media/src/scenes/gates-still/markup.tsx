@@ -71,7 +71,7 @@ export const gatesStill: SceneMarkup = {
         {gates.map((gate, index) => (
           <section key={gate.stage} style={{ flex: "1 1 0", minWidth: 0 }}>
             <span
-              className="pg-badge pg-badge--lime"
+              className="pg-badge pg-badge--solid"
               style={{
                 height: 36,
                 minWidth: 36,
@@ -105,7 +105,7 @@ export const gatesStill: SceneMarkup = {
                     fontSize: 25,
                     lineHeight: 1.4,
                     paddingLeft: 18,
-                    borderLeft: `3px solid ${item.startsWith("Opt in") ? "var(--pg-line-strong)" : "var(--pg-lime)"}`,
+                    borderLeft: `3px solid ${item.startsWith("Opt in") ? "var(--pg-line-strong)" : "var(--pg-accent)"}`,
                   }}
                 >
                   {item}

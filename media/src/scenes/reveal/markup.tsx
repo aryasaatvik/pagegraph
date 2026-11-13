@@ -55,7 +55,7 @@ export const reveal: SceneMarkup = {
         style={{ left: 0, right: 0, top: 880, display: "flex", justifyContent: "center", gap: 20 }}
       >
         {facts.map((fact, index) => (
-          <Chip key={fact} a="fact" lime={index === 0}>
+          <Chip key={fact} a="fact" accent={index === 0}>
             {fact}
           </Chip>
         ))}

@@ -9,7 +9,7 @@ import type { Size } from "../scene";
 /** Spline Sans Mono advances every glyph 1200 of 2000 units: 0.6em. */
 export const MONO_ADVANCE = 0.6;
 
-/** The mark: one declared node (lime) feeding two derived nodes (ink outline). */
+/** The mark: one declared node (accent) feeding two derived nodes (ink outline). */
 export function Mark({ height, a }: { height: number; a?: string }) {
   const part = (name: string) => (a === undefined ? undefined : `${a}-${name}`);
   return (
@@ -29,7 +29,7 @@ export function Mark({ height, a }: { height: number; a?: string }) {
         strokeLinejoin="round"
         pathLength={1}
       />
-      <rect data-a={part("root")} x="1" y="10" width="12" height="12" fill="var(--pg-lime)" />
+      <rect data-a={part("root")} x="1" y="10" width="12" height="12" fill="var(--pg-accent)" />
       <rect
         data-a={part("leaf")}
         x="28.25"
@@ -90,16 +90,16 @@ export function Header({ chapter }: { chapter: string }) {
 export function Kicker({
   children,
   a,
-  lime,
+  accent,
   style,
 }: {
   children: ReactNode;
   a?: string;
-  lime?: boolean;
+  accent?: boolean;
   style?: CSSProperties;
 }) {
   return (
-    <span data-a={a} className={lime ? "pg-kicker pg-kicker--lime" : "pg-kicker"} style={style}>
+    <span data-a={a} className={accent ? "pg-kicker pg-kicker--accent" : "pg-kicker"} style={style}>
       {children}
     </span>
   );
@@ -136,7 +136,7 @@ export function Arrow({ size = 28, color }: { size?: number; color?: string }) {
 }
 
 /** The terminal's ✗, one monospace cell wide. */
-export function Cross({ size, color = "var(--pg-coral)" }: { size: number; color?: string }) {
+export function Cross({ size, color = "var(--pg-fail)" }: { size: number; color?: string }) {
   return (
     <svg
       width={size * MONO_ADVANCE}
@@ -199,7 +199,7 @@ export interface CodeHighlight {
   /** First and last highlighted line, zero-based and inclusive. */
   readonly from: number;
   readonly to: number;
-  readonly tone?: "lime" | "coral";
+  readonly tone?: "accent" | "fail";
 }
 
 /** Horizontal padding of a code line and a terminal body, each side. */
@@ -245,7 +245,7 @@ export function Code({
           <i
             key={`${highlight.a}-${highlight.from}`}
             data-a={highlight.a}
-            className={highlight.tone === "coral" ? "pg-code-hi pg-code-hi--coral" : "pg-code-hi"}
+            className={highlight.tone === "fail" ? "pg-code-hi pg-code-hi--fail" : "pg-code-hi"}
             style={{
               top: 22 + highlight.from * lineHeight,
               height: (highlight.to - highlight.from + 1) * lineHeight,
@@ -264,7 +264,7 @@ export function Code({
 
 export interface TermLine {
   readonly text: string;
-  readonly tone?: "ink" | "soft" | "faint" | "coral" | "lime";
+  readonly tone?: "ink" | "soft" | "faint" | "fail" | "accent";
 }
 
 /** A terminal at an explicit box. `✗` renders as a drawn cell; everything else is text. */
@@ -328,7 +328,7 @@ export function Card({
   children,
 }: {
   label: ReactNode;
-  tone?: "lime" | "coral";
+  tone?: "accent" | "fail";
   a?: string;
   style: CSSProperties;
   children?: ReactNode;
@@ -363,17 +363,17 @@ export function Rows({ rows }: { rows: ReadonlyArray<{ name: string; value: Reac
 
 export function Chip({
   children,
-  lime,
+  accent,
   a,
   style,
 }: {
   children: ReactNode;
-  lime?: boolean;
+  accent?: boolean;
   a?: string;
   style?: CSSProperties;
 }) {
   return (
-    <span data-a={a} className={lime ? "pg-chip pg-chip--lime" : "pg-chip"} style={style}>
+    <span data-a={a} className={accent ? "pg-chip pg-chip--accent" : "pg-chip"} style={style}>
       <i />
       {children}
     </span>
@@ -386,7 +386,7 @@ export function Badge({
   a,
   style,
 }: {
-  tone: "lime" | "coral" | "ink";
+  tone: "solid" | "fail" | "ink";
   children: ReactNode;
   a?: string;
   style?: CSSProperties;

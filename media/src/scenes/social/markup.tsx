@@ -55,13 +55,13 @@ export const social: SceneMarkup = {
             style={{
               fontSize: 28,
               padding: "12px 24px",
-              border: "2px solid var(--pg-lime)",
+              border: "2px solid var(--pg-accent)",
               borderRadius: 10,
               background: "var(--pg-panel)",
               whiteSpace: "nowrap",
             }}
           >
-            <span className="pg-lime">$</span> {install}
+            <span className="pg-accent">$</span> {install}
           </span>
           <span className="pg-meta" style={{ textAlign: "right", lineHeight: 1.6 }}>
             TanStack Start · TanStack Router

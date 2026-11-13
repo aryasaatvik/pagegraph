@@ -9,7 +9,7 @@ const relatedLine =
     ?.trim() ?? "";
 
 export const reportLines: ReadonlyArray<TermLine> = [
-  { text: `$ ${checkReport.command}`, tone: "lime" },
+  { text: `$ ${checkReport.command}`, tone: "accent" },
   { text: "" },
   ...checkReport.structural.split("\n").map((text): TermLine => ({
     text,
@@ -18,7 +18,7 @@ export const reportLines: ReadonlyArray<TermLine> = [
   { text: "" },
   { text: checkReport.trimmed, tone: "faint" },
   { text: "" },
-  { text: checkReport.summary, tone: "coral" },
+  { text: checkReport.summary, tone: "fail" },
 ];
 
 /** The rename from the hook, now caught: the real report, exit 1. */
@@ -39,17 +39,17 @@ export const check: SceneMarkup = {
         style={{ left: 120, top: 268, width: 820, height: 132 }}
       >
         <div className="pg-mono" style={{ fontSize: 20, lineHeight: 1.5, whiteSpace: "pre" }}>
-          <div data-a="edit-from" style={{ color: "var(--pg-coral)" }}>
+          <div data-a="edit-from" style={{ color: "var(--pg-fail)" }}>
             - {rename.from}
           </div>
-          <div data-a="edit-to" style={{ color: "var(--pg-lime)" }}>
+          <div data-a="edit-to" style={{ color: "var(--pg-accent)" }}>
             + {rename.to}
           </div>
         </div>
       </Card>
       <Card
         a="stale"
-        tone="coral"
+        tone="fail"
         label="src/collections.ts, unchanged"
         style={{ left: 980, top: 268, width: 820, height: 132 }}
       >
@@ -64,7 +64,7 @@ export const check: SceneMarkup = {
         box={{ left: 120, top: 432, width: 1200, height: 508 }}
       />
       <div className="pg-abs" style={{ left: 1370, top: 432, width: 430 }}>
-        <Badge a="exit" tone="coral">
+        <Badge a="exit" tone="fail">
           exit 1
         </Badge>
         <p

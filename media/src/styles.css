@@ -1,8 +1,8 @@
 /*
- * pagegraph launch identity: a dark dot-grid sheet, warm white ink, and one signal lime for what
- * a route declares. Derived output is drawn in ink; coral marks only a failed check. Fonts are
- * bundled from Fontsource at build time. Motion never lives here: the build rejects transitions
- * and animations.
+ * pagegraph launch identity: ink on a flat near-white canvas, with link blue for declarations
+ * and red only for failures. Washes are opaque and precomposited over white for clear type.
+ * Fonts are bundled from Fontsource at build time. Motion never lives here: the build rejects
+ * transitions and animations.
  */
 
 @font-face {
@@ -23,24 +23,24 @@
 }
 
 :root {
-  --pg-night: #0b0f13;
-  --pg-panel: #11171d;
-  --pg-raised: #161e25;
-  --pg-line: #232c34;
-  --pg-line-strong: #34404a;
-  --pg-ink: #eef1ea;
-  --pg-soft: #a6b0a9;
-  --pg-faint: #87918b;
-  --pg-lime: #cff23d;
-  --pg-lime-deep: #a9cc1c;
-  --pg-lime-wash: rgba(207, 242, 61, 0.13);
-  --pg-coral: #ff6b4f;
-  --pg-coral-wash: rgba(255, 107, 79, 0.14);
-  --pg-code-str: #e8cf8f;
-  --pg-code-num: #f2a37a;
-  --pg-code-key: #9fd3c7;
-  --pg-code-kw: #c9b3ff;
-  --pg-code-tag: #8fc1ff;
+  --pg-canvas: #fafafa;
+  --pg-panel: #ffffff;
+  --pg-raised: #f4f4f4;
+  --pg-line: #ebebeb;
+  --pg-line-strong: #d4d4d4;
+  --pg-ink: #171717;
+  --pg-soft: #4d4d4d;
+  --pg-faint: #6b6b6b;
+  --pg-accent: #1a3fd1;
+  --pg-accent-deep: #142fa0;
+  --pg-accent-wash: #e8edfb;
+  --pg-fail: #d32020;
+  --pg-fail-wash: #fdecec;
+  --pg-code-str: #0b6e4f;
+  --pg-code-num: #a3500b;
+  --pg-code-key: #1a3fd1;
+  --pg-code-kw: #171717;
+  --pg-code-tag: #5b5b5b;
   --pg-sans: "Bricolage Grotesque", ui-sans-serif, system-ui, sans-serif;
   --pg-mono: "Spline Sans Mono", ui-monospace, monospace;
 }
@@ -48,7 +48,7 @@
 html,
 body {
   margin: 0;
-  background: var(--pg-night);
+  background: var(--pg-canvas);
   color: var(--pg-ink);
   font-family: var(--pg-sans);
   -webkit-font-smoothing: antialiased;
@@ -59,7 +59,7 @@ body {
 .pg-scene {
   position: relative;
   overflow: hidden;
-  background: var(--pg-night);
+  background: var(--pg-canvas);
   color: var(--pg-ink);
   font-family: var(--pg-sans);
 }
@@ -68,13 +68,10 @@ body {
   box-sizing: border-box;
 }
 
-/* The dot grid the whole identity is drawn on: graph paper for a graph. */
+/* Retained as a scene anchor; the canvas stays flat. */
 .pg-grid {
   position: absolute;
   inset: 0;
-  background-image: radial-gradient(circle, rgba(238, 241, 234, 0.085) 1.4px, transparent 1.6px);
-  background-size: 40px 40px;
-  background-position: 20px 20px;
 }
 
 .pg-abs {
@@ -113,8 +110,8 @@ body {
   white-space: nowrap;
 }
 
-.pg-kicker--lime {
-  color: var(--pg-lime);
+.pg-kicker--accent {
+  color: var(--pg-accent);
 }
 
 /* Type ------------------------------------------------------------------------------------- */
@@ -153,12 +150,12 @@ body {
   font-family: var(--pg-mono);
 }
 
-.pg-lime {
-  color: var(--pg-lime);
+.pg-accent {
+  color: var(--pg-accent);
 }
 
-.pg-coral {
-  color: var(--pg-coral);
+.pg-fail {
+  color: var(--pg-fail);
 }
 
 .pg-soft {
@@ -177,7 +174,7 @@ body {
 .pg-code {
   position: absolute;
   background: var(--pg-panel);
-  border: 1.5px solid var(--pg-line);
+  border: 1px solid var(--pg-line);
   border-radius: 16px;
   color: var(--pg-ink);
   font-family: var(--pg-mono);
@@ -201,7 +198,7 @@ body {
 .pg-code-file i {
   width: 10px;
   height: 10px;
-  background: var(--pg-lime);
+  background: var(--pg-accent);
   flex-shrink: 0;
 }
 
@@ -220,15 +217,15 @@ body {
   position: absolute;
   left: 0;
   right: 0;
-  /* The lime wash precomposited over the panel: opaque, so text never blends through a layer. */
-  background: #2a3321;
-  border-left: 4px solid var(--pg-lime);
+  /* The accent wash precomposited over the panel: opaque, so text never blends through a layer. */
+  background: var(--pg-accent-wash);
+  border-left: 4px solid var(--pg-accent);
   transform-origin: left center;
 }
 
-.pg-code-hi--coral {
-  background: var(--pg-coral-wash);
-  border-left-color: var(--pg-coral);
+.pg-code-hi--fail {
+  background: var(--pg-fail-wash);
+  border-left-color: var(--pg-fail);
 }
 
 .tk-str {
@@ -239,6 +236,7 @@ body {
 }
 .tk-kw {
   color: var(--pg-code-kw);
+  font-weight: 600;
 }
 .tk-key {
   color: var(--pg-code-key);
@@ -254,8 +252,8 @@ body {
 
 .pg-term {
   position: absolute;
-  background: #070a0d;
-  border: 1.5px solid var(--pg-line);
+  background: var(--pg-panel);
+  border: 1px solid var(--pg-line);
   border-radius: 16px;
   font-family: var(--pg-mono);
   color: var(--pg-ink);
@@ -287,16 +285,16 @@ body {
 .pg-card {
   position: absolute;
   background: var(--pg-panel);
-  border: 1.5px solid var(--pg-line-strong);
+  border: 1px solid var(--pg-line);
   border-radius: 14px;
 }
 
-.pg-card--lime {
-  border-color: var(--pg-lime);
+.pg-card--accent {
+  border-color: var(--pg-accent);
 }
 
-.pg-card--coral {
-  border-color: var(--pg-coral);
+.pg-card--fail {
+  border-color: var(--pg-fail);
 }
 
 .pg-card-label {
@@ -353,8 +351,8 @@ body {
   flex-shrink: 0;
 }
 
-.pg-chip--lime i {
-  background: var(--pg-lime);
+.pg-chip--accent i {
+  background: var(--pg-accent);
 }
 
 .pg-badge {
@@ -371,14 +369,14 @@ body {
   white-space: nowrap;
 }
 
-.pg-badge--lime {
-  color: var(--pg-night);
-  background: var(--pg-lime);
+.pg-badge--solid {
+  color: var(--pg-canvas);
+  background: var(--pg-ink);
 }
 
-.pg-badge--coral {
-  color: var(--pg-night);
-  background: var(--pg-coral);
+.pg-badge--fail {
+  color: var(--pg-canvas);
+  background: var(--pg-fail);
 }
 
 .pg-badge--ink {
@@ -397,7 +395,7 @@ body {
 .pg-bar {
   display: block;
   height: 6px;
-  background: var(--pg-lime);
+  background: var(--pg-accent);
   transform-origin: left center;
 }
 
@@ -427,23 +425,23 @@ body {
 }
 
 .pg-node--declared {
-  border-color: var(--pg-lime);
+  border-color: var(--pg-accent);
 }
 
 .pg-node--declared i {
-  border-color: var(--pg-lime);
-  background: var(--pg-lime);
+  border-color: var(--pg-accent);
+  background: var(--pg-accent);
 }
 
 .pg-node--missing {
   border-style: dashed;
-  border-color: var(--pg-coral);
-  color: var(--pg-coral);
+  border-color: var(--pg-fail);
+  color: var(--pg-fail);
   background: transparent;
 }
 
 .pg-node--missing i {
-  border-color: var(--pg-coral);
+  border-color: var(--pg-fail);
 }
 
 .pg-edges {
@@ -458,7 +456,7 @@ body {
   font-size: 16px;
   letter-spacing: 0.04em;
   color: var(--pg-soft);
-  background: var(--pg-night);
+  background: var(--pg-canvas);
   padding: 2px 8px;
   white-space: nowrap;
 }

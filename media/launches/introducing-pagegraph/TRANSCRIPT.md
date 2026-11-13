@@ -14,13 +14,13 @@ The route `/pricing` appears. Beside it, six places a hand-maintained site repea
 - blog posts: `related: ["/pricing"]`
 - llms.txt: `[Pricing](example.com/pricing.md)`
 
-`/pricing` is struck through and renamed `/plans`. Each copy turns coral: none of them followed.
+`/pricing` is struck through and renamed `/plans`. Each copy turns red: none of them followed.
 
 Rename one route. Every copy of its SEO has to follow.
 
 ## 0:07 pagegraph
 
-The mark assembles: a lime node with edges to two outlined nodes.
+The mark assembles: a blue node with edges to two outlined nodes.
 
 pagegraph. Declare SEO on the route. Derive the rest from one graph.
 
@@ -70,7 +70,7 @@ The graph and the checks read this same declaration.
 One graph, built in your Vite pipeline. `pagegraph()` evaluates route files and collections with
 your aliases and defines.
 
-The fixture's pages appear as nodes: `/`, `/pricing` (in lime), `/help`, `/terms`, and, inside a
+The fixture's pages appear as nodes: `/`, `/pricing` (in blue), `/help`, `/terms`, and, inside a
 dashed box labelled "collection · blog", `/blog/second` and `/blog/first`. Three edges draw: a
 crumb-parent edge from `/pricing` to `/`, and related edges from both blog posts to `/pricing`.
 

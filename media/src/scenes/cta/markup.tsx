@@ -36,13 +36,13 @@ export const cta: SceneMarkup = {
             fontSize: 54,
             fontWeight: 500,
             padding: "22px 44px",
-            border: "2px solid var(--pg-lime)",
+            border: "2px solid var(--pg-accent)",
             borderRadius: 14,
             background: "var(--pg-panel)",
             whiteSpace: "nowrap",
           }}
         >
-          <span className="pg-lime">$</span> {install}
+          <span className="pg-accent">$</span> {install}
         </span>
       </div>
       <p

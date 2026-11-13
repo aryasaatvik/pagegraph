@@ -32,11 +32,11 @@ export const markdown: SceneMarkup = {
         highlights={factLines.map((line) => ({ a: "hi-fact", from: line, to: line }))}
       />
       <div data-a="arrow" className="pg-abs" style={{ left: 742, top: 470 }}>
-        <Arrow size={40} color="var(--pg-lime)" />
+        <Arrow size={40} color="var(--pg-accent)" />
       </div>
       <Card
         a="twin"
-        tone="lime"
+        tone="accent"
         label="dist/client/index.md"
         style={{ left: 806, top: 330, width: 994, height: 296 }}
       >

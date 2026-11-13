@@ -18,7 +18,7 @@ export const hook: SceneMarkup = {
   id: "hook",
   render: (size) => (
     <Scene size={size}>
-      <Kicker a="kicker" lime style={{ position: "absolute", left: 120, top: 196 }}>
+      <Kicker a="kicker" accent style={{ position: "absolute", left: 120, top: 196 }}>
         For TanStack Start and TanStack Router
       </Kicker>
       <div className="pg-abs" style={{ left: 120, top: 262, display: "flex", gap: 40 }}>
@@ -32,14 +32,14 @@ export const hook: SceneMarkup = {
               right: -6,
               top: "52%",
               height: 7,
-              background: "var(--pg-coral)",
+              background: "var(--pg-fail)",
               transformOrigin: "left center",
             }}
           />
         </span>
         <span
           data-a="renamed"
-          className="pg-mono pg-lime"
+          className="pg-mono pg-accent"
           style={{ fontSize: 92, fontWeight: 600 }}
         >
           /plans

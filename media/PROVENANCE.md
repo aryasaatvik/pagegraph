@@ -25,3 +25,12 @@ film's text alternative; a later cut that adds audio records its source and lice
 
 The scripts run HyperFrames with `HYPERFRAMES_NO_TELEMETRY=1` and `DO_NOT_TRACK=1`. Never run
 `hyperframes publish`: renders are reviewed and shipped through this repository.
+
+## Palette
+
+The launch media matches the site's light identity: flat `#fafafa` canvas, white panels with
+`#ebebeb` hairlines, `#171717` ink, and `#1a3fd1` link-blue declarations and edges. Numbered
+markers use ink with near-white text. Red (`#d32020`) is reserved for failures and broken copies.
+Code highlights use opaque washes precomposited over white (`#e8edfb` blue, `#fdecec` red), so
+text never blends through a highlight layer. The fonts, layouts, timings, and export sizes are
+unchanged; every export is regenerated from these sources using software rendering.

@@ -41,13 +41,13 @@ function Column({
   title,
   where,
   entries,
-  lime,
+  accent,
 }: {
   x: number;
   title: string;
   where: string;
   entries: ReadonlyArray<{ entry: string; does: string }>;
-  lime?: boolean;
+  accent?: boolean;
 }) {
   return (
     <section className="pg-abs" style={{ left: x, top: 316, width: 790 }}>
@@ -74,7 +74,7 @@ function Column({
               style={{
                 fontSize: 21,
                 fontWeight: 600,
-                color: lime ? "var(--pg-lime)" : "var(--pg-ink)",
+                color: accent ? "var(--pg-accent)" : "var(--pg-ink)",
               }}
             >
               {entry.entry}
@@ -109,7 +109,7 @@ export const runtimeStill: SceneMarkup = {
         title="Runtime"
         where="Worker · SSR · browser"
         entries={runtimeEntries}
-        lime
+        accent
       />
       <i
         className="pg-abs"

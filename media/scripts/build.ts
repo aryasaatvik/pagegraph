@@ -91,7 +91,7 @@ async function project(cut: Cut, dir: string) {
       await writeFile(
         join(dir, "compositions", `${id}.html`),
         `<!doctype html><html><head><meta charset="UTF-8"></head><body><template>
-      <div data-composition-id="${id}" data-width="${cut.width}" data-height="${cut.height}" style="position:absolute;inset:0;background:var(--pg-night)">${html}</div>
+      <div data-composition-id="${id}" data-width="${cut.width}" data-height="${cut.height}" style="position:absolute;inset:0;background:var(--pg-canvas)">${html}</div>
       <script>window.__timelines=window.__timelines||{};window.__timelines[${JSON.stringify(id)}]=pagegraphMedia.scene(${JSON.stringify(shot.scene)},${JSON.stringify(id)});</script>
       </template></body></html>`,
       );
@@ -101,7 +101,7 @@ async function project(cut: Cut, dir: string) {
   await writeFile(
     join(dir, "index.html"),
     `<!doctype html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=${cut.width},height=${cut.height}">
-    <link rel="stylesheet" href="assets/pagegraph.css"><style>html,body{margin:0;width:${cut.width}px;height:${cut.height}px;overflow:hidden;background:var(--pg-night)}#root{position:relative;width:${cut.width}px;height:${cut.height}px;background:var(--pg-night)}</style>
+    <link rel="stylesheet" href="assets/pagegraph.css"><style>html,body{margin:0;width:${cut.width}px;height:${cut.height}px;overflow:hidden;background:var(--pg-canvas)}#root{position:relative;width:${cut.width}px;height:${cut.height}px;background:var(--pg-canvas)}</style>
     <script src="assets/gsap.min.js"></script><script src="assets/scenes.js"></script></head><body>
     <div id="root" data-composition-id="${cut.id}" data-start="0" data-duration="${duration}" data-width="${cut.width}" data-height="${cut.height}">${hosts.join("\n")}</div>
     <script>window.__timelines=window.__timelines||{};window.__timelines[${JSON.stringify(cut.id)}]=gsap.timeline({paused:true});</script></body></html>`,

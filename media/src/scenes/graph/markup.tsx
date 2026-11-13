@@ -77,7 +77,7 @@ export const graph: SceneMarkup = {
         <path
           data-a="edge"
           d={curve(left("/blog/second"), right("/pricing"))}
-          stroke="var(--pg-lime)"
+          stroke="var(--pg-accent)"
           strokeWidth="2"
           fill="none"
           pathLength={1}
@@ -85,14 +85,14 @@ export const graph: SceneMarkup = {
         <path
           data-a="edge"
           d={curve(left("/blog/first"), right("/pricing"))}
-          stroke="var(--pg-lime)"
+          stroke="var(--pg-accent)"
           strokeWidth="2"
           fill="none"
           pathLength={1}
         />
         {[
           { to: right("/"), color: "var(--pg-ink)" },
-          { to: right("/pricing"), color: "var(--pg-lime)" },
+          { to: right("/pricing"), color: "var(--pg-accent)" },
         ].map(({ to, color }) => (
           <path key={to.x} data-a="edge-head" d={`M${to.x} ${to.y}l13 -7v14z`} fill={color} />
         ))}
@@ -102,8 +102,8 @@ export const graph: SceneMarkup = {
       </span>
       <span
         data-a="edge-label"
-        className="pg-edge-label pg-lime"
-        style={{ left: 668, top: 586, color: "var(--pg-lime)" }}
+        className="pg-edge-label pg-accent"
+        style={{ left: 668, top: 586, color: "var(--pg-accent)" }}
       >
         related
       </span>

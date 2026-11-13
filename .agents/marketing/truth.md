@@ -65,6 +65,18 @@ Claimable, but never in the hero and never described as required.
 | The CLI bundles its Effect, TypeSafe and Pi runtimes and runs on Bun (`bunx pagegraph`). `vite` is a peer; `lighthouse` is only for `audit`. | README What runs where |
 | The package is MIT licensed.                                                                                                                 | README License         |
 
+## Adoption
+
+- Claimable: **Samva's website is built with PageGraph, in production.** Evidence: Samva `main`
+  (1a723778e7, read 2026-11-13) pins `pagegraph` 0.18.1 in `apps/web/package.json`;
+  `apps/web/vite.config.ts` adds the `pagegraph()` plugin and the prerender Worker;
+  `apps/web/pagegraph.config.ts` runs `pagegraph check` with an Open Graph image gate and
+  contextual-link coverage rules. The site is https://samva.dev. Samva's maintainer approved naming
+  it on 2026-11-13. Re-check the pinned version before quoting it.
+- Say only what that shows: Samva's site uses the plugin, the check and its coverage rules. No
+  traffic, ranking or indexing outcome.
+- Any other user stays unnamed until it approves a mention and a row here records the evidence.
+
 ## What it is not
 
 - **Not a hosted service.** PageGraph is a library and a CLI that run in your repository and your build. There is no account, dashboard or hosted crawler.

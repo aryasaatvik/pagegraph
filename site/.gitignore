@@ -6,3 +6,4 @@ dist
 .pagegraph/heads.json
 .pagegraph/runs
 .tanstack
+public/media

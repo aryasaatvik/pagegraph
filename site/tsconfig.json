@@ -11,7 +11,10 @@
     "noEmit": true,
     "verbatimModuleSyntax": true,
     "allowImportingTsExtensions": true,
-    "types": ["vite/client", "node"]
+    "types": ["vite/client", "node"],
+    "paths": {
+      "fumadocs-mdx:collections/*": ["./.source/*"]
+    }
   },
   "include": [
     "src",

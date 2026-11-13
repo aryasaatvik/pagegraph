@@ -1,14 +1,17 @@
 import { createSeo } from "pagegraph/react";
 
+import { ogImage } from "./og-image";
+
 export const SITE_ORIGIN = "https://pagegraph.arya.sh";
 
 export const seo = createSeo({
   origin: SITE_ORIGIN,
+  ogImage,
   site: {
     name: "PageGraph",
-    logo: "/icon.svg",
+    logo: "/icon-512.png",
     publisherLogo: "/icon-512.png",
-    defaultImage: "/og.png",
+    defaultImage: "/media/og.png",
     defaultAuthor: { name: "Saatvik Arya", url: "https://arya.sh" },
   },
   organization: {

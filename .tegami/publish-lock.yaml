@@ -1,10 +1,10 @@
 core:changelogs:
-  - content: "---\npackages:\n  pagegraph:\n    type: patch\n---\n\n### Fix consumer build diagnostics\n\nGenerate sourcemaps for authored document source locations so Vite and Rolldown can trace edited\nmodules back to their original source. Preserve the resolved environment in the build-only\nCloudflare Markdown prerender Worker so production prerender preview loads its configuration\nwithout a missing-environment warning. Consumer configuration stays the same.\n"
-    filename: fix-deploy-warnings.md
+  - content: "---\npackages:\n  pagegraph:\n    type: patch\n---\n\n### Make the Organization contact point optional\n\n`organization.contactPoint` in `createSeo` is now optional. When it is absent, the Organization\nJSON-LD omits `contactPoint` instead of requiring a site to publish a support email. Configurations\nthat set it render the same output as before.\n"
+    filename: optional-contact-point.md
     v: 0.0.0
 core:packages:
   - changelogIds:
-      - fix-deploy-warnings.md
+      - optional-contact-point.md
     id: npm:pagegraph
     updated: true
 npm:packages:

@@ -56,14 +56,13 @@ export default defineConfig({
       cloudflare({
         viteEnvironment: { name: "ssr" },
         prerenderWorker: {
-          config: ({ entryWorkerConfig }) => ({
-            ...entryWorkerConfig,
+          // The build-only capture Worker wraps the compiled Start server. Only the deployed
+          // Worker may hold assets or custom domains, so those stay off this copy.
+          config: ({ entryWorkerConfig: { assets: _assets, domains: _domains, ...worker } }) => ({
+            ...worker,
             name: "pagegraph-site-prerender",
             entrypoint: "pagegraph/tanstack-start/prerender-worker",
-            env: {
-              ...entryWorkerConfig.env,
-              TSS_PRERENDERING: { type: "json", value: "true" },
-            },
+            env: { ...worker.env, TSS_PRERENDERING: { type: "json", value: "true" } },
           }),
         },
       }),

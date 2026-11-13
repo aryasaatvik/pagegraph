@@ -1,4 +1,4 @@
-import { useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import type { GraphView, GraphViewNode } from "../lib/graph-view";
 
@@ -106,6 +106,15 @@ export function GraphWindow({ view }: { view: GraphView }) {
     observer.observe(element);
     return () => observer.disconnect();
   }, []);
+  // Edges draw in once on load (CSS, reduced-motion aware); the class drops after it finishes.
+  const [drawing, setDrawing] = useState(true);
+  useEffect(() => {
+    const timer = setTimeout(() => setDrawing(false), 1800);
+    return () => clearTimeout(timer);
+  }, []);
+  let order = 0;
+  const motion = (length: number) =>
+    ({ "--len": length, "--d": `${order++ * 22}ms` }) as React.CSSProperties;
   const { placed, byPath, rail, room, height } = useMemo(() => place(view, width), [view, width]);
   const maxDy = Math.max(
     1,
@@ -114,7 +123,8 @@ export function GraphWindow({ view }: { view: GraphView }) {
   const ports = new Set(view.related.flat());
   const node = byPath.get(selected)!;
   const outgoing = view.related.filter(([from]) => from === selected).map(([, to]) => to);
-  const crumbs = trail(node, byPath);
+  // Docs pages emit Home as their first breadcrumb; static routes emit only their own trail.
+  const crumbs = node.source === "route" ? trail(node, byPath) : ["Home", ...trail(node, byPath)];
   const touches = (a: string, b: string) => a === selected || b === selected;
   const select = (path: string) => setSelected(path);
 
@@ -136,7 +146,7 @@ export function GraphWindow({ view }: { view: GraphView }) {
       <div className="wbody">
         <div className="tree" ref={holder}>
           <svg
-            className="graph"
+            className={drawing ? "graph draw" : "graph"}
             width={width}
             height={height}
             viewBox={`0 0 ${width} ${height}`}
@@ -151,6 +161,7 @@ export function GraphWindow({ view }: { view: GraphView }) {
                   <path
                     key={`crumb:${child.path}`}
                     className={`edge${touches(child.path, parent.path) ? " on" : ""}`}
+                    style={motion(500)}
                     d={`M${parent.x} ${parent.y + 6}V${child.y}H${child.x - 6}`}
                   />
                 );
@@ -163,6 +174,7 @@ export function GraphWindow({ view }: { view: GraphView }) {
                 <path
                   key={`rel:${from}>${to}`}
                   className={`edge rel${touches(from, to) ? " on" : ""}`}
+                  style={motion(700)}
                   d={`M${rail} ${a.y}C${rail + reach} ${a.y} ${rail + reach} ${b.y} ${rail} ${b.y}`}
                 />
               );
@@ -186,6 +198,7 @@ export function GraphWindow({ view }: { view: GraphView }) {
                 <g
                   key={item.path}
                   className={`node${on ? " sel" : ""}`}
+                  style={{ "--d": `${100 + item.depth * 90}ms` } as React.CSSProperties}
                   tabIndex={0}
                   role="button"
                   aria-pressed={on}

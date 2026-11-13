@@ -33,6 +33,17 @@ const GROUPS: Array<[label: string, match: (url: string) => boolean]> = [
   ["Explanation", (url) => url.startsWith("/docs/concepts")],
 ];
 
+/** Fumadocs TOC titles are React nodes; the nav needs their text. */
+function plainText(node: unknown): string {
+  if (typeof node === "string" || typeof node === "number") return String(node);
+  if (Array.isArray(node)) return node.map(plainText).join("");
+  if (typeof node === "object" && node !== null && "props" in node) {
+    const props = (node as { props: { children?: unknown } }).props;
+    return plainText(props.children);
+  }
+  return "";
+}
+
 export const getDocsPage = createServerFn({ method: "GET" })
   .validator((splat: unknown) => (typeof splat === "string" ? splat : ""))
   .handler(async ({ data: splat }): Promise<DocsPageData> => {
@@ -62,10 +73,18 @@ export const getDocsPage = createServerFn({ method: "GET" })
       related: (page.data.related ?? []).map(link),
       toc: page.data.toc
         .filter((item) => item.depth <= 3)
-        .map((item) => ({ title: String(item.title), url: item.url, depth: item.depth })),
+        .map((item) => ({ title: plainText(item.title), url: item.url, depth: item.depth })),
       nav: GROUPS.map(([label, match]) => ({
         label,
-        links: entries.filter((entry) => match(entry.url)).map((entry) => link(entry.url)),
+        // A section's own index page leads its group; the rest follow in URL order.
+        links: entries
+          .filter((entry) => match(entry.url))
+          .sort(
+            (a, b) =>
+              Number(entries.some((e) => e.parent === b.url)) -
+                Number(entries.some((e) => e.parent === a.url)) || a.url.localeCompare(b.url),
+          )
+          .map((entry) => link(entry.url)),
       })),
       editUrl: `https://github.com/aryasaatvik/pagegraph/blob/main/site/content/docs/${page.path}`,
     };

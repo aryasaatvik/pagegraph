@@ -376,7 +376,7 @@ h1 {
 .graph .edge.rel {
   stroke: var(--link);
   stroke-dasharray: 3 3;
-  opacity: 0.55;
+  opacity: 0.22;
 }
 .graph .edge.lead {
   stroke: var(--hairline);
@@ -1334,4 +1334,13 @@ footer a:hover {
   .docs-nav div {
     min-width: 180px;
   }
+}
+
+/* Wide reference tables scroll sideways on narrow screens instead of crushing their columns. */
+.prose th,
+.prose td {
+  min-width: 112px;
+}
+.prose td:last-child {
+  min-width: 240px;
 }

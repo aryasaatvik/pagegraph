@@ -10,7 +10,8 @@
     "build": "node scripts/sync-media.ts && cf build",
     "check": "node scripts/sync-media.ts && pagegraph check",
     "typecheck": "tsc --noEmit",
-    "deploy": "cf deploy"
+    "deploy": "node scripts/sync-media.ts && cf deploy",
+    "deploy:dry-run": "node scripts/sync-media.ts && cf deploy --dry-run"
   },
   "dependencies": {
     "@fontsource-variable/bricolage-grotesque": "5.3.0",

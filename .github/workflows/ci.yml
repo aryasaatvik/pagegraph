@@ -43,3 +43,40 @@ jobs:
       - name: Test media
         working-directory: media
         run: bun run test
+
+  site:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: site
+    env:
+      # cf is a beta that replaces Wrangler; keep its usage reporting off in CI.
+      CF_SEND_TELEMETRY: "false"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: package.json
+
+      # cf loads cloudflare.config.ts only under Node 22.18 or newer; Bun installs and runs the
+      # pagegraph CLI.
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+
+      - name: Install site dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Typecheck site
+        run: bun run typecheck
+
+      - name: Check the site's SEO graph
+        run: bun run check
+
+      - name: Build and dry-run the deploy
+        run: bun run deploy:dry-run

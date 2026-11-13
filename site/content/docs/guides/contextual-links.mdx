@@ -1,0 +1,123 @@
+---
+title: Check contextual links
+description: Set minimum inbound links per page, verify the links a crawler actually receives, assert coverage on served anchors and propose missing links.
+crumb: Contextual links
+related: ["/docs/reference/cli", "/docs/guides/agent-workflows"]
+---
+
+This guide enforces a contextual-link policy on the declared graph, proves it on the served site, and generates candidate links for pages that fall short.
+
+## Declare a coverage policy
+
+Declare a contextual-link coverage policy in `pagegraph.config.ts` as a `coverage` array of `{ path, minInbound }`, or pass repeatable `--require-inbound "<path-glob>=<n>"` flags to override it for one run. `pagegraph check` then fails (exit 1) unless every sitemap-eligible page matching the glob has at least `minInbound` incoming `related` edges. `*` matches within a path segment and `**` crosses segments. A rule that matches no sitemap-eligible page is itself a violation.
+
+```bash
+pagegraph check --require-inbound "/pricing=2" --require-inbound "/features/*=1"
+```
+
+## Verify the rendered link graph
+
+`pagegraph links verify` crawls a site's served HTML, through the same DNS-pinned, private-IP-blocked HTTP path as `pagegraph audit`. It reports what a crawler actually receives: the real homepage depth, the pages with no incoming internal edge (rendered orphans), and, when the app has a `pagegraph.config.ts`, the declared-vs-rendered link diff. It is bounded with `--limit` and needs no framework or config.
+
+Discovery reads same-origin `robots.txt` and bounded sitemaps before following page anchors, so a sitemap-only page can appear as an orphan. The JSON `crawl` block records skipped URLs, discovery failures and sitemap truncation. Link-followed non-HTML alternates are recorded in `nonHtml` without counting as HTML page failures. A sitemap-listed or declared page served as non-HTML still blocks a coverage assertion.
+
+```bash
+pagegraph links verify https://example.com
+pagegraph links verify https://example.com --limit 25 --json | jq
+```
+
+`--emit-rendered <path>` writes the crawl's raw edge set as a versioned artifact, and `--rendered <path>` replays one instead of crawling. A single crawl can then be asserted repeatedly in CI without re-fetching:
+
+```bash
+pagegraph links verify https://example.com --emit-rendered .seo/rendered.json
+pagegraph links verify --rendered .seo/rendered.json --json | jq
+```
+
+The artifact preserves every anchor's `region` (`body` vs `nav`, `footer` or `header`) and the provenance a gate needs to trust it:
+
+```jsonc
+{
+  "kind": "links-rendered",
+  "schemaVersion": 1,
+  "origin": "https://example.com",
+  "seed": "https://example.com/",
+  "crawl": {
+    "pages": 42,
+    "root": "/",
+    "limit": 100,
+    "truncated": false,
+    "bodyTruncated": false,
+    "truncatedPages": [],
+    "failures": [],
+    "nonHtml": [
+      {
+        "url": "https://example.com/auth.md",
+        "finalUrl": "https://example.com/auth.md",
+        "contentType": "text/markdown",
+      },
+    ],
+    "discoveryFailures": [],
+    "skipped": [],
+    "sitemapTruncated": false,
+    "sitemapUsed": true,
+  },
+  "nodes": ["/", "/pricing"],
+  "edges": [{ "from": "/", "to": "/pricing", "region": "body" }],
+}
+```
+
+It is also a drop-in input for `pagegraph links candidates --rendered`.
+
+## Assert coverage on the rendered graph
+
+`pagegraph check` evaluates the `coverage` rules against the declared graph. `pagegraph links verify --assert-coverage` evaluates the same rules against the anchors a crawler actually receives. Only same-origin body-region anchors count. Nav, header and footer links are chrome, which is the served analogue of `check` counting `related` edges alone. The rule's target universe is still the declared graph's sitemap-eligible pages.
+
+```bash
+pagegraph links verify https://example.com --assert-coverage
+pagegraph links verify --rendered .seo/rendered.json --assert-coverage --json | jq
+```
+
+The command exits non-zero when any rule is unmet. It also refuses to assert, again with a non-zero exit, rather than reporting a false pass when:
+
+- the crawl outran `--limit`,
+- a page failed to fetch, so its anchors are missing,
+- a body hit `--max-body-bytes`,
+- robots or sitemap discovery is incomplete,
+- the config declares no `coverage`, or
+- the artifact's origin differs from `pagegraph.config.ts`.
+
+Under `--assert-coverage` the report gains a `coverage` block (`{ rules, ok, violations }`). The default `--json` summary is unchanged.
+
+## Propose contextual links
+
+`pagegraph links candidates` reads the declared graph and proposes `(source, destination)` pairs that are plausible contextual links and not already connected. Pages are grouped into clusters, either a shared top-level section or the same `kind` for root-level pages, and only sitemap-eligible pages are proposed.
+
+Each direction is evaluated separately. A declared `related` edge or served body-region anchor excludes only its own direction. Nav, header and footer anchors do not exclude contextual suggestions. `--rendered` accepts a JSON dump of already-served anchors (`[{ from, to, region }]` or `{ edges: [...] }`). Legacy edges without a `region` are treated as body links.
+
+The output is a deterministic, reviewable plan: human text by default and versioned JSON with `--json`. Nothing is applied, and `--limit` and `--cluster` bound the plan.
+
+```bash
+pagegraph links candidates
+pagegraph links candidates --cluster blog --limit 20
+pagegraph links candidates --rendered rendered.json --json | jq
+pagegraph improve links --page "/docs/**"
+```
+
+## Probe served content for placements
+
+For content-backed placements, opt in to a bounded same-origin probe. The configured `origin` must match `--site`. Each schema-version-2 result carries a sentence from served main content, an exact anchor phrase inside it, a target sentence, and score components. Unreadable and over-limit pages are reported as skipped. Code samples and tabular comparisons are excluded.
+
+An anchor is proposed only when its distinct content words occur together in a target sentence, so review the placement and its context before editing. Repeated passages and clause fragments are excluded, and named destinations require a destination-specific anchor. The home and about pages are omitted as destinations because site navigation already leads there. The pair-only command above remains offline and emits schema version 1.
+
+The page budget selects low-inbound candidate pairs first. Use repeatable `--target /exact/path` to put a known weak destination within the budget. Add `--source /exact/path` when you have a likely source and want to guarantee the pair is probed even on a large site, and raise `--page-limit` for more pairs. For a site with many legal, comparison or other low-inbound pages, use `--cluster blog` (or another section) to spend the same page budget on an editorial cluster. A zero-result broad probe means no placement passed the evidence rules within its selected pages. It does not mean the whole site has no possible links.
+
+```bash
+pagegraph links verify https://example.com --json
+pagegraph links candidates --site https://example.com --page-limit 25 --json > /tmp/pagegraph-suggestions.json
+pagegraph links candidates --site https://example.com --cluster blog --page-limit 25 --json
+pagegraph links candidates --site https://example.com --source /blog/guide --target /blog/weak --page-limit 25 --json > /tmp/pagegraph-suggestions.json
+pagegraph improve links --suggestions /tmp/pagegraph-suggestions.json --dry-run
+pagegraph improve links --suggestions /tmp/pagegraph-suggestions.json
+```
+
+`improve links` validates the artifact against the configured origin and graph, then asks Jev to judge the suggested placements. Only accepted `add` or `update` decisions can open an edit turn. Skipped and review-band links remain in the run artifact without authorizing an edit. Before an accepted edit, PageGraph checks that the source sentence and target passage still occur in served copy, so regenerate the artifact if either page changed. For a local site, pass `--allow-private` to both `links candidates --site` and `improve links --suggestions`. See [Run agent workflows](/docs/guides/agent-workflows) for how `improve` runs work.

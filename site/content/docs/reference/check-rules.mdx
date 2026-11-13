@@ -1,0 +1,70 @@
+---
+title: Check rules
+description: Every PageGraph check rule by name and severity, covering graph rules, rendered-content rules, Open Graph images, robots conflicts and stale pages.
+crumb: Check rules
+related: ["/docs/guides/ci-check", "/docs/reference/configuration"]
+---
+
+`checkGraph` runs every rule against the graph and returns violations at two severities. Structural violations are internally broken declarations, and they fail `pagegraph check` with exit 1. Editorial violations are quality smells, and they are reported without failing.
+
+## Graph rules
+
+These rules run on the declared graph with `pagegraph check`.
+
+| Rule                            | Severity   | Flags                                                                                      |
+| ------------------------------- | ---------- | ------------------------------------------------------------------------------------------ |
+| `path-owner-collision`          | structural | A canonical path owned by multiple sources                                                 |
+| `canonical-path-collision`      | structural | Paths that collide after lowercasing and trailing-slash removal                            |
+| `self-edge`                     | structural | An edge from a page to itself                                                              |
+| `duplicate-edge`                | structural | The same typed edge declared twice                                                         |
+| `dead-edge`                     | structural | A `related` or `redirect` edge whose target is not a node in the graph                     |
+| `instance-missing-title`        | structural | A collection instance without a title                                                      |
+| `sitemap-noindex-contradiction` | structural | A page that is both in the sitemap and `noindex`                                           |
+| `robots-not-lowercase`          | structural | A `robots` value that is not lowercase; the sitemap projection matches `noindex` literally |
+| `related-target-missing-link`   | structural | A `related` target route with no `link` card; collection instances are exempt              |
+| `redirect-in-sitemap`           | structural | A redirect that appears in the sitemap                                                     |
+| `invalid-date`                  | structural | A `publishedAt` or `modifiedAt` that is not ISO 8601                                       |
+| `inbound-link-coverage`         | structural | A page below its `minInbound` count of incoming `related` edges                            |
+| `coverage-rule-unmatched`       | structural | A coverage rule that matches no sitemap-eligible page                                      |
+| `missing-og-image`              | structural | A sitemap-eligible page without a resolved image; severity follows the `ogImage` policy    |
+| `invalid-og-image`              | structural | An image URL that is not HTTP(S) or a local path; severity follows the `ogImage` policy    |
+| `missing-og-image-file`         | structural | A same-origin image with no file under `public/`; severity follows the `ogImage` policy    |
+| `robots-blocks-sitemap-url`     | structural | A published URL the rendered `robots.txt` disallows for `User-agent: *`                    |
+| `duplicate-title`               | editorial  | A title shared by several pages                                                            |
+| `duplicate-description`         | editorial  | A description shared by several pages                                                      |
+| `description-length`            | editorial  | A description over 160 or under 50 characters                                              |
+| `stale-page`                    | editorial  | A sitemap-eligible page older than the `freshness` policy                                  |
+
+Dates (`publishedAt`, `modifiedAt`, a route's `modifiedAt`) become the sitemap's `<lastmod>`, so `invalid-date` rejects any other form than ISO 8601. Use `2026-09-29`, or a date-time with an offset.
+
+### missing-og-image
+
+Fails sitemap-eligible pages without a resolved image. Same-origin images must name files under the app's `public/` directory, including absolute URLs resolved from local paths. External URLs are not fetched. Set `ogImage.severity` to `"editorial"` to warn, or `"off"` to skip all three image checks. See [Add per-page Open Graph images](/docs/guides/og-images).
+
+### robots-blocks-sitemap-url
+
+`pagegraph check` runs the rendered `robots.txt` through RFC 9309 matching (longest match, Allow wins ties, `*` and `$`). It reports every sitemap page, `/sitemap.xml`, and `/llms.txt` when the graph declares it, if a `Disallow` blocks the URL for `User-agent: *`.
+
+### stale-page
+
+Only sitemap-eligible pages are judged. A page without a date is reported as undated rather than stale. Set `freshness: { maxAgeDays }` in `pagegraph.config.ts`, and list the queue with `pagegraph stale`.
+
+## Rendered-content rules
+
+These rules run with `pagegraph check --site <url>` on the server-rendered HTML.
+
+| Rule                                    | Severity   | Fails when                                                                                 |
+| --------------------------------------- | ---------- | ------------------------------------------------------------------------------------------ |
+| `rendered-page-unavailable`             | structural | The page errors, is not HTML, is truncated, or redirects off its declared path             |
+| `rendered-robots-mismatch`              | structural | An indexable page renders a `noindex` robots meta, or a `noindex` declaration renders none |
+| `rendered-canonical-mismatch`           | structural | The canonical is missing or its path is not the declared path                              |
+| `missing-h1`, `multiple-h1`, `empty-h1` | structural | The page does not have exactly one H1 with text                                            |
+| `faq-not-visible`                       | structural | A FAQPage question or answer is not in the rendered text                                   |
+| `offer-price-not-visible`               | structural | An Offer or AggregateOffer price does not appear on the page                               |
+| `heading-level-skip`                    | editorial  | The main-content outline skips a level (h2 → h4)                                           |
+| `h1-title-mismatch`                     | editorial  | The H1 and `<title>` share no significant term                                             |
+| `webpage-head-mismatch`                 | editorial  | A WebPage `name` or `description` disagrees with the head                                  |
+| `thin-content`                          | editorial  | Main content is under the page's `content.minWords` floor                                  |
+| `content-rule-unmatched`                | structural | A `content.minWords` rule matches no sitemap-eligible page                                 |
+
+`pagegraph audit` runs the heading and structured-data rules on every audited HTML page too. The robots, canonical and word-count rules need the declared graph, so they stay in `check`.

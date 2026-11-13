@@ -1,0 +1,58 @@
+---
+title: Gate claims in page copy
+description: Declare probability rules against rendered page sections, commit the answers, and fail the build when a section violates your policy.
+crumb: Claims gate
+related: ["/docs/guides/markdown-twins", "/docs/reference/configuration"]
+---
+
+The claims gate asks whether each rendered section violates a policy you write, such as promising a capability your facts do not support. Answers are committed to the repository and replayed at build time without a model or credentials. This guide configures the gate and runs `pagegraph claims check`.
+
+The gate needs rendered Markdown capture. Set that up first with [Publish Markdown twins and llms.txt](/docs/guides/markdown-twins).
+
+## Declare rules
+
+Declare probability rules against `claimsInput` from the build-only `pagegraph/claims` entry. Each rule asks whether the section violates your policy:
+
+```ts
+import { Decision } from "effect/ai";
+import { claimsInput } from "pagegraph/claims";
+import { pagegraph } from "pagegraph/tanstack-start";
+
+const rules = Decision.make({
+  input: claimsInput,
+  decisions: {
+    unsupportedPromise: Decision.probability({
+      instructions: "Does this section promise a capability unsupported by its facts or evidence?",
+    }),
+  },
+});
+
+const graph = pagegraph({
+  origin: "https://example.com",
+  markdown: { origin: "https://example.com" },
+  facts: "src/facts.ts",
+  claims: { rules, model: "typesafe/jev", cutoff: 0.8 },
+});
+```
+
+Pass `graph.prerenderPages` to Start as shown in the rendered Markdown setup. The build persists captured documents and graph heads, then replays committed answers without a model or credentials. Missing answers and violations fail the build and name the page, section and rule.
+
+## Ask and commit answers
+
+Run `pagegraph claims check` after changing prose, facts, context or rules, then review and commit `.pagegraph/decisions/claims/`. The cache key includes the rule definition fingerprint, model and input hash. Cached answers are reused, and `--refresh` asks again and replaces them. The command reports cached and asked counts and exits nonzero on violations. Set `OPENROUTER_API_KEY` (or `TYPESAFE_API_KEY`) when answers need asking. `pagegraph check` also replays configured claims without model calls.
+
+```sh
+pagegraph claims check
+pagegraph claims check --refresh
+pagegraph claims check --dev http://localhost:3000
+```
+
+## Supply context and set the cutoff
+
+`claims.context` supplies policy text to every input. Inputs include the section's authored Markdown, messages, all code-owned facts, and other sections marked as evidence. Page metadata is judged as a `head` section, including graph pages outside rendered capture. `excludeHeads` accepts path globs to omit metadata while keeping captured sections in the gate.
+
+The default cutoff is `0.8` only when omitted. Any probability at or above the configured cutoff is a violation, and values below it pass. Changing the cutoff reuses answers and recalculates verdicts.
+
+## Choose the model transport
+
+Jev uses `OPENROUTER_API_KEY` when set, sending bearer-authenticated requests to `https://openrouter.ai/api/v1/systemone`. Otherwise it uses `TYPESAFE_API_KEY` and the TypeSafe endpoint. A failed OpenRouter request does not fall back to TypeSafe. Claims cache keys retain the configured logical model string, so changing credentials or transport does not invalidate committed answers. See [Run agent workflows](/docs/guides/agent-workflows#openrouter-attribution) for the attribution headers.

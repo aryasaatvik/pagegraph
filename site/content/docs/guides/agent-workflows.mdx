@@ -1,0 +1,158 @@
+---
+title: Run agent workflows
+description: Scaffold the agent preset, run research, analyze, plan and improve workflows, then review and apply the recorded edits with pagegraph apply.
+crumb: Agent workflows
+related: ["/docs/guides/contextual-links", "/docs/reference/cli", "/docs/reference/configuration"]
+---
+
+PageGraph combines the deterministic route graph with project-owned agent instructions, live Executor tools and Jev decisions. Every workflow uses Pi in-process. This guide scaffolds the preset, runs a workflow, resumes a run, and reviews and applies the edits an `improve` workflow records.
+
+## Scaffold the preset
+
+```bash
+pagegraph init
+```
+
+The generated `.pagegraph/agent` directory contains the `seo` agent instructions, `AGENTS.md`, and customizable workflow skills with Executor recipes. Pi composes these files into its system prompt and fails if a required file is missing. Pi uses its provider-specific environment variables for model authentication, such as `ANTHROPIC_API_KEY` or `OPENAI_API_KEY`.
+
+Research connects to [Executor](https://github.com/RhysSullivan/executor) through `@pi-ext/executor`. Set `EXECUTOR_BASE_URL` to the server, plus `EXECUTOR_CLIENT_ID[_FILE]` and `EXECUTOR_CLIENT_SECRET[_FILE]` when Cloudflare Access fronts it (both or neither). Every workflow declines Executor approval requests, and only provider calls that succeeded count as evidence.
+
+Use `executor_search` to discover tools and their TypeScript shapes, then `executor_execute` with a TypeScript snippet calling `tools.<namespace>.<tool>(input)` and a top-level `return`. Repository tools are `read_file`, `list_files` and `search_text`. Structured results go through `submit_result`. Improve action turns submit structured edits instead of writing files.
+
+## Enable workflows
+
+Enable workflows in `pagegraph.config.ts`:
+
+```ts
+export default defineSeoConfig({
+  // origin, disallow, and loadGraph as above
+  workflows: {
+    agent: {
+      presetDirectory: ".pagegraph/agent",
+      defaultModel: "openrouter/example/model",
+      // Optional per-turn budget in milliseconds; default 180000.
+      timeoutMs: 360_000,
+      models: {
+        "research.keywords": "openrouter/example/research-model",
+      },
+    },
+    context: {
+      files: ["AGENTS.md"],
+      byWorkflow: {
+        "research.keywords": ["docs/seo/measurement.md"],
+      },
+    },
+    // Optional read root for repository tools and context.files, relative to this config file.
+    // Defaults to the config directory's Git top level, or the config directory outside Git.
+    repositoryRoot: ".",
+    runsDirectory: ".pagegraph/runs",
+  },
+});
+```
+
+`workflows.repositoryRoot` sets the read boundary for `read_file`, `list_files`, `search_text` and `context.files`. Its optional path is relative to `pagegraph.config.ts`. By default PageGraph uses the config directory's Git top level, falling back to the config directory when it is outside Git. Context file paths are relative to this read root, so adjust existing app-relative paths when the default Git root is above the app (for example, `apps/web/AGENTS.md`). Run artifacts under `runsDirectory` are readable. Improve edits name files the way `read_file` does and must stay inside the app root containing `pagegraph.config.ts`.
+
+`workflows.agent.timeoutMs` sets the positive integer deadline in milliseconds for each Pi research or action turn (maximum `2147483647`, default `180000`). Research and action share the same agent conversation, so action turns retain the research context.
+
+Before Pi makes a paid model request, PageGraph checks that the selected model's provider key, `OPENROUTER_API_KEY` (or `TYPESAFE_API_KEY`), and required Executor configuration are present. Missing configuration fails before a model turn begins.
+
+## Run a workflow
+
+```bash
+pagegraph research keywords \
+  --query "transactional email api" \
+  --market us \
+  --language en
+```
+
+Every workflow starts from the selected graph and context files, asks the SEO agent to search Executor's live catalog and inspect the discovered tools' argument schemas, then evaluates its structured observations with Jev. Tool paths are discovered at runtime. The generated skills contain editable starter recipes, not a fixed integration list.
+
+The [CLI reference](/docs/reference/cli) lists every workflow command. The common selectors are repeatable `--page`, `--query` and `--kind`, plus `--limit`, `--market`, `--language`, `--refresh`, `--model`, `--preset-directory` and `--out`. Relevant workflows also accept `--competitor`, `--domain` or `--device desktop|mobile`. Workflow prompts direct the agent to proceed without questions or forms and fail clearly when required input is missing.
+
+Selecting pages preserves their incoming and outgoing relationships to non-selected pages in `evidence.neighborhood`. Those neighbors supply architecture context without becoming workflow targets or consuming `--limit`. The agent receives the limit before research, and PageGraph also caps the decoded result before decisions.
+
+## Keep Executor results small
+
+Executor limits preview text for large tool results. In `executor_execute` code, return only the fields and rows the workflow needs, for example:
+
+```ts
+return rows.slice(0, 50).map(({ keyword, searchVolume, keywordDifficulty }) => ({
+  keyword,
+  searchVolume,
+  keywordDifficulty,
+}));
+```
+
+When PageGraph says a result was truncated, read the named JSON file under `<run>/tool-results/` with `read_file`. Use its `offset` and `maxBytes` options to read large files in chunks.
+
+## Resume a run
+
+Pass `--from <run-dir|run-id>` to a workflow command to resume a prior run. Resume restores its recorded targets and completed stages, along with the agent session and Executor evidence. Completed runs return their recorded output without provider calls. An incomplete run resumes from its recorded checkpoint and skips recorded completed calls, and PageGraph checks that repository HEAD and files still match that checkpoint.
+
+If an action started without recording completion, resume is refused because replaying it could repeat edits. Inspect the run artifacts and repository before starting a new run. Earlier unfinished runs without `progress.json` cannot be resumed.
+
+Completed-run reuse does not load the current app graph. Incomplete resume also compares saved context contents independently of Git, including ignored files and projects outside Git. Checkpoint updates replace the previous JSON atomically, preserving the last usable checkpoint if a write fails. Executor replay matches the exact script or catalog query and reuses its most recent recorded completed result. A changed script or query is a new call.
+
+```bash
+pagegraph research keywords --from .pagegraph/runs/2026-10-05T04-52-23-891Z-research-keywords
+```
+
+## Read run artifacts and failures
+
+After research is validated, the run directory contains `research.json`: an incomplete checkpoint with the collected evidence, decision inputs and agent messages. A downstream failure reports its path so the evidence remains available for diagnosis. Only a completed workflow writes `run.json` and `summary.md`, and a research checkpoint is not a final recommendation.
+
+Model results drop null properties and array elements before validation. Pi receives decode issues and missing Executor evidence through `submit_result`, so it can correct the result in the same agent loop, and repeated rejected submissions fail the run. After the submission retry budget is exhausted, PageGraph retains valid items and records rejected items with their indices and validation reasons in `research.json` and `run.json`.
+
+Every error after run creation writes `failure.json` with the workflow, stage, agent messages and full cause chain. The error reports the artifact path and a next step. A failed artifact write preserves the original error with a note.
+
+Each run writes `.pagegraph/runs/<run-id>/run.json` and `summary.md`, and improve runs also write `edits.json` and `review.md`. The JSON retains the deterministic graph, context, Executor tool evidence, Jev question definitions and answers, Git provenance, changed files and model provenance. Schema-version-2 artifacts record `agent.runtime` as the literal `pi`, with messages and usage. Keep this directory ignored, because provider output can be large or account-specific. Workflows fail when the configured model, Executor toolset, catalog search plus completed tool call, or `OPENROUTER_API_KEY` / `TYPESAFE_API_KEY` for Jev is unavailable.
+
+## Review and apply edits
+
+The agent never writes files. Its action turn submits `edits` and `reviewItems` through `submit_result`:
+
+| Field                                | Meaning                                                                 |
+| ------------------------------------ | ----------------------------------------------------------------------- |
+| `edits[].path`                       | File to change, as `read_file` names it; it must be inside the app root |
+| `edits[].oldText`                    | Exact current text; it must match once. Omit it to create a new file    |
+| `edits[].newText`                    | Replacement text                                                        |
+| `edits[].reason`, `edits[].evidence` | Why the change is justified, with repository and provider evidence      |
+| `reviewItems[]`                      | `path`, `reason` and `evidence` for a change a human must make          |
+
+PageGraph rejects a submission whose edits do not apply to the current files and returns the reasons to the agent. Accepted edits are written to the run directory:
+
+- `edits.json` lists each edit with an ID (`e1`, `e2`, …) and paths relative to the app root, plus review items. Jev decisions that land in review are included as `decision` review items.
+- `review.md` renders the same content for a human: each edit as a diff with its reason and evidence, followed by the review items.
+
+The four `improve` workflows apply their edits by default and require a clean Git tree. Use `--dry-run` to record edits for review without changing source files, or `--allow-dirty` when you explicitly want edits applied alongside existing changes. There is no shell tool. For `improve links`, `fetch_page` reads extracted sentences from served pages on suggestion-report origins, respecting robots rules and the response size limit.
+
+The two modes differ only in who applies the edits:
+
+| Mode            | Source files                                    | Next step                                      |
+| --------------- | ----------------------------------------------- | ---------------------------------------------- |
+| Write (default) | PageGraph applies every edit after recording it | Review the uncommitted diff                    |
+| `--dry-run`     | Unchanged                                       | Review `review.md`, then run `pagegraph apply` |
+
+A write run is equivalent to a dry run followed by `pagegraph apply`. Writes reject paths outside the app root, including symlink escapes, hard-linked files, and paths under `.git`, `node_modules`, the runs directory and the preset directory. PageGraph leaves every diff uncommitted and records the changed files in `run.json`.
+
+```bash
+pagegraph improve metadata --page /pricing --dry-run
+pagegraph apply <run-id> --check          # report which edits still apply; no writes
+pagegraph apply <run-id> --only e1,e3     # apply a subset (repeatable or comma-separated)
+pagegraph apply <run-id>                  # apply every edit that still matches
+```
+
+`pagegraph apply <run-dir|run-id>` runs from the app containing `pagegraph.config.ts` and applies edits in recorded order. An edit is `stale` when its `oldText` no longer matches exactly once or its new file already exists. It is `failed` when the write policy refuses the path or the write errors. Stale and failed edits are skipped and the others apply, and the command exits non-zero if any edit was skipped. `--json` emits a versioned `pagegraph-apply-report`.
+
+## OpenRouter attribution
+
+Every OpenRouter Jev request and Pi agent call whose selected provider is `openrouter` sends `HTTP-Referer: https://github.com/aryasaatvik/pagegraph` and `X-OpenRouter-Title: Pagegraph`. Other providers receive neither header. Override either value in `pagegraph.config.ts`:
+
+```ts
+export default defineSeoConfig({
+  ...config, // your existing Pagegraph configuration
+  openrouter: { referer: "https://example.com", title: "My app" },
+});
+```
+
+The optional override applies to both claims and workflows. Vite-only claims configuration uses PageGraph's default identity. See OpenRouter's [Jev SDK contract](https://openrouter.ai/docs/guides/community/typesafe-sdk) and [app attribution](https://openrouter.ai/docs/app-attribution).

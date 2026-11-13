@@ -1,0 +1,91 @@
+---
+title: Gate CI with pagegraph check
+description: Fail CI on structural SEO violations with pagegraph check, and verify the server-rendered HTML of every declared page with the --site flag.
+crumb: CI check
+related: ["/docs/reference/check-rules", "/docs/reference/cli"]
+---
+
+`pagegraph check` reads the declared graph and exits 1 when it finds a structural violation. This guide runs it in CI and extends it to rendered pages with `--site`. It assumes the `pagegraph.config.ts` from the [quick start](/docs/quick-start).
+
+## Run the declared-graph check
+
+```bash
+pagegraph check                 # CI gate — exit 1 on structural violations
+```
+
+Structural violations fail the command. Editorial findings are reported and do not fail it. A passing `check` without `--site` says nothing about served HTML.
+
+## Check rendered content
+
+The declared graph cannot see what a page renders. Headings come from components, and the `<title>`, JSON-LD and visible text are composed at render time. `pagegraph check --site <url>` fetches every sitemap-eligible page, and every concrete page that declares `noindex`, from a running server. It checks the server-rendered HTML, which is what a crawler receives before any script runs. A server error or failed request is retried once, because a dev server's first render of a route can fail while it compiles.
+
+```bash
+pagegraph check --site http://localhost:3000 --allow-private
+pagegraph check --site https://staging.example.com --json | jq '.violations'
+```
+
+The [check rules reference](/docs/reference/check-rules) lists every rendered-content rule and its severity.
+
+Google requires structured data to describe content the page visibly shows. A FAQ answer that exists only in JSON-LD or in hydration data, such as an accordion that mounts answers on open, is a structural violation. Comparisons ignore punctuation, case and markup. Prices match as numbers: `19` matches `$19/mo` and `19.00`, not `$199`. Canonicals compare by path. Robots are read from the meta tag only, so a local or preview host that sends `X-Robots-Tag: noindex` everywhere can still run the check.
+
+## Set word-count floors
+
+Word-count floors are project policy, declared per path glob. A page that matches several rules must meet the highest.
+
+```ts
+export default defineSeoConfig({
+  // ...
+  content: {
+    minWords: [
+      { path: "/blog/*", minWords: 500 },
+      { path: "/compare/*", minWords: 800 },
+    ],
+  },
+});
+```
+
+## Add a freshness policy
+
+Declare a freshness policy to turn old pages into editorial `stale-page` findings, and list the refresh queue with `pagegraph stale`:
+
+```ts
+export default defineSeoConfig({
+  // ...
+  freshness: { maxAgeDays: 90 },
+});
+```
+
+```bash
+pagegraph stale                     # stale pages, oldest first; undated pages counted
+pagegraph stale --max-age-days 180 --json
+```
+
+Only sitemap-eligible pages are judged. A page without a date is reported as undated rather than stale. Give content its `modifiedAt`, or a route its `staticData.seo.modifiedAt`, to bring it into the report and the sitemap's `<lastmod>`.
+
+## Test the same checks
+
+Everything the CLI checks is a pure function you can call from a test:
+
+```ts
+import {
+  checkGraph,
+  checkPageContent,
+  extractPageContent,
+  hasStructuralViolations,
+  inspectHtml,
+} from "pagegraph";
+import { evaluateAppGraph } from "pagegraph/tanstack-start";
+
+// the graph the plugin ships, evaluated through your Vite config
+const { graph } = await evaluateAppGraph({ root: appRoot, mode: "production" });
+expect(hasStructuralViolations(checkGraph(graph))).toBe(false);
+
+// render a page however you like, then assert the head it actually ships
+const report = inspectHtml(url, 200, html);
+expect(report.issues).toEqual([]);
+
+// …and the content it ships: one H1, visible FAQ answers, shown prices
+expect(checkPageContent(extractPageContent(html))).toEqual([]);
+```
+
+`pagegraph audit` also runs the heading and structured-data rules on every audited HTML page. The robots, canonical and word-count rules need the declared graph, so they stay in `check`. See [Audit any website](/docs/guides/audit).

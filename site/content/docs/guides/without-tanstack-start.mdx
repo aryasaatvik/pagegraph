@@ -1,0 +1,66 @@
+---
+title: Use PageGraph without TanStack Start
+description: Build the same graph from any TanStack Router tree, render the sitemap and robots.txt yourself, and point the CLI at it with viteGraphLoader.
+crumb: Without Start
+related: ["/docs/reference/entries", "/docs/reference/configuration"]
+---
+
+`buildSeoGraph({ routeTree, collections })` builds the same graph from any TanStack Router tree. This guide renders the outputs yourself and points the CLI at your graph module. The plugin and the server entries are TanStack Start only.
+
+## Render the outputs
+
+Render the sitemap with `renderSitemap(graph, { origin, indexable })` and `robots.txt` with `renderRobots(graph, { origin, indexable, disallow, contentSignal })`.
+
+`renderRobots` does not invent a Content-Signal. Pass `contentSignal` for the value (the plugin prefixes `Content-Signal: `), `directives` for extra group lines, and `transform` if you need to wrap or replace the whole file. Preview hosts (`indexable: false`) drop `contentSignal` and `directives`, while `transform` still runs.
+
+For the coverage gate, use `seoRouteConfig` from `pagegraph/vite` and feed its `robotsExclusions` to `renderRobots`. See [Enforce route coverage in Vite](/docs/guides/coverage-gate).
+
+## Point the CLI at your graph
+
+The graph commands acquire your graph through `pagegraph.config.ts` at the app root. Outside TanStack Start, `viteGraphLoader` evaluates your graph module inside a headless Vite server, so path aliases, content plugins and virtual modules all resolve.
+
+```ts
+// pagegraph.config.ts
+import { defineSeoConfig, viteGraphLoader } from "pagegraph/config";
+import { routeConfig } from "./src/lib/route-config";
+
+export default defineSeoConfig({
+  // Fail `check` unless each named money page has enough contextual links.
+  coverage: [
+    { path: "/pricing", minInbound: 2 },
+    { path: "/features/*", minInbound: 1 },
+  ],
+  loadGraph: viteGraphLoader({
+    root: import.meta.dirname,
+    entry: "/lib/seo/graph.ts",
+    exportName: "loadSeoGraph",
+    site: {
+      origin: "https://example.com",
+      indexable: true,
+      robots: {
+        disallow: routeConfig.robotsExclusions,
+        contentSignal: "search=yes, ai-input=yes, ai-train=yes",
+      },
+    },
+  }),
+});
+```
+
+The file holds CLI policies and `loadGraph`. Site identity and robots policy come from the loader result.
+
+## Read page heads at build time
+
+Build-time consumers of page titles and descriptions read the same graph:
+
+```ts
+import { loadPageHeads } from "pagegraph/config"; // build-only
+import { tanstackStartGraph } from "pagegraph/tanstack-start";
+
+const heads = await loadPageHeads(tanstackStartGraph({ root: import.meta.dirname }), {
+  exclude: ["/docs", "/docs/**"],
+});
+```
+
+`selectPageHeadNodes(graph, options)` selects the page nodes `pageHeads` reads. `pageHeads(graph, options)` returns `{ path, title, description }[]` from each node's `head`, requiring nonblank titles and descriptions and naming the page on failure. `loadPageHeads` always disposes the acquired graph, including when validation fails.
+
+Page nodes carry a sitemap declaration or an instance, and layouts are excluded. By default, selection excludes noindex pages, redirects and parameter templates, while retaining sitemap-disabled hubs. Set `indexable: false` to include those nonindexable nodes. `exclude` accepts exact paths and path globs (`*` within a segment, `**` across segments). Docs are ordinary pages, so excluding them is caller policy, not a graph kind.

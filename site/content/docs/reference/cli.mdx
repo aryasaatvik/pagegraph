@@ -1,0 +1,97 @@
+---
+title: CLI commands
+description: Every pagegraph CLI command with a one-line description, the agentic workflow command table, and the stdout and stderr convention.
+crumb: CLI
+related: ["/docs/reference/check-rules", "/docs/reference/configuration"]
+---
+
+The `pagegraph` binary runs on [Bun](https://bun.sh) (`bunx pagegraph`). It bundles PageGraph's Effect, TypeSafe provider runtime and Pi agent runtime, so it does not depend on the app's Effect version. `vite` stays a peer, because graph commands load your app through Vite at runtime, and `lighthouse` is only needed by `pagegraph audit`.
+
+The graph commands acquire your graph through `pagegraph.config.ts` at the app root. Rename an existing `seo.config.ts`, `.js` or `.mjs` to its `pagegraph.config.*` equivalent.
+
+## Graph commands
+
+```bash
+pagegraph check                 # CI gate — exit 1 on structural violations
+pagegraph check --site <url>    # also check every declared page's rendered HTML
+pagegraph stale                 # refresh queue: sitemap pages past the freshness policy
+pagegraph graph                 # the graph as a tree · --format mermaid | json
+pagegraph inspect /pricing      # one node: policy, sitemap status, in/out edges
+pagegraph inspect <url> --live  # fetch a deployed page, validate its rendered <head>
+pagegraph links verify <url>    # crawl served HTML: depth, orphans, declared-vs-rendered
+pagegraph links verify <url> --assert-coverage  # also assert pagegraph.config.ts coverage on served anchors
+pagegraph links verify <url> --emit-rendered <file>  # save the rendered edge set
+pagegraph links candidates      # propose contextual links from the declared graph
+pagegraph research keywords --query "email api"  # combine graph, Executor, and Jev evidence
+pagegraph improve metadata --page /pricing       # apply a clean-tree source improvement
+pagegraph apply <run-id>                         # apply a dry-run's recorded edits
+pagegraph sitemap               # print sitemap.xml
+pagegraph robots                # print robots.txt
+```
+
+| Command                          | What it does                                                                 |
+| -------------------------------- | ---------------------------------------------------------------------------- |
+| `check`                          | Runs every rule on the declared graph; exits 1 on structural violations      |
+| `check --site <url>`             | Also checks the server-rendered HTML of every declared page                  |
+| `stale`                          | Lists sitemap-eligible pages past the freshness policy, oldest first         |
+| `graph`                          | Prints the graph as a tree, or with `--format mermaid` or `json`             |
+| `inspect <path>`                 | Shows one node: policy, sitemap status, incoming and outgoing edges          |
+| `inspect <url> --live`           | Fetches a deployed page and validates its rendered `<head>`                  |
+| `links verify <url>`             | Crawls served HTML for depth, orphans and the declared-vs-rendered link diff |
+| `links candidates`               | Proposes contextual links from the declared graph                            |
+| `sitemap`                        | Prints `sitemap.xml`                                                         |
+| `robots`                         | Prints `robots.txt`                                                          |
+| `apply <run-id>`                 | Applies the recorded edits of a dry run                                      |
+| `diff <before> <after>`          | Compares two audit reports by semantic SEO outcome                           |
+| `audit <url...>`                 | Audits any website without `pagegraph.config.ts`                             |
+| `init`                           | Scaffolds the shared agent preset under `.pagegraph/agent`                   |
+| `claims check`                   | Asks for missing claims answers and replays committed ones                   |
+| `markdown show`, `find`, `lock`  | Inspects captured Markdown documents and maintains `markdown.lock.json`      |
+| `skills list`, `skills get core` | Prints the bundled TanStack Start integration skill                          |
+
+## Workflow commands
+
+These run an agent through Pi. See [Run agent workflows](/docs/guides/agent-workflows) for setup.
+
+| Command                | Result                                                               |
+| ---------------------- | -------------------------------------------------------------------- |
+| `research keywords`    | Query demand, intent, and page ownership opportunities               |
+| `research competitors` | Competitor topics, pages, and positioning evidence                   |
+| `research authority`   | Qualified editorial, directory, partner, and community opportunities |
+| `analyze serp`         | Search-result intent and page-shape fit                              |
+| `analyze content`      | Substance, answer quality, and intent overlap                        |
+| `analyze ai-search`    | Citation readiness and answer-engine coverage                        |
+| `plan architecture`    | A page-backed information-architecture plan                          |
+| `improve content`      | Evidence-backed source copy edits                                    |
+| `improve metadata`     | Title and description edits at the owning source                     |
+| `improve schema`       | Structured-data edits justified by visible content                   |
+| `improve links`        | Contextual internal-link edits from graph and page evidence          |
+
+The four `improve` commands apply edits by default and require a clean Git tree. `--dry-run` records edits without changing files, and `--allow-dirty` applies them alongside existing changes.
+
+## Agent skill
+
+```bash
+pagegraph skills list
+pagegraph skills get core
+```
+
+The skill is maintained at [skill-data/core/SKILL.md](https://github.com/aryasaatvik/pagegraph/blob/main/skill-data/core/SKILL.md) and compiled into the CLI, so the instructions match the installed PageGraph version. `skills get core` prints Markdown to stdout, and `--json` returns a structured payload.
+
+## Output convention
+
+Stdout is data, stderr is status. `pagegraph check --json | jq` just works. Check the exit code as well as the output.
+
+## Common flags
+
+| Flag                             | Applies to                                        | Meaning                                                                |
+| -------------------------------- | ------------------------------------------------- | ---------------------------------------------------------------------- |
+| `--json`                         | most commands                                     | Emit versioned structured output on stdout                             |
+| `--site <url>`                   | `check`, `links candidates`                       | Fetch rendered pages from a running server                             |
+| `--allow-private`                | `check --site`, `audit`, `links`, `improve links` | Permit private and reserved destinations; for local development and CI |
+| `--require-inbound "<glob>=<n>"` | `check`                                           | Override the `coverage` policy for one run                             |
+| `--limit`                        | `links verify`, `links candidates`, workflows     | Bound the crawl, plan or result count                                  |
+| `--rendered <path>`              | `links verify`, `links candidates`                | Replay a saved rendered edge set instead of crawling                   |
+| `--from <run-dir\|run-id>`       | workflow commands                                 | Resume a prior run                                                     |
+| `--dev <origin>`                 | `markdown`, `claims check`                        | Use the development bundle instead of the build                        |
+| `--refresh`                      | `claims check`, workflows                         | Ask again and replace cached answers                                   |

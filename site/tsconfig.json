@@ -1,0 +1,27 @@
+{
+  "compilerOptions": {
+    "target": "ES2023",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "jsx": "react-jsx",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "verbatimModuleSyntax": true,
+    "allowImportingTsExtensions": true,
+    "types": ["vite/client", "node"],
+    "paths": {
+      "fumadocs-mdx:collections/*": ["./.source/*"]
+    }
+  },
+  "include": [
+    "src",
+    "vite.config.ts",
+    "cloudflare.config.ts",
+    "pagegraph.config.ts",
+    "source.config.ts",
+    ".source"
+  ]
+}

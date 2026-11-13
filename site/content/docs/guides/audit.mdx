@@ -1,0 +1,46 @@
+---
+title: Audit any website
+description: Run pagegraph audit against any URL without a config file, then compare two audit reports to catch SEO regressions between revisions.
+crumb: Audit
+related: ["/docs/reference/cli", "/docs/guides/ci-check"]
+---
+
+`pagegraph audit` is framework-independent and does not need `pagegraph.config.ts`. This guide audits URLs and compares two reports from different revisions.
+
+## Audit a URL
+
+The command validates target URLs before making requests, follows redirects through the same validation boundary, inspects the rendered document and discovery files, and can collect Lighthouse evidence through a validating proxy.
+
+```bash
+pagegraph audit https://example.com
+pagegraph audit https://example.com https://example.com/docs --json | jq
+pagegraph audit https://localhost:3000 --allow-private --probe-only
+```
+
+The report keeps evidence and findings separate. Scanners collect observations, and pure rules classify structural failures and editorial quality issues. One failed scanner does not erase successful evidence from the others. JSON mode emits one versioned document on stdout, while diagnostics and artifact paths stay on stderr.
+
+Use `--probe-only` when Lighthouse is unavailable or unnecessary. Install `lighthouse` as a dev dependency for performance evidence. Private and reserved destinations are rejected unless `--allow-private` is explicit. That flag is intended for local development and CI fixtures.
+
+## Compare audit artifacts
+
+Write timestamped reports from two revisions, then compare their semantic SEO outcomes without failing on timestamps, timing or other raw scanner evidence:
+
+```bash
+pagegraph audit https://example.com --output-dir .audit/before
+# deploy or check out the next revision
+pagegraph audit https://example.com --output-dir .audit/after
+pagegraph diff .audit/before/<report>.json .audit/after/<report>.json
+pagegraph diff .audit/before/<report>.json .audit/after/<report>.json --json | jq
+```
+
+| Change                                                    | Outcome     | Exit |
+| --------------------------------------------------------- | ----------- | ---: |
+| Timestamp, warning text, or raw scanner evidence only     | `unchanged` |    0 |
+| Editorial finding or improvement                          | `changed`   |    0 |
+| Structural finding, scanner degradation, or lost coverage | `regressed` |    1 |
+
+Inputs must satisfy the published `AuditReport` schema version 1. JSON mode emits a separately versioned `audit-diff` document even when a regression makes the command exit 1. Operational and schema failures write only to stderr.
+
+Raw scanner evidence remains in the source artifacts but is not interpreted by the generic comparator. Express performance gates as scanner findings with explicit thresholds rather than inferring them from volatile Lighthouse measurements. Finding payloads (`message`, `fix`, `observed` and `expected`) remain semantic, so same-severity changes are reported as non-blocking `changed` outcomes.
+
+Importing `pagegraph/audit` programmatically needs `effect@^4.1.2`.

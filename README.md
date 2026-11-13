@@ -1,5 +1,9 @@
 # pagegraph
 
+**[pagegraph.arya.sh](https://pagegraph.arya.sh)** · [Docs](https://pagegraph.arya.sh/docs) ·
+[Quick start](https://pagegraph.arya.sh/docs/quick-start) · [CLI](https://pagegraph.arya.sh/docs/reference/cli) ·
+[npm](https://www.npmjs.com/package/pagegraph)
+
 Route-declared SEO for TanStack Start and TanStack Router. Each route declares its SEO
 policy and head once, in `staticData.seo` — the `<head>`, sitemap, `robots.txt`,
 breadcrumbs, JSON-LD, cross-links, and the CI check all derive from that one
@@ -31,6 +35,222 @@ flowchart LR
 bun add pagegraph
 bun add -D lighthouse   # only for `pagegraph audit` performance evidence
 ```
+
+## Quick start (TanStack Start)
+
+**1. Bind your site identity once.** Route files never see an origin or a brand name.
+
+```ts
+// lib/seo.ts
+import { createSeo } from "pagegraph/react";
+
+const site = createSeo({
+  origin: "https://example.com",
+  site: {
+    name: "Example",
+    logo: "/logo.png",
+    publisherLogo: "/publisher.png",
+    defaultImage: "/og.png",
+    defaultAuthor: { name: "Example Team" },
+  },
+  organization: {
+    legalName: "Example, Inc.",
+    description: "What the company does.",
+    sameAs: ["https://github.com/example"],
+    contactPoint: { contactType: "support", email: "hi@example.com" },
+  },
+  website: { searchPath: "/docs?q={search_term_string}" },
+});
+
+export const seo = site; // seo.head for static routes
+export const { seoHead } = site;
+```
+
+**2. Declare each page once.** `staticData.seo` holds the crawl policy and the head
+together; `seo.head` renders it. The graph and the checks read the same
+`staticData.seo.head` — the page and the graph cannot disagree.
+
+```tsx
+export const Route = createFileRoute("/pricing")({
+  staticData: {
+    seo: {
+      kind: "page",
+      crumb: "Pricing",
+      sitemap: { priority: 0.9, changeFrequency: "weekly" },
+      related: ["/features", "/docs"],
+      link: { title: "Pricing", description: "Simple volume pricing." },
+      modifiedAt: "2026-09-29", // sitemap <lastmod> and the freshness report
+      head: {
+        title: "Pricing — Example",
+        description: "Simple volume pricing.",
+        faqs: pricingFaqs,
+      },
+    },
+  },
+  head: seo.head,
+  component: PricingPage,
+});
+```
+
+`seo.head` returns the `meta` + canonical `links` TanStack renders into `<head>` —
+title, description, og/twitter cards, robots, and the JSON-LD each page warrants
+(BreadcrumbList on the matched leaf when its crumb trail has two or more entries; Article,
+FAQPage, Service, ItemList when the head declares them). A route that renders from
+`loaderData` calls `seoHead(ctx, instance)` in its own `head()` and declares a `titleTemplate` (`"%s | Example Blog"`): `seoHead` applies it,
+and the graph applies it to the route's collection pages.
+
+![One declaration in staticData.seo: the fixture pricing route with its link, crumb, sitemap, head, and head.image fields, what each derives, and the check that guards it](media/exports/route-declaration.png)
+
+**3. Register the plugin.** It builds the graph once per build (and on change in dev)
+inside your app's Vite pipeline — path aliases, `define`s, and content plugins such as
+Fumadocs apply, with no stubs — and ships it to the server runtime as data.
+
+```ts
+// vite.config.ts
+import { pagegraph } from "pagegraph/tanstack-start";
+
+pagegraph({
+  origin: "https://example.com",
+  indexable: process.env.DEPLOY_ENV === "production", // previews disallow everything
+  robots: { contentSignal: "search=yes, ai-input=yes, ai-train=yes" },
+  collections: "src/lib/seo/collections.ts",
+  routeConfig: {
+    outputPath: fileURLToPath(new URL("./src/lib/route-config.ts", import.meta.url)),
+    publicGroups: ["(marketing)", "(docs)"],
+    enforceCoverageIn: ["(marketing)", "(docs)"],
+    alwaysDisallow: ["/dashboard", "/api"],
+  },
+});
+```
+
+```ts
+// src/lib/seo/collections.ts — evaluated in the app's Vite pipeline
+import { contentCollection } from "pagegraph";
+import { blogSource } from "../blog-source"; // e.g. a Fumadocs loader()
+
+export const collections = () => [
+  contentCollection({
+    route: "/blog/$slug",
+    source: "blog",
+    pages: blogSource.getPages(),
+    entry: (page) => ({
+      title: page.data.title,
+      description: page.data.description,
+      publishedAt: page.data.date,
+      related: page.data.related,
+    }),
+  }),
+];
+```
+
+The plugin evaluates every route file that declares `staticData` — never the generated
+route tree — in a Node environment named `pagegraph`. A route that imports a module
+only the server runtime provides (`cloudflare:workers`) fails with its file name; add an
+app-only route to `exclude` (route-file globs).
+
+### Per-page Open Graph images
+
+Declare an image alongside a static page's title and description:
+
+```ts
+head: {
+  title: "Pricing — Example",
+  description: "Simple volume pricing.",
+  image: { url: "/og/pricing.png", width: 1200, height: 630, alt: "Example pricing" },
+}
+```
+
+For collection pages, return `image` from `contentCollection`'s `entry` mapping and pass the
+same value to `seoHead(ctx, { ...head, image })` at render time. Existing `article.image` strings
+remain supported. Precedence is `head.image`, then `article.image`, then the resolver.
+
+Share a resolver between the build plugin and the render API so every graph consumer and the
+rendered head use the same image:
+
+```ts
+// src/lib/seo/og-image.ts
+import type { OgImageResolver } from "pagegraph";
+
+export const ogImage: OgImageResolver = (node) => ({
+  url: `/og/${node.kind}/${node.path === "/" ? "index" : node.path.slice(1)}.png`,
+  width: 1200,
+  height: 630,
+  alt: node.head?.title ?? node.path,
+});
+
+// vite.config.ts
+pagegraph({ origin: "https://example.com", ogImage /* other plugin options */ });
+
+// src/lib/seo.ts
+createSeo({ origin: "https://example.com", ogImage, site, organization, website });
+```
+
+The resolver is synchronous and returns an image or `undefined`. It receives a concrete node
+with its path, kind, and head metadata (the shared `OgImageNode` shape). The resolver path
+honors `head.canonicalPath` while graph path ownership stays unchanged. Keep it
+deterministic and safe to import in the server/browser runtime. The consumer renders the PNGs
+at build time; pagegraph only resolves metadata. The graph stores the absolute URL in
+`node.head.image`, preserved by graph serialization and exposed by `pageHeads` for downstream
+head, llms, and Markdown tooling. A generic `buildSeoGraph` caller supplies `origin` and
+`ogImage` to resolve images in the same way.
+
+An image emits `og:image`, optional `og:image:width`, `og:image:height`, and `og:image:alt`, plus
+`twitter:image` and `twitter:card=summary_large_image`. Without an image, the card is `summary`.
+`site.defaultImage` remains the Article JSON-LD default; it does not satisfy social-image coverage.
+
+`pagegraph check` fails sitemap-eligible pages without a resolved image. Same-origin images
+must name files under the app's `public/` directory, including absolute URLs resolved from
+local paths; external URLs are not fetched. Generate the files before running the check.
+Configure the policy in `pagegraph.config.ts`:
+
+```ts
+export default defineSeoConfig({
+  loadGraph: tanstackStartGraph({ root: import.meta.dirname }),
+  ogImage: {
+    severity: "structural", // default: error; "editorial" warns, "off" skips both checks
+    publicDirectory: "public", // relative to the config directory; default: public
+  },
+});
+```
+
+**4. Serve robots.txt and sitemap.xml.** One line each; the output depends on the
+deployment's origin and indexability, so they stay routes.
+
+```ts
+// src/routes/robots[.]txt.ts — sitemap[.]xml.ts is symmetric with sitemapXml
+import { robotsTxt } from "pagegraph/tanstack-start/server";
+
+export const Route = createFileRoute("/robots.txt")({ server: { handlers: { GET: robotsTxt } } });
+```
+
+**5. Gate CI.** The CLI reads the same graph through `pagegraph.config.ts`:
+
+```ts
+// pagegraph.config.ts
+import { defineSeoConfig } from "pagegraph/config";
+import { tanstackStartGraph } from "pagegraph/tanstack-start";
+
+export default defineSeoConfig({
+  loadGraph: tanstackStartGraph({ root: import.meta.dirname }),
+});
+```
+
+```bash
+pagegraph check
+```
+
+### Without TanStack Start
+
+`buildSeoGraph({ routeTree, collections })` builds the same graph from any TanStack
+Router tree; render it with `renderSitemap(graph, { origin, indexable })` and
+`renderRobots(graph, { origin, indexable, disallow, contentSignal })`, and point
+`pagegraph.config.ts` at it with `viteGraphLoader` (see [CLI](#cli)).
+
+`renderRobots` does not invent a Content-Signal. Pass `contentSignal` for
+the value (the plugin prefixes `Content-Signal: `), `directives` for extra
+group lines, and `transform` if you need to wrap or replace the whole file.
+Preview hosts (`indexable: false`) drop `contentSignal` and `directives`;
+`transform` still runs.
 
 ## Authored pages
 
@@ -274,222 +494,6 @@ pagegraph skills get core
 ```
 
 The skill is maintained at [skill-data/core/SKILL.md](skill-data/core/SKILL.md) and compiled into the CLI, so the instructions match the installed Pagegraph version. `skills get core` prints Markdown to stdout; `--json` returns a structured payload.
-
-## Quick start (TanStack Start)
-
-**1. Bind your site identity once.** Route files never see an origin or a brand name.
-
-```ts
-// lib/seo.ts
-import { createSeo } from "pagegraph/react";
-
-const site = createSeo({
-  origin: "https://example.com",
-  site: {
-    name: "Example",
-    logo: "/logo.png",
-    publisherLogo: "/publisher.png",
-    defaultImage: "/og.png",
-    defaultAuthor: { name: "Example Team" },
-  },
-  organization: {
-    legalName: "Example, Inc.",
-    description: "What the company does.",
-    sameAs: ["https://github.com/example"],
-    contactPoint: { contactType: "support", email: "hi@example.com" },
-  },
-  website: { searchPath: "/docs?q={search_term_string}" },
-});
-
-export const seo = site; // seo.head for static routes
-export const { seoHead } = site;
-```
-
-**2. Declare each page once.** `staticData.seo` holds the crawl policy and the head
-together; `seo.head` renders it. The graph and the checks read the same
-`staticData.seo.head` — the page and the graph cannot disagree.
-
-```tsx
-export const Route = createFileRoute("/pricing")({
-  staticData: {
-    seo: {
-      kind: "page",
-      crumb: "Pricing",
-      sitemap: { priority: 0.9, changeFrequency: "weekly" },
-      related: ["/features", "/docs"],
-      link: { title: "Pricing", description: "Simple volume pricing." },
-      modifiedAt: "2026-09-29", // sitemap <lastmod> and the freshness report
-      head: {
-        title: "Pricing — Example",
-        description: "Simple volume pricing.",
-        faqs: pricingFaqs,
-      },
-    },
-  },
-  head: seo.head,
-  component: PricingPage,
-});
-```
-
-`seo.head` returns the `meta` + canonical `links` TanStack renders into `<head>` —
-title, description, og/twitter cards, robots, and the JSON-LD each page warrants
-(BreadcrumbList on the matched leaf when its crumb trail has two or more entries; Article,
-FAQPage, Service, ItemList when the head declares them). A route that renders from
-`loaderData` calls `seoHead(ctx, instance)` in its own `head()` and declares a `titleTemplate` (`"%s | Example Blog"`): `seoHead` applies it,
-and the graph applies it to the route's collection pages.
-
-![One declaration in staticData.seo: the fixture pricing route with its link, crumb, sitemap, head, and head.image fields, what each derives, and the check that guards it](media/exports/route-declaration.png)
-
-**3. Register the plugin.** It builds the graph once per build (and on change in dev)
-inside your app's Vite pipeline — path aliases, `define`s, and content plugins such as
-Fumadocs apply, with no stubs — and ships it to the server runtime as data.
-
-```ts
-// vite.config.ts
-import { pagegraph } from "pagegraph/tanstack-start";
-
-pagegraph({
-  origin: "https://example.com",
-  indexable: process.env.DEPLOY_ENV === "production", // previews disallow everything
-  robots: { contentSignal: "search=yes, ai-input=yes, ai-train=yes" },
-  collections: "src/lib/seo/collections.ts",
-  routeConfig: {
-    outputPath: fileURLToPath(new URL("./src/lib/route-config.ts", import.meta.url)),
-    publicGroups: ["(marketing)", "(docs)"],
-    enforceCoverageIn: ["(marketing)", "(docs)"],
-    alwaysDisallow: ["/dashboard", "/api"],
-  },
-});
-```
-
-```ts
-// src/lib/seo/collections.ts — evaluated in the app's Vite pipeline
-import { contentCollection } from "pagegraph";
-import { blogSource } from "../blog-source"; // e.g. a Fumadocs loader()
-
-export const collections = () => [
-  contentCollection({
-    route: "/blog/$slug",
-    source: "blog",
-    pages: blogSource.getPages(),
-    entry: (page) => ({
-      title: page.data.title,
-      description: page.data.description,
-      publishedAt: page.data.date,
-      related: page.data.related,
-    }),
-  }),
-];
-```
-
-The plugin evaluates every route file that declares `staticData` — never the generated
-route tree — in a Node environment named `pagegraph`. A route that imports a module
-only the server runtime provides (`cloudflare:workers`) fails with its file name; add an
-app-only route to `exclude` (route-file globs).
-
-### Per-page Open Graph images
-
-Declare an image alongside a static page's title and description:
-
-```ts
-head: {
-  title: "Pricing — Example",
-  description: "Simple volume pricing.",
-  image: { url: "/og/pricing.png", width: 1200, height: 630, alt: "Example pricing" },
-}
-```
-
-For collection pages, return `image` from `contentCollection`'s `entry` mapping and pass the
-same value to `seoHead(ctx, { ...head, image })` at render time. Existing `article.image` strings
-remain supported. Precedence is `head.image`, then `article.image`, then the resolver.
-
-Share a resolver between the build plugin and the render API so every graph consumer and the
-rendered head use the same image:
-
-```ts
-// src/lib/seo/og-image.ts
-import type { OgImageResolver } from "pagegraph";
-
-export const ogImage: OgImageResolver = (node) => ({
-  url: `/og/${node.kind}/${node.path === "/" ? "index" : node.path.slice(1)}.png`,
-  width: 1200,
-  height: 630,
-  alt: node.head?.title ?? node.path,
-});
-
-// vite.config.ts
-pagegraph({ origin: "https://example.com", ogImage /* other plugin options */ });
-
-// src/lib/seo.ts
-createSeo({ origin: "https://example.com", ogImage, site, organization, website });
-```
-
-The resolver is synchronous and returns an image or `undefined`. It receives a concrete node
-with its path, kind, and head metadata (the shared `OgImageNode` shape). The resolver path
-honors `head.canonicalPath` while graph path ownership stays unchanged. Keep it
-deterministic and safe to import in the server/browser runtime. The consumer renders the PNGs
-at build time; pagegraph only resolves metadata. The graph stores the absolute URL in
-`node.head.image`, preserved by graph serialization and exposed by `pageHeads` for downstream
-head, llms, and Markdown tooling. A generic `buildSeoGraph` caller supplies `origin` and
-`ogImage` to resolve images in the same way.
-
-An image emits `og:image`, optional `og:image:width`, `og:image:height`, and `og:image:alt`, plus
-`twitter:image` and `twitter:card=summary_large_image`. Without an image, the card is `summary`.
-`site.defaultImage` remains the Article JSON-LD default; it does not satisfy social-image coverage.
-
-`pagegraph check` fails sitemap-eligible pages without a resolved image. Same-origin images
-must name files under the app's `public/` directory, including absolute URLs resolved from
-local paths; external URLs are not fetched. Generate the files before running the check.
-Configure the policy in `pagegraph.config.ts`:
-
-```ts
-export default defineSeoConfig({
-  loadGraph: tanstackStartGraph({ root: import.meta.dirname }),
-  ogImage: {
-    severity: "structural", // default: error; "editorial" warns, "off" skips both checks
-    publicDirectory: "public", // relative to the config directory; default: public
-  },
-});
-```
-
-**4. Serve robots.txt and sitemap.xml.** One line each; the output depends on the
-deployment's origin and indexability, so they stay routes.
-
-```ts
-// src/routes/robots[.]txt.ts — sitemap[.]xml.ts is symmetric with sitemapXml
-import { robotsTxt } from "pagegraph/tanstack-start/server";
-
-export const Route = createFileRoute("/robots.txt")({ server: { handlers: { GET: robotsTxt } } });
-```
-
-**5. Gate CI.** The CLI reads the same graph through `pagegraph.config.ts`:
-
-```ts
-// pagegraph.config.ts
-import { defineSeoConfig } from "pagegraph/config";
-import { tanstackStartGraph } from "pagegraph/tanstack-start";
-
-export default defineSeoConfig({
-  loadGraph: tanstackStartGraph({ root: import.meta.dirname }),
-});
-```
-
-```bash
-pagegraph check
-```
-
-### Without TanStack Start
-
-`buildSeoGraph({ routeTree, collections })` builds the same graph from any TanStack
-Router tree; render it with `renderSitemap(graph, { origin, indexable })` and
-`renderRobots(graph, { origin, indexable, disallow, contentSignal })`, and point
-`pagegraph.config.ts` at it with `viteGraphLoader` (see [CLI](#cli)).
-
-`renderRobots` does not invent a Content-Signal. Pass `contentSignal` for
-the value (the plugin prefixes `Content-Signal: `), `directives` for extra
-group lines, and `transform` if you need to wrap or replace the whole file.
-Preview hosts (`indexable: false`) drop `contentSignal` and `directives`;
-`transform` still runs.
 
 ## Agentic workflows
 
@@ -777,8 +781,9 @@ severities:
   contextual-link coverage rule, or a published URL the rendered `robots.txt`
   disallows for `User-agent: *` (`robots-blocks-sitemap-url`: every sitemap page,
   `/sitemap.xml`, and `/llms.txt` when the graph declares it).
-- **editorial** — quality smells, reported but non-failing: duplicate or mis-sized
-  titles and descriptions, and pages older than the freshness policy.
+- **editorial** — quality smells, reported but non-failing: duplicate titles and
+  descriptions, descriptions longer than search results show, and pages older than the
+  freshness policy.
 
 Each sitemap entry's `<lastmod>` is the page's last declared change: an
 instance's `modifiedAt`, else its `publishedAt`; a route's `modifiedAt`. A param

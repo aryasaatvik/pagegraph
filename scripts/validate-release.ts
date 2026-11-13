@@ -109,8 +109,8 @@ const assertPackageIdentity = (manifest: PackageManifest): void => {
   if (manifest.repository.type !== "git" || manifest.repository.url !== repositoryUrl) {
     throw new Error(`Package repository must be ${repositoryUrl}`);
   }
-  if (manifest.homepage !== "https://github.com/aryasaatvik/pagegraph#readme") {
-    throw new Error("Package homepage must point to the owned repository");
+  if (manifest.homepage !== "https://pagegraph.arya.sh") {
+    throw new Error("Package homepage must point to the owned site, https://pagegraph.arya.sh");
   }
   if (manifest.bugs.url !== "https://github.com/aryasaatvik/pagegraph/issues") {
     throw new Error("Package bugs URL must point to the owned repository");

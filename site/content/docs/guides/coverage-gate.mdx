@@ -1,0 +1,39 @@
+---
+title: Enforce route coverage in Vite
+description: Fail vite build when a page in an enforced route group declares neither staticData nor head, and derive robots exclusions from the route tree.
+crumb: Coverage gate
+related: ["/docs/reference/configuration", "/docs/concepts/the-graph"]
+---
+
+The coverage gate parses your route tree and fails `vite build` when a page in an enforced route group has neither `staticData` nor `head`. This guide turns it on and shows what else it derives.
+
+## Turn on the gate
+
+`pagegraph({ routeConfig })` enables it in a TanStack Start app. In a Router-only app, use `seoRouteConfig` from `pagegraph/vite`. Both parse the route tree with `@tanstack/router-generator`, the same parser as the router.
+
+```ts
+// vite.config.ts
+import { seoRouteConfig } from "pagegraph/vite";
+
+seoRouteConfig({
+  outputPath: fileURLToPath(new URL("./lib/route-config.ts", import.meta.url)),
+  publicGroups: ["(marketing)", "(docs)"],
+  enforceCoverageIn: ["(marketing)", "(docs)"],
+  alwaysDisallow: ["/dashboard", "/api"],
+});
+```
+
+## Use the derived config module
+
+The gate also derives a small config module from the route tree:
+
+- `robotsExclusions`: the plugin adds them to `robots.txt`. A Router-only app feeds them to `renderRobots`.
+- `reservedSegments`: top-level segments an app must not hand out as tenant or org slugs.
+
+## Exclude groups from robots.txt
+
+A page in a `disallowGroups` group contributes its exact path, such as `/signup`. A dynamic, optional or splat segment contributes the directory before it, with the trailing slash: `/s/$formKey` becomes `Disallow: /s/`. Robots rules are prefix matches, so `Disallow: /s` would also block `/solutions` and `/sitemap.xml`.
+
+A dynamic route at the site root (`/$slug`) in a disallowed group fails the build, since its prefix would be `/`.
+
+`pagegraph check` runs the rendered `robots.txt` through RFC 9309 matching (longest match, Allow wins ties, `*` and `$`) and reports any published URL a `Disallow` blocks. See the `robots-blocks-sitemap-url` rule in the [check rules reference](/docs/reference/check-rules).
